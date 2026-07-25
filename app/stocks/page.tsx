@@ -8,6 +8,8 @@ import { getNews } from "@/lib/sources/rss";
 import { STOCKS_WATCHLIST, US_INDICES } from "@/lib/watchlist";
 import type { RankingItem } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 function toRankingItem(item: YahooScreenerItem): RankingItem {
   return { symbol: item.symbol, label: item.name, value: item.price, changePct: item.changePct, volume: item.volume };
 }

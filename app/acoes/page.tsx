@@ -11,6 +11,8 @@ import { getZScoreHighlights } from "@/lib/zscoreService";
 import { getBrapiRanking, type BrapiListItem } from "@/lib/sources/brapi";
 import type { RankingItem } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 function toRankingItem(item: BrapiListItem): RankingItem {
   return {
     symbol: item.symbol,

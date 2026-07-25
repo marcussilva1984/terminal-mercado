@@ -17,6 +17,12 @@ import { getWeeklyCalendar, filterHighSignal } from "@/lib/sources/economicCalen
 import { getMockAlertStatus } from "@/lib/mock/home";
 import type { RankingItem } from "@/lib/types";
 
+// Pouco tráfego = ISR fica "presa" em cache velho até alguém disparar a
+// revalidação em segundo plano. Renderizar sempre fresco garante que o F5
+// do usuário sempre reflita o estado atual das fontes (cada uma com seu
+// próprio cache curto, então não sobrecarrega as APIs externas).
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const [news, flowResult, zScoreHighlights, highlightCards, quotes, gainersResult, losersResult, calendarResult] =
     await Promise.all([

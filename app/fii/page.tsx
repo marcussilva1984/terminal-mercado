@@ -9,6 +9,8 @@ import { getNews } from "@/lib/sources/rss";
 import { formatNumber } from "@/lib/format";
 import type { RankingItem } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 function toRankingItem(item: BrapiListItem): RankingItem {
   return { symbol: item.symbol, label: item.name, value: item.close, changePct: item.changePct, volume: item.volume };
 }

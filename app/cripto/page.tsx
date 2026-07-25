@@ -9,6 +9,8 @@ import { getZScoreHighlights } from "@/lib/zscoreService";
 import { formatPrice } from "@/lib/format";
 import type { RankingItem } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 function toRankingItem(coin: CoinMarket, metric: "price" | "volume" | "marketcap"): RankingItem {
   const valueByMetric = {
     price: coin.current_price,

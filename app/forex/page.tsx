@@ -8,6 +8,8 @@ import { getForexPairs, getCurrencyStrength, getDXY, getUSYieldCurve } from "@/l
 import { getWeeklyCalendar, filterHighSignal, filterRateDecisions } from "@/lib/sources/economicCalendar";
 import { getNews } from "@/lib/sources/rss";
 
+export const dynamic = "force-dynamic";
+
 export default async function ForexPage() {
   const now = new Date().toISOString();
 
