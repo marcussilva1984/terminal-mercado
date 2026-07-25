@@ -90,3 +90,5 @@ Projeto pensado para deploy na Vercel (`vercel deploy`), com Postgres no Supabas
 - Notícias agregam 12 feeds RSS (B3, cripto, EUA/internacional, forex, FII); cada fonte contribui
   no máximo 8 itens por rodada para nenhuma dominar o feed agregado, e títulos de baixo valor
   (arquivamentos SEC de rotina) são filtrados.
+
+<!-- deploy automático via GitHub conectado -->
