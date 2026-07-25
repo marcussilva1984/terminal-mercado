@@ -35,3 +35,26 @@ export const b3FlowDaily = pgTable(
   },
   (table) => [uniqueIndex("b3_flow_daily_date_segment_idx").on(table.date, table.segment)]
 );
+
+// Registro de todo alerta disparado (também alimenta o painel "Alertas" da Home).
+// `key` identifica a regra+condição (ex.: "flow:Estrangeiro:vermelho",
+// "zscore:PETR4") e é usado para não notificar a mesma condição repetidamente.
+export const alertLog = pgTable("alert_log", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull(),
+  label: text("label").notNull(),
+  kind: text("kind").notNull(), // 'fluxo' | 'zscore' | 'watchlist' | 'preco'
+  triggeredAt: timestamp("triggered_at").notNull().defaultNow(),
+});
+
+export const priceAlerts = pgTable("price_alerts", {
+  id: serial("id").primaryKey(),
+  symbol: text("symbol").notNull(),
+  assetClass: text("asset_class").notNull(), // 'b3' | 'cripto' | 'fii'
+  label: text("label").notNull(),
+  direction: text("direction").notNull(), // 'above' | 'below'
+  targetPrice: real("target_price").notNull(),
+  active: text("active").notNull().default("true"),
+  triggeredAt: timestamp("triggered_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});

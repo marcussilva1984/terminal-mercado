@@ -14,7 +14,7 @@ import { getZScoreHighlights } from "@/lib/zscoreService";
 import { getRealHighlightCards, getRealTickerQuotes } from "@/lib/tickerService";
 import { getBrapiRanking } from "@/lib/sources/brapi";
 import { getWeeklyCalendar, filterHighSignal } from "@/lib/sources/economicCalendar";
-import { getMockAlertStatus } from "@/lib/mock/home";
+import { getRecentAlerts } from "@/lib/db/alertRepo";
 import type { RankingItem } from "@/lib/types";
 
 // Pouco tráfego = ISR fica "presa" em cache velho até alguém disparar a
@@ -24,7 +24,7 @@ import type { RankingItem } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [news, flowResult, zScoreHighlights, highlightCards, quotes, gainersResult, losersResult, calendarResult] =
+  const [news, flowResult, zScoreHighlights, highlightCards, quotes, gainersResult, losersResult, calendarResult, alerts] =
     await Promise.all([
       getNews(undefined, 5),
       getFlowHistory().catch(() => null),
@@ -34,10 +34,10 @@ export default async function HomePage() {
       getBrapiRanking("change", "desc", 3).catch(() => null),
       getBrapiRanking("change", "asc", 3).catch(() => null),
       getWeeklyCalendar().catch(() => null),
+      getRecentAlerts(24).catch(() => null),
     ]);
 
   const radarEvents = calendarResult ? filterHighSignal(calendarResult).slice(0, 5) : null;
-  const alerts = getMockAlertStatus();
   const now = new Date().toISOString();
 
   const toRankingItem = (item: NonNullable<typeof gainersResult>[number]): RankingItem => ({
@@ -55,9 +55,8 @@ export default async function HomePage() {
       <div>
         <h1 className="text-xl font-semibold text-text">Resumo do Dia</h1>
         <p className="mt-1 text-sm text-text-muted">
-          Notícias, preços, fluxo B3, rankings e z-score já usam dados reais (z-score precisa de{" "}
-          <code>DATABASE_URL</code> configurada). O painel de alertas ainda é exemplo — o sistema
-          de alertas fica para uma fase futura.
+          Notícias, preços, fluxo B3, rankings, z-score e alertas já usam dados reais (precisam de{" "}
+          <code>DATABASE_URL</code> configurada; alertas via Telegram também precisam do bot).
         </p>
       </div>
 
@@ -126,7 +125,13 @@ export default async function HomePage() {
           </Panel>
         </div>
         <Panel title="Alertas (últimas 24h)" updatedAt={now}>
-          <AlertStatusList alerts={alerts} />
+          {alerts ? (
+            <AlertStatusList alerts={alerts} />
+          ) : (
+            <p className="text-sm text-text-muted">
+              Configure <code>DATABASE_URL</code> e o bot do Telegram para habilitar os alertas.
+            </p>
+          )}
         </Panel>
       </div>
 

@@ -8,6 +8,13 @@
       "when": 1784935031933,
       "tag": "0000_magical_red_ghost",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784990331734,
+      "tag": "0001_narrow_gorgon",
+      "breakpoints": true
     }
   ]
 }
