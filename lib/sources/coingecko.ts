@@ -58,3 +58,44 @@ export async function getCoinHistory(coinId: string, days = 90): Promise<CoinHis
 
   return Array.from(byDate.entries()).map(([date, close]) => ({ date, close }));
 }
+
+export interface CoinCategory {
+  id: string;
+  name: string;
+  marketCap: number;
+  marketCapChange24h: number | null;
+  volume24h: number;
+}
+
+const MIN_CATEGORY_MARKET_CAP = 5_000_000_000; // filtra categorias minúsculas/ruído
+
+// Setores/categorias de cripto (DeFi, Layer 1, Meme, etc.), sem API key.
+// Filtra categorias muito pequenas para não poluir o ranking com ruído.
+export async function getCoinCategories(): Promise<CoinCategory[]> {
+  const url = `${COINGECKO_BASE}/coins/categories?order=market_cap_desc`;
+
+  const res = await fetch(url, {
+    next: { revalidate: 15 * 60 },
+    headers: { accept: "application/json" },
+  });
+
+  if (!res.ok) throw new Error(`CoinGecko respondeu ${res.status}`);
+
+  const raw: {
+    id: string;
+    name: string;
+    market_cap: number;
+    market_cap_change_24h: number | null;
+    volume_24h: number;
+  }[] = await res.json();
+
+  return raw
+    .filter((c) => c.market_cap >= MIN_CATEGORY_MARKET_CAP)
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      marketCap: c.market_cap,
+      marketCapChange24h: c.market_cap_change_24h,
+      volume24h: c.volume_24h,
+    }));
+}

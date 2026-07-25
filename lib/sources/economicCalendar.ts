@@ -35,7 +35,9 @@ export async function getWeeklyCalendar(): Promise<CalendarEvent[]> {
   }));
 }
 
-const RATE_DECISION_PATTERN = /rate decision|interest rate/i;
+// Cobre decisões de juros e falas de dirigentes de bancos centrais (Fed, BCE,
+// BoE, BoJ etc.) — ambos costumam mover mercado mesmo sem ser "decisão" formal.
+const RATE_DECISION_PATTERN = /rate decision|interest rate|speaks|testimony|press conference/i;
 
 export function filterHighSignal(events: CalendarEvent[]): CalendarEvent[] {
   return events

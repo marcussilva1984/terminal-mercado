@@ -9,6 +9,7 @@ import { buildFlowSegments, getFlowChartData, SEGMENT_CONFIG } from "@/lib/semap
 import { getNews } from "@/lib/sources/rss";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 import { getBrapiRanking, type BrapiListItem } from "@/lib/sources/brapi";
+import { buildB3Insights } from "@/lib/insights";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +43,11 @@ export default async function AcoesPage() {
   const losers = losersResult.status === "fulfilled" ? losersResult.value.map(toRankingItem) : null;
   const byVolume = volumeResult.status === "fulfilled" ? volumeResult.value.map(toRankingItem) : null;
 
+  const insights =
+    gainers && losers && byVolume && flowResult.status === "fulfilled"
+      ? buildB3Insights(gainers, losers, byVolume, buildFlowSegments(flowResult.value), zScoreHighlights ?? [])
+      : [];
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -51,6 +57,23 @@ export default async function AcoesPage() {
           frações e papéis sem negociação relevante.
         </p>
       </div>
+
+      {insights.length > 0 && (
+        <Panel title="Insights do Dia" updatedAt={now}>
+          <ul className="flex flex-col gap-2 text-sm text-text">
+            {insights.map((insight, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-gold-bright">•</span>
+                <span>{insight}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-text-muted">
+            Gerado a partir dos rankings, fluxo agregado e z-score — não atribui fluxo de
+            investidor a um ticker específico (isso só existe no B3 DataWise+, pago).
+          </p>
+        </Panel>
+      )}
 
       <Panel title="Fluxo de Investidores — Semáforo" updatedAt={now}>
         {flowResult.status === "fulfilled" ? (

@@ -3,7 +3,7 @@ import { RankingPanel } from "@/components/RankingPanel";
 import { Panel } from "@/components/Panel";
 import { NewsFeed } from "@/components/NewsFeed";
 import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
-import { getTopCoinMarkets, type CoinMarket } from "@/lib/sources/coingecko";
+import { getTopCoinMarkets, getCoinCategories, type CoinMarket } from "@/lib/sources/coingecko";
 import { getNews } from "@/lib/sources/rss";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 import { formatPrice } from "@/lib/format";
@@ -30,10 +30,11 @@ export default async function CriptoPage() {
   let available = true;
   let fetchError: string | undefined;
 
-  const [coinsResult, newsResult, zScoreResult] = await Promise.allSettled([
+  const [coinsResult, newsResult, zScoreResult, categoriesResult] = await Promise.allSettled([
     getTopCoinMarkets(100),
     getNews("cripto", 10),
     getZScoreHighlights("cripto"),
+    getCoinCategories(),
   ]);
 
   if (coinsResult.status === "fulfilled") {
@@ -45,6 +46,10 @@ export default async function CriptoPage() {
 
   const news = newsResult.status === "fulfilled" ? newsResult.value : [];
   const zScoreHighlights = zScoreResult.status === "fulfilled" ? zScoreResult.value : null;
+  const categories = categoriesResult.status === "fulfilled" ? categoriesResult.value : null;
+  const topSectors = categories
+    ? [...categories].filter((c) => c.marketCapChange24h !== null).sort((a, b) => (b.marketCapChange24h ?? 0) - (a.marketCapChange24h ?? 0))
+    : null;
 
   const now = new Date().toISOString();
 
@@ -141,6 +146,37 @@ export default async function CriptoPage() {
           format="compact-usd"
         />
       </div>
+
+      <Panel title="Setores — melhores e piores do dia" updatedAt={now}>
+        {topSectors ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <h3 className="mb-2 text-xs font-medium uppercase text-text-muted">Em alta</h3>
+              <ul className="flex flex-col divide-y divide-border/50">
+                {topSectors.slice(0, 5).map((s) => (
+                  <li key={s.id} className="flex items-center justify-between py-1.5 text-sm">
+                    <span className="text-text">{s.name}</span>
+                    <span className="text-up">{s.marketCapChange24h?.toFixed(2)}%</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h3 className="mb-2 text-xs font-medium uppercase text-text-muted">Em baixa</h3>
+              <ul className="flex flex-col divide-y divide-border/50">
+                {topSectors.slice(-5).reverse().map((s) => (
+                  <li key={s.id} className="flex items-center justify-between py-1.5 text-sm">
+                    <span className="text-text">{s.name}</span>
+                    <span className="text-down">{s.marketCapChange24h?.toFixed(2)}%</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-down">Fonte indisponível no momento.</p>
+        )}
+      </Panel>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Panel title="Z-Score Cripto" updatedAt={now}>

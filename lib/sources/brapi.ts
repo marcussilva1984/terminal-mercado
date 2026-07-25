@@ -89,3 +89,41 @@ export async function getBrapiRanking(
       marketCap: s.market_cap,
     }));
 }
+
+export interface FiiSectorPerformance {
+  subsector: string;
+  avgChangePct: number;
+  count: number;
+}
+
+// Desempenho médio por segmento de FII (Logística, Shoppings, Papel, etc.) —
+// agrupa a partir do campo `subsector` que a brapi já retorna para fundos.
+export async function getFiiSectorPerformance(): Promise<FiiSectorPerformance[]> {
+  const token = process.env.BRAPI_TOKEN;
+  const url = new URL(`${BRAPI_BASE}/quote/list`);
+  url.searchParams.set("sortBy", "volume");
+  url.searchParams.set("sortOrder", "desc");
+  url.searchParams.set("type", "fund");
+  url.searchParams.set("limit", "200");
+  if (token) url.searchParams.set("token", token);
+
+  const res = await fetch(url.toString(), { next: { revalidate: 15 * 60 } });
+  if (!res.ok) throw new Error(`brapi.dev respondeu ${res.status} para setores de FII`);
+
+  const json = await res.json();
+  const funds: { change: number; subsector: string | null; volume: number }[] = json?.stocks ?? [];
+
+  const bySector = new Map<string, { sum: number; count: number }>();
+  for (const f of funds) {
+    if (!f.subsector || f.volume < MIN_VOLUME_FOR_RANKING.fund) continue;
+    const entry = bySector.get(f.subsector) ?? { sum: 0, count: 0 };
+    entry.sum += f.change;
+    entry.count += 1;
+    bySector.set(f.subsector, entry);
+  }
+
+  return Array.from(bySector.entries())
+    .filter(([, v]) => v.count >= 3) // evita setor com 1-2 fundos distorcendo a média
+    .map(([subsector, v]) => ({ subsector, avgChangePct: v.sum / v.count, count: v.count }))
+    .sort((a, b) => b.avgChangePct - a.avgChangePct);
+}

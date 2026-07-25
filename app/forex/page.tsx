@@ -92,7 +92,7 @@ export default async function ForexPage() {
       </Panel>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Panel title="Reuniões de Bancos Centrais (semana)" updatedAt={now}>
+        <Panel title="Bancos Centrais — decisões e falas (semana)" updatedAt={now}>
           {rateDecisions ? (
             <EconomicCalendar events={rateDecisions} />
           ) : (

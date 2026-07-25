@@ -3,7 +3,7 @@ import { StatCard } from "@/components/StatCard";
 import { RankingPanel } from "@/components/RankingPanel";
 import { NewsFeed } from "@/components/NewsFeed";
 import { getYahooQuote } from "@/lib/sources/yahoo";
-import { getBrapiRanking, type BrapiListItem } from "@/lib/sources/brapi";
+import { getBrapiRanking, getFiiSectorPerformance, type BrapiListItem } from "@/lib/sources/brapi";
 import { getFiiDividendYieldRanking } from "@/lib/sources/investidor10";
 import { getNews } from "@/lib/sources/rss";
 import { formatNumber } from "@/lib/format";
@@ -18,11 +18,12 @@ function toRankingItem(item: BrapiListItem): RankingItem {
 export default async function FiiPage() {
   const now = new Date().toISOString();
 
-  const [ifixResult, gainersResult, losersResult, dyResult, news] = await Promise.all([
+  const [ifixResult, gainersResult, losersResult, dyResult, sectorResult, news] = await Promise.all([
     getYahooQuote("IFIX.SA").catch(() => null),
     getBrapiRanking("change", "desc", 20, "fund").catch(() => null),
     getBrapiRanking("change", "asc", 20, "fund").catch(() => null),
     getFiiDividendYieldRanking(20).catch(() => null),
+    getFiiSectorPerformance().catch(() => null),
     getNews("fii", 10),
   ]);
 
@@ -91,6 +92,29 @@ export default async function FiiPage() {
         ) : (
           <p className="text-sm text-down">Fonte indisponível no momento.</p>
         )}
+      </Panel>
+
+      <Panel title="Desempenho por Segmento" updatedAt={now}>
+        {sectorResult && sectorResult.length > 0 ? (
+          <ul className="flex flex-col divide-y divide-border/50">
+            {sectorResult.map((s) => (
+              <li key={s.subsector} className="flex items-center justify-between py-1.5 text-sm">
+                <span className="text-text">
+                  {s.subsector} <span className="text-text-muted">({s.count} fundos)</span>
+                </span>
+                <span className={s.avgChangePct >= 0 ? "text-up" : "text-down"}>
+                  {s.avgChangePct >= 0 ? "+" : ""}
+                  {s.avgChangePct.toFixed(2)}%
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-down">Fonte indisponível no momento.</p>
+        )}
+        <p className="mt-3 text-xs text-text-muted">
+          Variação média das cotas por segmento (mínimo de 3 fundos líquidos por segmento).
+        </p>
       </Panel>
 
       <p className="text-xs text-text-muted">
