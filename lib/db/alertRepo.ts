@@ -21,6 +21,23 @@ export async function logAlert(key: string, label: string, kind: string): Promis
   await db.insert(alertLog).values({ key, label, kind });
 }
 
+// Estado do último envio do digest de notícias pro Telegram (evita repetir manchete
+// já enviada na rodada anterior).
+export async function getLastDigestTime(): Promise<Date | null> {
+  const db = getDb();
+  const rows = await db
+    .select({ triggeredAt: alertLog.triggeredAt })
+    .from(alertLog)
+    .where(eq(alertLog.key, "news_digest"))
+    .orderBy(desc(alertLog.triggeredAt))
+    .limit(1);
+  return rows[0]?.triggeredAt ?? null;
+}
+
+export async function markDigestSent(): Promise<void> {
+  await logAlert("news_digest", "Digest de notícias enviado", "noticia");
+}
+
 export async function getRecentAlerts(hours = 24): Promise<AlertStatus[]> {
   const db = getDb();
   const since = new Date(Date.now() - hours * 60 * 60 * 1000);

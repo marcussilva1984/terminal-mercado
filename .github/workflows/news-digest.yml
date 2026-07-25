@@ -1,0 +1,17 @@
+name: News digest to Telegram
+
+on:
+  schedule:
+    # A cada 30 minutos — a Vercel (plano grátis) só permite cron 1x/dia, então
+    # usamos o GitHub Actions (grátis) como agendador externo.
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call news digest endpoint
+        run: |
+          curl -sf -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://terminal-mercado.vercel.app/api/cron/news-digest"

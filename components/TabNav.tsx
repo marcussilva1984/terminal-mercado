@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const TABS = [
   { href: "/", label: "Resumo do Dia" },
+  { href: "/noticias", label: "Notícias" },
   { href: "/acoes", label: "Ações (B3)" },
   { href: "/cripto", label: "Cripto" },
   { href: "/stocks", label: "Stocks (EUA)" },
