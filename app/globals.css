@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+:root {
+  --color-bg: #05070d;
+  --color-panel: #0b1220;
+  --color-panel-alt: #101a2c;
+  --color-border: #1e293f;
+  --color-gold: #d4af37;
+  --color-gold-bright: #f2d67a;
+  --color-up: #18c974;
+  --color-down: #f5455c;
+  --color-amber: #f5a524;
+  --color-text: #e6e9f2;
+  --color-text-muted: #7c879c;
+}
+
+@theme inline {
+  --color-bg: var(--color-bg);
+  --color-panel: var(--color-panel);
+  --color-panel-alt: var(--color-panel-alt);
+  --color-border: var(--color-border);
+  --color-gold: var(--color-gold);
+  --color-gold-bright: var(--color-gold-bright);
+  --color-up: var(--color-up);
+  --color-down: var(--color-down);
+  --color-amber: var(--color-amber);
+  --color-text: var(--color-text);
+  --color-text-muted: var(--color-text-muted);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-ticker {
+  animation: ticker-scroll 40s linear infinite;
+}
+
+.animate-ticker:hover {
+  animation-play-state: paused;
+}
