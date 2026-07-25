@@ -10,6 +10,7 @@ const TABS = [
   { href: "/stocks", label: "Stocks (EUA)" },
   { href: "/forex", label: "Forex" },
   { href: "/fii", label: "FII" },
+  { href: "/carteira", label: "Minha Carteira" },
 ];
 
 export function TabNav() {

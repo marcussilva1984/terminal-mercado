@@ -8,6 +8,9 @@ import { getYahooQuotes } from "@/lib/sources/yahoo";
 import { getTopCoinMarkets } from "@/lib/sources/coingecko";
 import { sendTelegramMessage, hasTelegramConfig } from "@/lib/sources/telegram";
 import { B3_WATCHLIST, CRIPTO_WATCHLIST, STOCKS_WATCHLIST } from "@/lib/watchlist";
+import { getActivePriceAlerts, markPriceAlertTriggered } from "@/lib/db/portfolioRepo";
+import { getCurrentPrice } from "@/lib/priceLookup";
+import { formatPrice } from "@/lib/format";
 
 const WATCHLIST_MOVE_THRESHOLD = 5; // %
 
@@ -98,6 +101,31 @@ export async function GET(request: Request) {
     }
   } catch {
     // fontes de watchlist indisponíveis nesta rodada
+  }
+
+  // 4. Alertas de preço da carteira (kill switch: dispara 1x, depois desativa)
+  try {
+    const priceAlerts = await getActivePriceAlerts();
+    for (const alert of priceAlerts) {
+      const current = await getCurrentPrice(alert.symbol, alert.assetClass).catch(() => null);
+      if (!current) continue;
+
+      const crossed =
+        alert.direction === "above" ? current.price >= alert.targetPrice : current.price <= alert.targetPrice;
+
+      if (crossed) {
+        const verb = alert.direction === "above" ? "atingiu ou passou de" : "caiu para ou abaixo de";
+        const label = `Alerta de preço: ${alert.label} (${alert.symbol}) ${verb} ${formatPrice(alert.targetPrice, current.currency)} — agora em ${formatPrice(current.price, current.currency)}.`;
+        await markPriceAlertTriggered(alert.id);
+        await logAlert(`price:${alert.id}`, label, "preco");
+        if (hasTelegramConfig()) {
+          await sendTelegramMessage(`📡 <b>Terminal de Mercado</b>\n${label}`).catch(() => {});
+        }
+        sent.push(label);
+      }
+    }
+  } catch {
+    // fontes de preço indisponíveis nesta rodada
   }
 
   return NextResponse.json({ checked: true, alertsSent: sent.length, sent });

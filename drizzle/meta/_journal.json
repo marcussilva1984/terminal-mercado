@@ -15,6 +15,13 @@
       "when": 1784990331734,
       "tag": "0001_narrow_gorgon",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784992866856,
+      "tag": "0002_wonderful_dark_beast",
+      "breakpoints": true
     }
   ]
 }

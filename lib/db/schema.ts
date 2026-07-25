@@ -50,11 +50,21 @@ export const alertLog = pgTable("alert_log", {
 export const priceAlerts = pgTable("price_alerts", {
   id: serial("id").primaryKey(),
   symbol: text("symbol").notNull(),
-  assetClass: text("asset_class").notNull(), // 'b3' | 'cripto' | 'fii'
+  assetClass: text("asset_class").notNull(), // 'b3' | 'cripto' | 'fii' | 'stocks'
   label: text("label").notNull(),
   direction: text("direction").notNull(), // 'above' | 'below'
   targetPrice: real("target_price").notNull(),
   active: text("active").notNull().default("true"),
   triggeredAt: timestamp("triggered_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const portfolioHoldings = pgTable("portfolio_holdings", {
+  id: serial("id").primaryKey(),
+  symbol: text("symbol").notNull(),
+  assetClass: text("asset_class").notNull(), // 'b3' | 'cripto' | 'fii' | 'stocks'
+  label: text("label").notNull(),
+  quantity: real("quantity").notNull(),
+  avgPrice: real("avg_price").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
