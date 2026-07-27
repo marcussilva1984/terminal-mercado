@@ -150,7 +150,17 @@ export default async function AcoesPage() {
         Sobre &quot;mais alugadas/alavancadas&quot;: não existe fonte gratuita real para B3 (o
         TradersClub bloqueia acesso automatizado via Cloudflare, e dívida/patrimônio exige dados
         fundamentalistas trimestrais que nenhuma API grátis expõe). Usamos volatilidade calculada
-        como proxy de risco no lugar, deixado explícito acima.
+        como proxy de risco no lugar, deixado explícito acima. Para o dado oficial de posições
+        alugadas, consulte diretamente em{" "}
+        <a
+          href="https://tc.tradersclub.com.br/mais-alugadas-b3"
+          target="_blank"
+          rel="noreferrer"
+          className="text-gold-bright hover:underline"
+        >
+          tc.tradersclub.com.br/mais-alugadas-b3
+        </a>
+        .
       </p>
 
       <Panel title="Notícias Brasil / B3" updatedAt={now}>

@@ -15,6 +15,9 @@ const CATEGORY_LABEL: Record<string, string> = {
 
 const TELEGRAM_MESSAGE_LIMIT = 3500;
 
+// Uma mensagem Telegram por categoria (em vez de um bloco único com tudo
+// misturado) — mais fácil de ler no celular e dá pra silenciar categoria por
+// categoria se quiser no futuro.
 function buildMessages(items: NewsItemWithCategory[]): string[] {
   const byCategory = new Map<string, NewsItemWithCategory[]>();
   for (const item of items) {
@@ -23,26 +26,21 @@ function buildMessages(items: NewsItemWithCategory[]): string[] {
     byCategory.set(item.category, list);
   }
 
-  const lines: string[] = [`📰 <b>Notícias — últimos 30 min</b> (${items.length})`];
-  for (const [category, categoryItems] of byCategory) {
-    lines.push(`\n<b>${CATEGORY_LABEL[category] ?? category}</b>`);
-    for (const item of categoryItems) {
-      lines.push(`• ${item.title} <i>(${item.source})</i>`);
-    }
-  }
-
-  // Divide em várias mensagens se passar do limite prático do Telegram.
   const messages: string[] = [];
-  let current = "";
-  for (const line of lines) {
-    if ((current + "\n" + line).length > TELEGRAM_MESSAGE_LIMIT) {
-      messages.push(current);
-      current = line;
-    } else {
-      current = current ? `${current}\n${line}` : line;
+  for (const [category, categoryItems] of byCategory) {
+    const label = CATEGORY_LABEL[category] ?? category;
+    const header = `📰 <b>${label}</b> — últimos 30 min (${categoryItems.length})`;
+    let current = header;
+    for (const item of categoryItems) {
+      const line = `• ${item.title} <i>(${item.source})</i>`;
+      if ((current + "\n" + line).length > TELEGRAM_MESSAGE_LIMIT) {
+        messages.push(current);
+        current = `📰 <b>${label} (cont.)</b>`;
+      }
+      current += `\n${line}`;
     }
+    messages.push(current);
   }
-  if (current) messages.push(current);
   return messages;
 }
 
