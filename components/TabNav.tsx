@@ -11,6 +11,7 @@ const TABS = [
   { href: "/stocks", label: "Stocks (EUA)" },
   { href: "/forex", label: "Forex" },
   { href: "/fii", label: "FII" },
+  { href: "/tesouro", label: "Tesouro Direto" },
   { href: "/carteira", label: "Minha Carteira" },
   { href: "/watchlist", label: "Watchlist" },
 ];
