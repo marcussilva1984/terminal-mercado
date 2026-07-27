@@ -4,8 +4,10 @@ import { RankingPanel } from "@/components/RankingPanel";
 import { NewsFeed } from "@/components/NewsFeed";
 import { changeColorClass, formatPct, formatPrice } from "@/lib/format";
 import { getYahooQuotes, getYahooScreener, type YahooScreenerItem } from "@/lib/sources/yahoo";
+import { getAnalystTargets } from "@/lib/sources/finviz";
 import { getNews } from "@/lib/sources/rss";
 import { STOCKS_WATCHLIST, US_INDICES } from "@/lib/watchlist";
+import { AnalystTargetTable, type AnalystTargetRow } from "@/components/AnalystTargetTable";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -17,18 +19,35 @@ function toRankingItem(item: YahooScreenerItem): RankingItem {
 export default async function StocksPage() {
   const now = new Date().toISOString();
 
-  const [indices, watchlistQuotes, gainersResult, losersResult, activesResult, news] = await Promise.all([
+  const [indices, watchlistQuotes, gainersResult, losersResult, activesResult, news, analystTargets] = await Promise.all([
     getYahooQuotes(US_INDICES.map((i) => i.symbol)),
     getYahooQuotes(STOCKS_WATCHLIST.map((w) => w.symbol)),
     getYahooScreener("day_gainers", 20).catch(() => null),
     getYahooScreener("day_losers", 20).catch(() => null),
     getYahooScreener("most_actives", 20).catch(() => null),
     getNews("internacional", 10),
+    getAnalystTargets(STOCKS_WATCHLIST.map((w) => w.symbol)).catch(() => []),
   ]);
 
   const gainers = gainersResult?.map(toRankingItem) ?? null;
   const losers = losersResult?.map(toRankingItem) ?? null;
   const actives = activesResult?.map(toRankingItem) ?? null;
+
+  const analystRows: AnalystTargetRow[] = analystTargets
+    .map((a) => {
+      const quote = watchlistQuotes[a.symbol];
+      const label = STOCKS_WATCHLIST.find((w) => w.symbol === a.symbol)?.label ?? a.symbol;
+      if (!quote || a.targetPrice === null) return null;
+      return {
+        symbol: a.symbol,
+        label,
+        currentPrice: quote.price,
+        targetPrice: a.targetPrice,
+        upsidePct: ((a.targetPrice - quote.price) / quote.price) * 100,
+        recommendation: a.recommendation,
+      };
+    })
+    .filter((r): r is AnalystTargetRow => r !== null);
 
   return (
     <div className="flex flex-col gap-6">
@@ -68,6 +87,10 @@ export default async function StocksPage() {
             );
           })}
         </div>
+      </Panel>
+
+      <Panel title="Preço-Alvo dos Analistas" updatedAt={now}>
+        <AnalystTargetTable items={analystRows} />
       </Panel>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

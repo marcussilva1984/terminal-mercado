@@ -12,6 +12,7 @@ import { getZScoreHighlights } from "@/lib/zscoreService";
 import { formatPrice } from "@/lib/format";
 import { LongShortPanel, FundingRateTable, OpenInterestPanel } from "@/components/DerivativesPanel";
 import { OnChainPanel } from "@/components/OnChainPanel";
+import { buildGenericInsights } from "@/lib/insights";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -119,12 +120,59 @@ export default async function CriptoPage() {
     .sort((a, b) => b.market_cap - a.market_cap)
     .map((c) => toRankingItem(c, "marketcap"));
 
+  const insights: string[] = buildGenericInsights(
+    gainers,
+    losers,
+    byVolume,
+    zScoreHighlights ?? []
+  );
+
+  if (topSectors && topSectors.length > 0) {
+    const bestSector = topSectors[0];
+    if (bestSector.marketCapChange24h !== null && bestSector.marketCapChange24h > 0) {
+      insights.push(`Setor ${bestSector.name} lidera o dia (${bestSector.marketCapChange24h.toFixed(2)}%).`);
+    }
+  }
+
+  const derivatives0 = derivatives ?? [];
+  const extremeFunding = derivatives0.find((d) => Math.abs(d.fundingRatePct) >= 0.05);
+  if (extremeFunding) {
+    const direction = extremeFunding.fundingRatePct > 0 ? "comprado" : "vendido";
+    insights.push(
+      `Funding rate de ${extremeFunding.symbol} em ${extremeFunding.fundingRatePct.toFixed(3)}% — mercado de perpétuos ${direction} demais, risco de liquidação em cascata.`
+    );
+  }
+
+  const btcOnChain = onChain?.find((o) => o.asset === "BTC");
+  if (btcOnChain?.mvrv !== null && btcOnChain?.mvrv !== undefined) {
+    if (btcOnChain.mvrv >= 3.5) insights.push(`BTC com MVRV em ${btcOnChain.mvrv.toFixed(2)} — zona historicamente associada a topos de ciclo.`);
+    else if (btcOnChain.mvrv <= 1) insights.push(`BTC com MVRV em ${btcOnChain.mvrv.toFixed(2)} — zona historicamente associada a fundos de ciclo.`);
+  }
+
+  if (fearGreed) {
+    if (fearGreed.value <= 20) insights.push(`Fear & Greed Index em ${fearGreed.value} (medo extremo) — historicamente zona de acumulação, não de pânico vender.`);
+    else if (fearGreed.value >= 80) insights.push(`Fear & Greed Index em ${fearGreed.value} (ganância extrema) — historicamente zona de cautela.`);
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold text-text">Cripto</h1>
         <p className="mt-1 text-sm text-text-muted">Dados reais via CoinGecko (delay curto, sem chave de API).</p>
       </div>
+
+      {insights.length > 0 && (
+        <Panel title="Insights do Dia" updatedAt={now}>
+          <ul className="flex flex-col gap-2 text-sm text-text">
+            {insights.map((insight, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-gold-bright">•</span>
+                <span>{insight}</span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {btc && (

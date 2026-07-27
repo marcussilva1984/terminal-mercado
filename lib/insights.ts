@@ -45,3 +45,41 @@ export function buildB3Insights(
 
   return insights;
 }
+
+// Versão genérica (sem fluxo B3) — altas/baixas/volume/z-score, usada em
+// Cripto e FII. Insights extras específicos de cada aba são adicionados na
+// própria página (setores, on-chain, funding rate etc.).
+export function buildGenericInsights(
+  gainers: RankingItem[],
+  losers: RankingItem[],
+  byVolume: RankingItem[],
+  zScoreHighlights: ZScoreHighlight[] = []
+): string[] {
+  const insights: string[] = [];
+
+  const topGainer = gainers[0];
+  const topLoser = losers[0];
+  if (topGainer) {
+    insights.push(`${topGainer.symbol} lidera as altas do dia (${formatPct(topGainer.changePct)}).`);
+  }
+  if (topLoser) {
+    insights.push(`${topLoser.symbol} lidera as baixas do dia (${formatPct(topLoser.changePct)}).`);
+  }
+
+  const volumeSymbols = new Set(byVolume.slice(0, 10).map((v) => v.symbol));
+  const highConviction = [...gainers.slice(0, 10), ...losers.slice(0, 10)].find((m) => volumeSymbols.has(m.symbol));
+  if (highConviction) {
+    insights.push(
+      `${highConviction.symbol} está entre os maiores volumes E maiores movimentos do dia — sinal de interesse forte do mercado, não só ruído.`
+    );
+  }
+
+  const extremeZ = zScoreHighlights.find((z) => Math.abs(z.zScore) >= 2);
+  if (extremeZ) {
+    insights.push(
+      `${extremeZ.symbol} com z-score ${extremeZ.zScore >= 0 ? "+" : ""}${extremeZ.zScore.toFixed(1)} — movimento fora do padrão histórico do ativo.`
+    );
+  }
+
+  return insights;
+}
