@@ -1,5 +1,6 @@
 import { hasDatabase } from "@/lib/db/client";
 import { getCloses } from "@/lib/db/priceSeriesRepo";
+import { getWatchlist, seedWatchlistIfEmpty } from "@/lib/db/watchlistRepo";
 import { computeZScore } from "@/lib/zscore";
 import { B3_WATCHLIST, CRIPTO_WATCHLIST } from "@/lib/watchlist";
 import type { AssetClass, ZScoreHighlight } from "@/lib/types";
@@ -11,9 +12,17 @@ export async function getZScoreHighlights(
     throw new Error("DATABASE_URL não configurada — z-score precisa do histórico salvo no banco.");
   }
 
+  await seedWatchlistIfEmpty([
+    ...B3_WATCHLIST.map((w) => ({ ...w, assetClass: "b3" })),
+    ...CRIPTO_WATCHLIST.map((w) => ({ ...w, assetClass: "cripto" })),
+  ]);
+
+  const b3Items = assetClass === "cripto" ? [] : await getWatchlist("b3");
+  const criptoItems = assetClass === "b3" ? [] : await getWatchlist("cripto");
+
   const entries = [
-    ...(assetClass === "cripto" ? [] : B3_WATCHLIST.map((w) => ({ ...w, assetClass: "b3" as const }))),
-    ...(assetClass === "b3" ? [] : CRIPTO_WATCHLIST.map((w) => ({ ...w, assetClass: "cripto" as const }))),
+    ...b3Items.map((w) => ({ symbol: w.symbol, label: w.label, assetClass: "b3" as const })),
+    ...criptoItems.map((w) => ({ symbol: w.symbol, label: w.label, assetClass: "cripto" as const })),
   ];
 
   const results: ZScoreHighlight[] = [];

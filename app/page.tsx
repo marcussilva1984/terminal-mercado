@@ -6,6 +6,7 @@ import { FlowSemaphore } from "@/components/FlowSemaphore";
 import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import { AlertStatusList } from "@/components/AlertStatusList";
 import { EconomicCalendar } from "@/components/EconomicCalendar";
+import { CopyResumoButton } from "@/components/CopyResumoButton";
 import { changeColorClass, formatPct, formatPrice } from "@/lib/format";
 import { getNews } from "@/lib/sources/rss";
 import { getFlowHistory } from "@/lib/sources/b3Flow";
@@ -52,12 +53,15 @@ export default async function HomePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold text-text">Resumo do Dia</h1>
-        <p className="mt-1 text-sm text-text-muted">
-          Notícias, preços, fluxo B3, rankings, z-score e alertas já usam dados reais (precisam de{" "}
-          <code>DATABASE_URL</code> configurada; alertas via Telegram também precisam do bot).
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-text">Resumo do Dia</h1>
+          <p className="mt-1 text-sm text-text-muted">
+            Notícias, preços, fluxo B3, rankings, z-score e alertas já usam dados reais (precisam de{" "}
+            <code>DATABASE_URL</code> configurada; alertas via Telegram também precisam do bot).
+          </p>
+        </div>
+        <CopyResumoButton />
       </div>
 
       {highlightCards.length > 0 && (

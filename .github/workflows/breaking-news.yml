@@ -1,0 +1,17 @@
+name: Breaking news alert to Telegram
+
+on:
+  schedule:
+    # A cada 10 minutos — checagem separada e mais frequente que o digest de
+    # 30min, só pra manchetes de alto impacto (crash, recorde histórico, etc.).
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call breaking news endpoint
+        run: |
+          curl -sf -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://terminal-mercado.vercel.app/api/cron/breaking-news"

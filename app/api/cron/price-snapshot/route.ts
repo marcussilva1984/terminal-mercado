@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { hasDatabase } from "@/lib/db/client";
 import { upsertCloses, type PriceSeriesRow } from "@/lib/db/priceSeriesRepo";
+import { getWatchlist, seedWatchlistIfEmpty } from "@/lib/db/watchlistRepo";
 import { getBrapiLastClose } from "@/lib/sources/brapi";
 import { getTopCoinMarkets } from "@/lib/sources/coingecko";
 import { B3_WATCHLIST, CRIPTO_WATCHLIST } from "@/lib/watchlist";
@@ -15,9 +16,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ persisted: false, reason: "DATABASE_URL não configurada" });
   }
 
-  const rows: PriceSeriesRow[] = [];
+  await seedWatchlistIfEmpty([
+    ...B3_WATCHLIST.map((w) => ({ ...w, assetClass: "b3" })),
+    ...CRIPTO_WATCHLIST.map((w) => ({ ...w, assetClass: "cripto" })),
+  ]);
 
-  for (const { symbol } of B3_WATCHLIST) {
+  const rows: PriceSeriesRow[] = [];
+  const b3Watchlist = await getWatchlist("b3");
+  const criptoWatchlist = await getWatchlist("cripto");
+
+  for (const { symbol } of b3Watchlist) {
     try {
       const point = await getBrapiLastClose(symbol);
       if (point) {
@@ -31,7 +39,7 @@ export async function GET(request: Request) {
   try {
     const markets = await getTopCoinMarkets(250);
     const today = new Date().toISOString().slice(0, 10);
-    for (const { symbol } of CRIPTO_WATCHLIST) {
+    for (const { symbol } of criptoWatchlist) {
       const coin = markets.find((c) => c.symbol.toLowerCase() === symbol.toLowerCase());
       if (coin) {
         rows.push({ symbol, assetClass: "cripto", date: today, closePrice: coin.current_price, source: "coingecko" });

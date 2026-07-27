@@ -1,4 +1,4 @@
-import { and, desc, gte, eq } from "drizzle-orm";
+import { and, desc, gte, eq, notInArray } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { alertLog } from "@/lib/db/schema";
 import type { AlertStatus } from "@/lib/types";
@@ -38,13 +38,33 @@ export async function markDigestSent(): Promise<void> {
   await logAlert("news_digest", "Digest de notícias enviado", "noticia");
 }
 
+// Mesmo padrão do digest completo, mas pra checagem de notícias de alto impacto
+// (roda com mais frequência, cutoff próprio pra não competir com o digest).
+export async function getLastBreakingNewsCheck(): Promise<Date | null> {
+  const db = getDb();
+  const rows = await db
+    .select({ triggeredAt: alertLog.triggeredAt })
+    .from(alertLog)
+    .where(eq(alertLog.key, "breaking_news_check"))
+    .orderBy(desc(alertLog.triggeredAt))
+    .limit(1);
+  return rows[0]?.triggeredAt ?? null;
+}
+
+export async function markBreakingNewsChecked(): Promise<void> {
+  await logAlert("breaking_news_check", "Checagem de notícias de alto impacto", "noticia");
+}
+
+// Chaves de bookkeeping interno (dedup de cron), não são alertas de fato pro usuário.
+const INTERNAL_KEYS = ["news_digest", "breaking_news_check"];
+
 export async function getRecentAlerts(hours = 24): Promise<AlertStatus[]> {
   const db = getDb();
   const since = new Date(Date.now() - hours * 60 * 60 * 1000);
   const rows = await db
     .select()
     .from(alertLog)
-    .where(gte(alertLog.triggeredAt, since))
+    .where(and(gte(alertLog.triggeredAt, since), notInArray(alertLog.key, INTERNAL_KEYS)))
     .orderBy(desc(alertLog.triggeredAt))
     .limit(20);
 
