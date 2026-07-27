@@ -4,9 +4,11 @@ import { Panel } from "@/components/Panel";
 import { NewsFeed } from "@/components/NewsFeed";
 import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import { getTopCoinMarkets, getCoinCategories, type CoinMarket } from "@/lib/sources/coingecko";
+import { getDerivativesSnapshot } from "@/lib/sources/binanceFutures";
 import { getNews } from "@/lib/sources/rss";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 import { formatPrice } from "@/lib/format";
+import { LongShortPanel, FundingRateTable, OpenInterestPanel } from "@/components/DerivativesPanel";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -30,11 +32,12 @@ export default async function CriptoPage() {
   let available = true;
   let fetchError: string | undefined;
 
-  const [coinsResult, newsResult, zScoreResult, categoriesResult] = await Promise.allSettled([
+  const [coinsResult, newsResult, zScoreResult, categoriesResult, derivativesResult] = await Promise.allSettled([
     getTopCoinMarkets(100),
     getNews("cripto", 10),
     getZScoreHighlights("cripto"),
     getCoinCategories(),
+    getDerivativesSnapshot(),
   ]);
 
   if (coinsResult.status === "fulfilled") {
@@ -47,6 +50,7 @@ export default async function CriptoPage() {
   const news = newsResult.status === "fulfilled" ? newsResult.value : [];
   const zScoreHighlights = zScoreResult.status === "fulfilled" ? zScoreResult.value : null;
   const categories = categoriesResult.status === "fulfilled" ? categoriesResult.value : null;
+  const derivatives = derivativesResult.status === "fulfilled" ? derivativesResult.value : null;
   const topSectors = categories
     ? [...categories].filter((c) => c.marketCapChange24h !== null).sort((a, b) => (b.marketCapChange24h ?? 0) - (a.marketCapChange24h ?? 0))
     : null;
@@ -173,6 +177,31 @@ export default async function CriptoPage() {
               </ul>
             </div>
           </div>
+        ) : (
+          <p className="text-sm text-down">Fonte indisponível no momento.</p>
+        )}
+      </Panel>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Panel title="Long / Short Ratio — Perpétuos (Binance Futures)" updatedAt={now}>
+          {derivatives && derivatives.length > 0 ? (
+            <LongShortPanel items={derivatives} />
+          ) : (
+            <p className="text-sm text-down">Fonte indisponível no momento.</p>
+          )}
+        </Panel>
+        <Panel title="Open Interest — Perpétuos (Binance Futures)" updatedAt={now}>
+          {derivatives && derivatives.length > 0 ? (
+            <OpenInterestPanel items={derivatives} />
+          ) : (
+            <p className="text-sm text-down">Fonte indisponível no momento.</p>
+          )}
+        </Panel>
+      </div>
+
+      <Panel title="Funding Rate — Perpétuos (Binance Futures)" updatedAt={now}>
+        {derivatives && derivatives.length > 0 ? (
+          <FundingRateTable items={derivatives} />
         ) : (
           <p className="text-sm text-down">Fonte indisponível no momento.</p>
         )}

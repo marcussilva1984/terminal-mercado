@@ -8,8 +8,10 @@ import { getFlowHistory } from "@/lib/sources/b3Flow";
 import { buildFlowSegments, getFlowChartData, SEGMENT_CONFIG } from "@/lib/semaphore";
 import { getNews } from "@/lib/sources/rss";
 import { getZScoreHighlights } from "@/lib/zscoreService";
+import { getB3VolatilityRanking } from "@/lib/volatilityService";
 import { getBrapiRanking, type BrapiListItem } from "@/lib/sources/brapi";
 import { buildB3Insights } from "@/lib/insights";
+import { VolatilityTable } from "@/components/VolatilityTable";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +29,7 @@ function toRankingItem(item: BrapiListItem): RankingItem {
 export default async function AcoesPage() {
   const now = new Date().toISOString();
 
-  const [flowResult, newsResult, zScoreResult, gainersResult, losersResult, volumeResult] =
+  const [flowResult, newsResult, zScoreResult, gainersResult, losersResult, volumeResult, volatilityResult] =
     await Promise.allSettled([
       getFlowHistory(),
       getNews("b3", 10),
@@ -35,6 +37,7 @@ export default async function AcoesPage() {
       getBrapiRanking("change", "desc", 20),
       getBrapiRanking("change", "asc", 20),
       getBrapiRanking("volume", "desc", 20),
+      getB3VolatilityRanking(),
     ]);
 
   const news = newsResult.status === "fulfilled" ? newsResult.value : [];
@@ -42,6 +45,7 @@ export default async function AcoesPage() {
   const gainers = gainersResult.status === "fulfilled" ? gainersResult.value.map(toRankingItem) : null;
   const losers = losersResult.status === "fulfilled" ? losersResult.value.map(toRankingItem) : null;
   const byVolume = volumeResult.status === "fulfilled" ? volumeResult.value.map(toRankingItem) : null;
+  const volatility = volatilityResult.status === "fulfilled" ? volatilityResult.value : null;
 
   const insights =
     gainers && losers && byVolume && flowResult.status === "fulfilled"
@@ -130,17 +134,24 @@ export default async function AcoesPage() {
             <p className="text-sm text-down">Fonte indisponível no momento.</p>
           </Panel>
         )}
-        <Panel title="Mais Alugadas (proxy de pressão vendedora)" updatedAt={now}>
-          <p className="text-sm text-text-muted">
-            Indisponível — o TradersClub bloqueia requisições automatizadas (proteção Cloudflare).
-            Consulte manualmente em{" "}
-            <a href="https://tc.tradersclub.com.br/mais-alugadas-b3" className="text-gold-bright hover:underline">
-              tc.tradersclub.com.br/mais-alugadas-b3
-            </a>
-            .
-          </p>
+        <Panel title="Volatilidade — proxy de risco (não é short interest)" updatedAt={now}>
+          {volatility ? (
+            <VolatilityTable items={volatility} />
+          ) : (
+            <p className="text-sm text-down">
+              Fonte indisponível{volatilityResult.status === "rejected" && volatilityResult.reason instanceof Error
+                ? `: ${volatilityResult.reason.message}`
+                : "."}
+            </p>
+          )}
         </Panel>
       </div>
+      <p className="text-xs text-text-muted">
+        Sobre &quot;mais alugadas/alavancadas&quot;: não existe fonte gratuita real para B3 (o
+        TradersClub bloqueia acesso automatizado via Cloudflare, e dívida/patrimônio exige dados
+        fundamentalistas trimestrais que nenhuma API grátis expõe). Usamos volatilidade calculada
+        como proxy de risco no lugar, deixado explícito acima.
+      </p>
 
       <Panel title="Notícias Brasil / B3" updatedAt={now}>
         <NewsFeed items={news} now={now} />
