@@ -110,21 +110,21 @@ export default async function StocksPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {gainers ? (
-          <RankingPanel title="Maiores Altas" items={gainers} updatedAt={now} valueLabel="Preço (US$)" format="price-usd" />
+          <RankingPanel title="Maiores Altas" items={gainers} updatedAt={now} valueLabel="Preço (US$)" format="price-usd" assetClass="stocks" />
         ) : (
           <Panel title="Maiores Altas" updatedAt={now}>
             <p className="text-sm text-down">Fonte indisponível no momento.</p>
           </Panel>
         )}
         {losers ? (
-          <RankingPanel title="Maiores Baixas" items={losers} updatedAt={now} valueLabel="Preço (US$)" format="price-usd" />
+          <RankingPanel title="Maiores Baixas" items={losers} updatedAt={now} valueLabel="Preço (US$)" format="price-usd" assetClass="stocks" />
         ) : (
           <Panel title="Maiores Baixas" updatedAt={now}>
             <p className="text-sm text-down">Fonte indisponível no momento.</p>
           </Panel>
         )}
         {actives ? (
-          <RankingPanel title="Maiores Volumes" items={actives} updatedAt={now} valueLabel="Preço (US$)" format="price-usd" />
+          <RankingPanel title="Maiores Volumes" items={actives} updatedAt={now} valueLabel="Preço (US$)" format="price-usd" assetClass="stocks" />
         ) : (
           <Panel title="Maiores Volumes" updatedAt={now}>
             <p className="text-sm text-down">Fonte indisponível no momento.</p>

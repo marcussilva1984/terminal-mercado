@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { RankingItem } from "@/lib/types";
 import { changeColorClass, formatNumber, formatPct } from "@/lib/format";
 
@@ -5,10 +6,12 @@ export function RankingTable({
   items,
   valueLabel = "Preço",
   formatValue = (v: number) => formatNumber(v),
+  assetClass,
 }: {
   items: RankingItem[];
   valueLabel?: string;
   formatValue?: (value: number) => string;
+  assetClass?: "b3" | "cripto" | "stocks" | "fii";
 }) {
   if (items.length === 0) {
     return <p className="text-sm text-text-muted">Sem dados disponíveis.</p>;
@@ -30,8 +33,17 @@ export function RankingTable({
         {items.map((item) => (
           <tr key={item.symbol} className="border-b border-border/50 last:border-0">
             <td className="py-2">
-              <div className="font-medium text-text">{item.symbol}</div>
-              <div className="text-xs text-text-muted">{item.label}</div>
+              {assetClass ? (
+                <Link href={`/ticker/${item.symbol}?class=${assetClass}`} className="hover:underline">
+                  <div className="font-medium text-gold-bright">{item.symbol}</div>
+                  <div className="text-xs text-text-muted">{item.label}</div>
+                </Link>
+              ) : (
+                <>
+                  <div className="font-medium text-text">{item.symbol}</div>
+                  <div className="text-xs text-text-muted">{item.label}</div>
+                </>
+              )}
             </td>
             <td className="py-2 text-right text-text">{formatValue(item.value)}</td>
             <td className={`py-2 text-right ${changeColorClass(item.changePct)}`}>

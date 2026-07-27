@@ -82,7 +82,7 @@ export default async function FiiPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {gainers ? (
-          <RankingPanel title="Maiores Altas de Cota" items={gainers} updatedAt={now} valueLabel="Cota (R$)" format="price-brl" />
+          <RankingPanel title="Maiores Altas de Cota" items={gainers} updatedAt={now} valueLabel="Cota (R$)" format="price-brl" assetClass="fii" />
         ) : (
           <Panel title="Maiores Altas de Cota" updatedAt={now}>
             <p className="text-sm text-down">Fonte indisponível no momento.</p>
@@ -95,6 +95,7 @@ export default async function FiiPage() {
             updatedAt={now}
             valueLabel="Cota (R$)"
             format="price-brl"
+            assetClass="fii"
           />
         ) : (
           <Panel title="Maiores Baixas de Cota" updatedAt={now}>

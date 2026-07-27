@@ -25,11 +25,15 @@ export function formatBRLCompact(value: number): string {
 }
 
 export function formatUSDCompact(value: number): string {
+  return formatCompact(value, "US$");
+}
+
+export function formatCompact(value: number, currencySymbol: string): string {
   const abs = Math.abs(value);
-  if (abs >= 1_000_000_000) return `US$ ${formatNumber(abs / 1_000_000_000)} bi`;
-  if (abs >= 1_000_000) return `US$ ${formatNumber(abs / 1_000_000)} mi`;
-  if (abs >= 1_000) return `US$ ${formatNumber(abs / 1_000)} mil`;
-  return `US$ ${formatNumber(abs)}`;
+  if (abs >= 1_000_000_000) return `${currencySymbol} ${formatNumber(abs / 1_000_000_000)} bi`;
+  if (abs >= 1_000_000) return `${currencySymbol} ${formatNumber(abs / 1_000_000)} mi`;
+  if (abs >= 1_000) return `${currencySymbol} ${formatNumber(abs / 1_000)} mil`;
+  return `${currencySymbol} ${formatNumber(abs)}`;
 }
 
 export function formatTime(iso: string): string {

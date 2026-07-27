@@ -190,6 +190,7 @@ export default async function CriptoPage() {
           updatedAt={now}
           valueLabel="Preço (US$)"
           format="price-usd"
+          assetClass="cripto"
         />
         <RankingPanel
           title="Maiores Baixas 24h"
@@ -197,6 +198,7 @@ export default async function CriptoPage() {
           updatedAt={now}
           valueLabel="Preço (US$)"
           format="price-usd"
+          assetClass="cripto"
         />
         <RankingPanel
           title="Maiores Volumes 24h"
@@ -204,6 +206,7 @@ export default async function CriptoPage() {
           updatedAt={now}
           valueLabel="Volume 24h"
           format="compact-usd"
+          assetClass="cripto"
         />
         <RankingPanel
           title="Top Market Cap"
@@ -211,6 +214,7 @@ export default async function CriptoPage() {
           updatedAt={now}
           valueLabel="Market Cap"
           format="compact-usd"
+          assetClass="cripto"
         />
       </div>
 

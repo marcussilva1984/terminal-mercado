@@ -24,6 +24,7 @@ export function RankingPanel({
   valueLabel,
   format = "number",
   defaultCount = 10,
+  assetClass,
 }: {
   title: string;
   items: RankingItem[];
@@ -31,6 +32,7 @@ export function RankingPanel({
   valueLabel?: string;
   format?: ValueFormat;
   defaultCount?: (typeof COUNT_OPTIONS)[number];
+  assetClass?: "b3" | "cripto" | "stocks" | "fii";
 }) {
   const [count, setCount] = useState<number>(defaultCount);
 
@@ -52,7 +54,7 @@ export function RankingPanel({
         </select>
       }
     >
-      <RankingTable items={items.slice(0, count)} valueLabel={valueLabel} formatValue={FORMATTERS[format]} />
+      <RankingTable items={items.slice(0, count)} valueLabel={valueLabel} formatValue={FORMATTERS[format]} assetClass={assetClass} />
     </Panel>
   );
 }

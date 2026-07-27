@@ -114,21 +114,21 @@ export default async function AcoesPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {gainers ? (
-          <RankingPanel title="Maiores Altas" items={gainers} updatedAt={now} valueLabel="Preço (R$)" format="price-brl" />
+          <RankingPanel title="Maiores Altas" items={gainers} updatedAt={now} valueLabel="Preço (R$)" format="price-brl" assetClass="b3" />
         ) : (
           <Panel title="Maiores Altas" updatedAt={now}>
             <p className="text-sm text-down">Fonte indisponível no momento.</p>
           </Panel>
         )}
         {losers ? (
-          <RankingPanel title="Maiores Baixas" items={losers} updatedAt={now} valueLabel="Preço (R$)" format="price-brl" />
+          <RankingPanel title="Maiores Baixas" items={losers} updatedAt={now} valueLabel="Preço (R$)" format="price-brl" assetClass="b3" />
         ) : (
           <Panel title="Maiores Baixas" updatedAt={now}>
             <p className="text-sm text-down">Fonte indisponível no momento.</p>
           </Panel>
         )}
         {byVolume ? (
-          <RankingPanel title="Maiores Volumes" items={byVolume} updatedAt={now} valueLabel="Preço (R$)" format="price-brl" />
+          <RankingPanel title="Maiores Volumes" items={byVolume} updatedAt={now} valueLabel="Preço (R$)" format="price-brl" assetClass="b3" />
         ) : (
           <Panel title="Maiores Volumes" updatedAt={now}>
             <p className="text-sm text-down">Fonte indisponível no momento.</p>
