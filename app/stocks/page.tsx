@@ -4,10 +4,11 @@ import { RankingPanel } from "@/components/RankingPanel";
 import { NewsFeed } from "@/components/NewsFeed";
 import { changeColorClass, formatPct, formatPrice } from "@/lib/format";
 import { getYahooQuotes, getYahooScreener, type YahooScreenerItem } from "@/lib/sources/yahoo";
-import { getAnalystTargets } from "@/lib/sources/yahooAnalyst";
+import type { AnalystTarget } from "@/lib/sources/yahooAnalyst";
 import { getNews } from "@/lib/sources/rss";
 import { STOCKS_WATCHLIST, US_INDICES } from "@/lib/watchlist";
 import { AnalystTargetTable, type AnalystTargetRow } from "@/components/AnalystTargetTable";
+import { getBaseUrl } from "@/lib/baseUrl";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,16 @@ function toRankingItem(item: YahooScreenerItem): RankingItem {
 export default async function StocksPage() {
   const now = new Date().toISOString();
 
+  const fetchAnalystTargets = async (): Promise<AnalystTarget[]> => {
+    const symbols = STOCKS_WATCHLIST.map((w) => w.symbol).join(",");
+    const res = await fetch(`${getBaseUrl()}/api/analyst-targets?symbols=${encodeURIComponent(symbols)}`, {
+      cache: "no-store",
+    });
+    const json = await res.json();
+    if (!json.available) throw new Error(json.error ?? "Falha ao carregar preço-alvo");
+    return json.data;
+  };
+
   const [indices, watchlistQuotes, gainersResult, losersResult, activesResult, news, analystTargets] = await Promise.all([
     getYahooQuotes(US_INDICES.map((i) => i.symbol)),
     getYahooQuotes(STOCKS_WATCHLIST.map((w) => w.symbol)),
@@ -26,7 +37,7 @@ export default async function StocksPage() {
     getYahooScreener("day_losers", 20).catch(() => null),
     getYahooScreener("most_actives", 20).catch(() => null),
     getNews("internacional", 10),
-    getAnalystTargets(STOCKS_WATCHLIST.map((w) => w.symbol)).catch(() => []),
+    fetchAnalystTargets().catch(() => []),
   ]);
 
   const gainers = gainersResult?.map(toRankingItem) ?? null;
