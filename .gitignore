@@ -45,3 +45,4 @@ next-env.d.ts
 
 # harness-internal, machine-specific
 .claude/scheduled_tasks.lock
+.env.vercel.tmp

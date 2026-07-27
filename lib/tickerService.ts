@@ -8,6 +8,11 @@ const YAHOO_TICKER_SYMBOLS = {
   SPX: { yahoo: "^GSPC", label: "S&P 500", currency: "USD", assetClass: "indice" as const },
   PETR4: { yahoo: "PETR4.SA", label: "Petrobras PN", currency: "BRL", assetClass: "b3" as const },
   VALE3: { yahoo: "VALE3.SA", label: "Vale ON", currency: "BRL", assetClass: "b3" as const },
+  VIX: { yahoo: "^VIX", label: "VIX", currency: "USD", assetClass: "indice" as const },
+  DXY: { yahoo: "DX-Y.NYB", label: "Índice Dólar (DXY)", currency: "USD", assetClass: "indice" as const },
+  EURUSD: { yahoo: "EURUSD=X", label: "EUR/USD", currency: "USD", assetClass: "forex" as const },
+  GBPUSD: { yahoo: "GBPUSD=X", label: "GBP/USD", currency: "USD", assetClass: "forex" as const },
+  BRENT: { yahoo: "BZ=F", label: "Brent", currency: "USD", assetClass: "indice" as const },
 };
 
 const CRIPTO_TICKER_SYMBOLS = ["BTC", "ETH", "SOL"];

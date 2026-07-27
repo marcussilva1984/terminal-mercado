@@ -1,0 +1,17 @@
+name: Price snapshot
+
+on:
+  schedule:
+    # 21:05 UTC — logo após o fechamento da B3, horário garantido via GitHub
+    # Actions (Vercel Hobby não garante horário exato).
+    - cron: "5 21 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call price-snapshot endpoint
+        run: |
+          curl -sf -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://terminal-mercado.vercel.app/api/cron/price-snapshot"

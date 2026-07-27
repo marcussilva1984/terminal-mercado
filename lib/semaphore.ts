@@ -95,6 +95,26 @@ export function buildFlowSegments(history: FlowDayRaw[]): FlowSegment[] {
   });
 }
 
+// A soma de TODAS as categorias de fluxo B3 sempre dá ~zero (mercado fechado:
+// toda compra de uma categoria é a venda de outra) — por isso não existe um
+// "total" informativo somando tudo. O que investidores acompanham de fato é
+// "dinheiro profissional" (Estrangeiro + Institucional) vs. Pessoa Física.
+export function computeSmartMoneyFlow(segments: FlowSegment[]): {
+  dailyBRL: number;
+  monthBRL: number;
+  yearBRL: number;
+} {
+  const smartMoney = segments.filter((s) => s.segment === "Estrangeiro" || s.segment === "Institucional");
+  return smartMoney.reduce(
+    (acc, s) => ({
+      dailyBRL: acc.dailyBRL + s.dailyBRL,
+      monthBRL: acc.monthBRL + s.monthBRL,
+      yearBRL: acc.yearBRL + s.yearBRL,
+    }),
+    { dailyBRL: 0, monthBRL: 0, yearBRL: 0 }
+  );
+}
+
 export interface FlowChartDay {
   date: string;
   value: number;

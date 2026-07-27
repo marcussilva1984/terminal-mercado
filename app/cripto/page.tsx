@@ -4,8 +4,9 @@ import { Panel } from "@/components/Panel";
 import { NewsFeed } from "@/components/NewsFeed";
 import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import { getTopCoinMarkets, getCoinCategories, type CoinMarket } from "@/lib/sources/coingecko";
-import { getDerivativesSnapshot } from "@/lib/sources/binanceFutures";
+import type { DerivativeSnapshot } from "@/lib/sources/binanceFutures";
 import { getOnChainSnapshot, getFearGreedIndex } from "@/lib/sources/onchain";
+import { getBaseUrl } from "@/lib/baseUrl";
 import { getNews } from "@/lib/sources/rss";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 import { formatPrice } from "@/lib/format";
@@ -34,13 +35,20 @@ export default async function CriptoPage() {
   let available = true;
   let fetchError: string | undefined;
 
+  const fetchDerivatives = async (): Promise<DerivativeSnapshot[]> => {
+    const res = await fetch(`${getBaseUrl()}/api/derivatives`, { cache: "no-store" });
+    const json = await res.json();
+    if (!json.available) throw new Error(json.error ?? "Falha ao carregar derivativos");
+    return json.data;
+  };
+
   const [coinsResult, newsResult, zScoreResult, categoriesResult, derivativesResult, onChainResult, fearGreedResult] =
     await Promise.allSettled([
       getTopCoinMarkets(100),
       getNews("cripto", 10),
       getZScoreHighlights("cripto"),
       getCoinCategories(),
-      getDerivativesSnapshot(),
+      fetchDerivatives(),
       getOnChainSnapshot(),
       getFearGreedIndex(),
     ]);
