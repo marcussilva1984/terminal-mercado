@@ -4,7 +4,7 @@ import { RankingPanel } from "@/components/RankingPanel";
 import { NewsFeed } from "@/components/NewsFeed";
 import { changeColorClass, formatPct, formatPrice } from "@/lib/format";
 import { getYahooQuotes, getYahooScreener, type YahooScreenerItem } from "@/lib/sources/yahoo";
-import { getAnalystTargets } from "@/lib/sources/finviz";
+import { getAnalystTargets } from "@/lib/sources/yahooAnalyst";
 import { getNews } from "@/lib/sources/rss";
 import { STOCKS_WATCHLIST, US_INDICES } from "@/lib/watchlist";
 import { AnalystTargetTable, type AnalystTargetRow } from "@/components/AnalystTargetTable";
@@ -37,14 +37,18 @@ export default async function StocksPage() {
     .map((a) => {
       const quote = watchlistQuotes[a.symbol];
       const label = STOCKS_WATCHLIST.find((w) => w.symbol === a.symbol)?.label ?? a.symbol;
-      if (!quote || a.targetPrice === null) return null;
+      const price = a.currentPrice ?? quote?.price;
+      if (!price || a.targetMeanPrice === null) return null;
       return {
         symbol: a.symbol,
         label,
-        currentPrice: quote.price,
-        targetPrice: a.targetPrice,
-        upsidePct: ((a.targetPrice - quote.price) / quote.price) * 100,
-        recommendation: a.recommendation,
+        currentPrice: price,
+        targetMeanPrice: a.targetMeanPrice,
+        targetHighPrice: a.targetHighPrice,
+        targetLowPrice: a.targetLowPrice,
+        upsidePct: ((a.targetMeanPrice - price) / price) * 100,
+        recommendationMean: a.recommendationMean,
+        numberOfAnalysts: a.numberOfAnalysts,
       };
     })
     .filter((r): r is AnalystTargetRow => r !== null);

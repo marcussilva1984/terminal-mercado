@@ -1,8 +1,16 @@
 import { Panel } from "@/components/Panel";
 import { getTesouroDiretoRates } from "@/lib/sources/tesouroDireto";
-import { formatNumber, formatDateTime } from "@/lib/format";
+import { formatNumber, formatDateTime, changeColorClass } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
+
+// Prefixo de rentabilidade mostrado ao lado da taxa, conforme o indexador do título.
+function rateIndex(title: string): string {
+  if (title.includes("Selic")) return "Selic +";
+  if (title.includes("IPCA")) return "IPCA +";
+  if (title.includes("IGPM")) return "IGP-M +";
+  return "";
+}
 
 export default async function TesouroPage() {
   const now = new Date().toISOString();
@@ -46,48 +54,55 @@ export default async function TesouroPage() {
       ) : (
         Array.from(byType.entries()).map(([title, list]) => (
           <Panel key={title} title={title} updatedAt={now}>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs text-text-muted">
-                    <th className="pb-2 font-medium">Vencimento</th>
-                    <th className="pb-2 font-medium text-right">Taxa Compra</th>
-                    <th className="pb-2 font-medium text-right">Taxa Venda</th>
-                    <th className="pb-2 font-medium text-right">PU Compra</th>
-                    <th className="pb-2 font-medium text-right">PU Venda</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {list
-                    .slice()
-                    .sort((a, b) => a.maturityDate.localeCompare(b.maturityDate))
-                    .map((b) => (
-                      <tr key={b.maturityDate} className="border-b border-border/50 last:border-0">
-                        <td className="py-2 text-text">{new Date(b.maturityDate).toLocaleDateString("pt-BR")}</td>
-                        <td className="py-2 text-right text-text">
-                          {b.buyRate !== null ? `${formatNumber(b.buyRate)}%` : "—"}
-                        </td>
-                        <td className="py-2 text-right text-text">
-                          {b.sellRate !== null ? `${formatNumber(b.sellRate)}%` : "—"}
-                        </td>
-                        <td className="py-2 text-right text-gold-bright">
-                          {b.buyPrice !== null ? `R$ ${formatNumber(b.buyPrice)}` : "—"}
-                        </td>
-                        <td className="py-2 text-right text-text">
-                          {b.sellPrice !== null ? `R$ ${formatNumber(b.sellPrice)}` : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {list
+                .slice()
+                .sort((a, b) => a.maturityDate.localeCompare(b.maturityDate))
+                .map((b) => (
+                  <div key={b.maturityDate} className="rounded-md border border-border bg-panel-alt p-4">
+                    <div className="text-sm font-medium text-text">
+                      {title} {b.maturityYear}
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <div className="text-xs text-text-muted">Taxa</div>
+                        <div className="font-semibold text-text">
+                          {rateIndex(title)}
+                          {b.buyRate !== null ? formatNumber(b.buyRate) : "—"}%
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-text-muted">Variação 12M</div>
+                        <div className={`font-semibold ${b.change12MPct !== null ? changeColorClass(b.change12MPct) : "text-text-muted"}`}>
+                          {b.change12MPct !== null ? (
+                            <>
+                              {b.change12MPct >= 0 ? "↑" : "↓"} {formatNumber(Math.abs(b.change12MPct))}%
+                            </>
+                          ) : (
+                            "—"
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-text-muted">venda</div>
+                        <div className="text-text">{b.sellPrice !== null ? `R$ ${formatNumber(b.sellPrice)}` : "—"}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-text-muted">compra</div>
+                        <div className="text-gold-bright">{b.buyPrice !== null ? `R$ ${formatNumber(b.buyPrice)}` : "—"}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
             </div>
           </Panel>
         ))
       )}
 
       <p className="text-xs text-text-muted">
-        Atualizado em {formatDateTime(now)}. PU = Preço Unitário do título. Taxa de compra é a que você recebe
-        se levar o título até o vencimento; taxa de venda é a de recompra antecipada pelo Tesouro.
+        Atualizado em {formatDateTime(now)}. Variação 12M = variação do PU de compra frente à data mais próxima
+        de 12 meses atrás (tolerância de até 20 dias). Taxa de compra é a que você recebe se levar o título até o
+        vencimento; PU = Preço Unitário.
       </p>
     </div>
   );
