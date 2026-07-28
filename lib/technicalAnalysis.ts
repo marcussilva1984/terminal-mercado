@@ -113,32 +113,46 @@ function linearRegression(points: { x: number; y: number }[]): { slope: number; 
   return { slope, intercept };
 }
 
+// Linha de suporte via regressão nos fundos, mais uma linha de resistência
+// PARALELA (mesma inclinação) deslocada pra conter os topos — forma um canal
+// de tendência de verdade, em vez de duas retas com inclinações diferentes
+// que só parecem um canal por acaso.
 export function computeTrendLines(candles: Candle[]): TrendLine[] {
   if (candles.length < 20) return [];
   const pivots = findPivots(candles);
   const lows = pivots.filter((p) => p.kind === "low");
   const highs = pivots.filter((p) => p.kind === "high");
 
-  const lines: TrendLine[] = [];
   const lowFit = linearRegression(lows.map((p) => ({ x: p.index, y: p.price })));
-  if (lowFit && lows.length >= 2) {
-    lines.push({
-      type: "support",
-      slope: lowFit.slope,
-      intercept: lowFit.intercept,
-      startIndex: lows[0].index,
-      endIndex: candles.length - 1,
-    });
+  if (!lowFit || lows.length < 2) return [];
+
+  const startIndex = Math.min(lows[0]?.index ?? Infinity, highs[0]?.index ?? Infinity);
+  const endIndex = candles.length - 1;
+
+  const supportLine: TrendLine = {
+    type: "support",
+    slope: lowFit.slope,
+    intercept: lowFit.intercept,
+    startIndex,
+    endIndex,
+  };
+
+  // Desloca uma cópia paralela da linha de suporte pra cima até encostar no
+  // topo mais alto do período — isso é o canal.
+  let maxOffset = 0;
+  for (let i = startIndex; i <= endIndex; i++) {
+    const lineValueAtI = lowFit.slope * i + lowFit.intercept;
+    const offset = candles[i].high - lineValueAtI;
+    if (offset > maxOffset) maxOffset = offset;
   }
-  const highFit = linearRegression(highs.map((p) => ({ x: p.index, y: p.price })));
-  if (highFit && highs.length >= 2) {
-    lines.push({
-      type: "resistance",
-      slope: highFit.slope,
-      intercept: highFit.intercept,
-      startIndex: highs[0].index,
-      endIndex: candles.length - 1,
-    });
-  }
-  return lines;
+
+  const resistanceLine: TrendLine = {
+    type: "resistance",
+    slope: lowFit.slope,
+    intercept: lowFit.intercept + maxOffset,
+    startIndex,
+    endIndex,
+  };
+
+  return [supportLine, resistanceLine];
 }

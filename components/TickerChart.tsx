@@ -16,6 +16,8 @@ const GAP = 10;
 const TOTAL_HEIGHT = CHART_HEIGHT + GAP + VOLUME_HEIGHT;
 const PADDING = 6;
 const Y_AXIS_WIDTH = 52; // espaço reservado à direita pros rótulos de preço
+const SUPPORT_COLOR = "#3b82f6"; // azul
+const RESISTANCE_COLOR = "#f5a524"; // laranja (mesmo tom do --color-amber)
 
 function computeSMA(closes: number[], window: number): (number | null)[] {
   const out: (number | null)[] = [];
@@ -90,7 +92,7 @@ const StaticChart = memo(function StaticChart({
           </text>
         </g>
       ))}
-      {/* suporte/resistência */}
+      {/* suporte/resistência — suporte azul, resistência laranja */}
       {visibleSR.map((l) => (
         <g key={`sr-${l.price}`}>
           <line
@@ -98,14 +100,14 @@ const StaticChart = memo(function StaticChart({
             x2={plotWidth}
             y1={yFor(l.price)}
             y2={yFor(l.price)}
-            className={l.type === "support" ? "stroke-up" : "stroke-down"}
+            stroke={l.type === "support" ? SUPPORT_COLOR : RESISTANCE_COLOR}
             strokeWidth={1}
             strokeDasharray="4 3"
             opacity={0.55}
           />
         </g>
       ))}
-      {/* linhas de tendência */}
+      {/* canal de tendência — suporte azul, resistência laranja */}
       {visibleTrendLines.map((t) => (
         <line
           key={t.type}
@@ -113,7 +115,7 @@ const StaticChart = memo(function StaticChart({
           y1={t.y1}
           x2={t.x2}
           y2={t.y2}
-          className={t.type === "support" ? "stroke-up" : "stroke-down"}
+          stroke={t.type === "support" ? SUPPORT_COLOR : RESISTANCE_COLOR}
           strokeWidth={1.3}
           opacity={0.8}
         />
