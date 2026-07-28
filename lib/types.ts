@@ -1,4 +1,4 @@
-export type AssetClass = "b3" | "cripto" | "stocks" | "forex" | "indice";
+export type AssetClass = "b3" | "cripto" | "stocks" | "fii" | "forex" | "indice";
 
 export interface Quote {
   symbol: string;

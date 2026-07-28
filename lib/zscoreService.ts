@@ -2,28 +2,36 @@ import { hasDatabase } from "@/lib/db/client";
 import { getCloses } from "@/lib/db/priceSeriesRepo";
 import { getWatchlist, seedWatchlistIfEmpty } from "@/lib/db/watchlistRepo";
 import { computeZScore } from "@/lib/zscore";
-import { B3_WATCHLIST, CRIPTO_WATCHLIST } from "@/lib/watchlist";
+import { B3_WATCHLIST, CRIPTO_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST } from "@/lib/watchlist";
 import type { AssetClass, ZScoreHighlight } from "@/lib/types";
 
-export async function getZScoreHighlights(
-  assetClass?: Extract<AssetClass, "b3" | "cripto">
-): Promise<ZScoreHighlight[]> {
+const ALL_CLASSES: AssetClass[] = ["b3", "cripto", "fii", "stocks"];
+
+const DEFAULT_WATCHLIST_BY_CLASS: Partial<Record<AssetClass, { symbol: string; label: string }[]>> = {
+  b3: B3_WATCHLIST,
+  cripto: CRIPTO_WATCHLIST,
+  fii: FII_WATCHLIST,
+  stocks: STOCKS_WATCHLIST,
+};
+
+export async function getZScoreHighlights(assetClass?: AssetClass): Promise<ZScoreHighlight[]> {
   if (!hasDatabase()) {
     throw new Error("DATABASE_URL não configurada — z-score precisa do histórico salvo no banco.");
   }
 
-  await seedWatchlistIfEmpty([
-    ...B3_WATCHLIST.map((w) => ({ ...w, assetClass: "b3" })),
-    ...CRIPTO_WATCHLIST.map((w) => ({ ...w, assetClass: "cripto" })),
-  ]);
+  await seedWatchlistIfEmpty(
+    ALL_CLASSES.flatMap((cls) => (DEFAULT_WATCHLIST_BY_CLASS[cls] ?? []).map((w) => ({ ...w, assetClass: cls })))
+  );
 
-  const b3Items = assetClass === "cripto" ? [] : await getWatchlist("b3");
-  const criptoItems = assetClass === "b3" ? [] : await getWatchlist("cripto");
-
-  const entries = [
-    ...b3Items.map((w) => ({ symbol: w.symbol, label: w.label, assetClass: "b3" as const })),
-    ...criptoItems.map((w) => ({ symbol: w.symbol, label: w.label, assetClass: "cripto" as const })),
-  ];
+  const classesToLoad = assetClass ? [assetClass] : ALL_CLASSES;
+  const entries = (
+    await Promise.all(
+      classesToLoad.map(async (cls) => {
+        const items = await getWatchlist(cls);
+        return items.map((w) => ({ symbol: w.symbol, label: w.label, assetClass: cls }));
+      })
+    )
+  ).flat();
 
   const results: ZScoreHighlight[] = [];
 

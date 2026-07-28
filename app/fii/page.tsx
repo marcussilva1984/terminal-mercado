@@ -8,6 +8,8 @@ import { getFiiDividendYieldRanking } from "@/lib/sources/investidor10";
 import { getNews } from "@/lib/sources/rss";
 import { formatNumber } from "@/lib/format";
 import { buildGenericInsights } from "@/lib/insights";
+import { getZScoreHighlights } from "@/lib/zscoreService";
+import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -19,13 +21,14 @@ function toRankingItem(item: BrapiListItem): RankingItem {
 export default async function FiiPage() {
   const now = new Date().toISOString();
 
-  const [ifixResult, gainersResult, losersResult, dyResult, sectorResult, news] = await Promise.all([
+  const [ifixResult, gainersResult, losersResult, dyResult, sectorResult, news, zScoreResult] = await Promise.all([
     getYahooQuote("IFIX.SA").catch(() => null),
     getBrapiRanking("change", "desc", 20, "fund").catch(() => null),
     getBrapiRanking("change", "asc", 20, "fund").catch(() => null),
     getFiiDividendYieldRanking(20).catch(() => null),
     getFiiSectorPerformance().catch(() => null),
     getNews("fii", 10),
+    getZScoreHighlights("fii").catch(() => null),
   ]);
 
   const gainers = gainersResult?.map(toRankingItem) ?? null;
@@ -147,6 +150,16 @@ export default async function FiiPage() {
           </table>
         ) : (
           <p className="text-sm text-down">Fonte indisponível no momento.</p>
+        )}
+      </Panel>
+
+      <Panel title="Z-Score — Watchlist FII" updatedAt={now}>
+        {zScoreResult ? (
+          <ZScoreHighlightList items={zScoreResult} />
+        ) : (
+          <p className="text-sm text-text-muted">
+            Configure <code>DATABASE_URL</code> e rode o backfill para habilitar o z-score.
+          </p>
         )}
       </Panel>
 

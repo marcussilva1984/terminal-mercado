@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { hasDatabase } from "@/lib/db/client";
 import { getWatchlist, addWatchlistItem, removeWatchlistItem, seedWatchlistIfEmpty } from "@/lib/db/watchlistRepo";
-import { B3_WATCHLIST, CRIPTO_WATCHLIST } from "@/lib/watchlist";
+import { B3_WATCHLIST, CRIPTO_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST } from "@/lib/watchlist";
+
+const VALID_ASSET_CLASSES = ["b3", "fii", "stocks", "cripto"];
 import { getCurrentPrice } from "@/lib/priceLookup";
 
 export async function GET() {
@@ -13,6 +15,8 @@ export async function GET() {
     await seedWatchlistIfEmpty([
       ...B3_WATCHLIST.map((w) => ({ ...w, assetClass: "b3" })),
       ...CRIPTO_WATCHLIST.map((w) => ({ ...w, assetClass: "cripto" })),
+      ...FII_WATCHLIST.map((w) => ({ ...w, assetClass: "fii" })),
+      ...STOCKS_WATCHLIST.map((w) => ({ ...w, assetClass: "stocks" })),
     ]);
     const items = await getWatchlist();
     const withPrices = await Promise.all(
@@ -38,8 +42,8 @@ export async function POST(request: Request) {
   if (!symbol || !assetClass) {
     return NextResponse.json({ error: "Campos obrigatórios: symbol, assetClass" }, { status: 400 });
   }
-  if (assetClass !== "b3" && assetClass !== "cripto") {
-    return NextResponse.json({ error: "assetClass deve ser 'b3' ou 'cripto'" }, { status: 400 });
+  if (!VALID_ASSET_CLASSES.includes(assetClass)) {
+    return NextResponse.json({ error: `assetClass deve ser um de: ${VALID_ASSET_CLASSES.join(", ")}` }, { status: 400 });
   }
 
   await addWatchlistItem({

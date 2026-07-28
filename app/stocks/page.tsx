@@ -7,6 +7,8 @@ import { getYahooQuotes, getYahooScreener, type YahooScreenerItem } from "@/lib/
 import { getNews } from "@/lib/sources/rss";
 import { STOCKS_WATCHLIST, US_INDICES } from "@/lib/watchlist";
 import { buildGenericInsights } from "@/lib/insights";
+import { getZScoreHighlights } from "@/lib/zscoreService";
+import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -18,13 +20,14 @@ function toRankingItem(item: YahooScreenerItem): RankingItem {
 export default async function StocksPage() {
   const now = new Date().toISOString();
 
-  const [indices, watchlistQuotes, gainersResult, losersResult, activesResult, news] = await Promise.all([
+  const [indices, watchlistQuotes, gainersResult, losersResult, activesResult, news, zScoreResult] = await Promise.all([
     getYahooQuotes(US_INDICES.map((i) => i.symbol)),
     getYahooQuotes(STOCKS_WATCHLIST.map((w) => w.symbol)),
     getYahooScreener("day_gainers", 20).catch(() => null),
     getYahooScreener("day_losers", 20).catch(() => null),
     getYahooScreener("most_actives", 20).catch(() => null),
     getNews("internacional", 10),
+    getZScoreHighlights("stocks").catch(() => null),
   ]);
 
   const gainers = gainersResult?.map(toRankingItem) ?? null;
@@ -121,6 +124,16 @@ export default async function StocksPage() {
             );
           })}
         </div>
+      </Panel>
+
+      <Panel title="Z-Score — Watchlist Stocks" updatedAt={now}>
+        {zScoreResult ? (
+          <ZScoreHighlightList items={zScoreResult} />
+        ) : (
+          <p className="text-sm text-text-muted">
+            Configure <code>DATABASE_URL</code> e rode o backfill para habilitar o z-score.
+          </p>
+        )}
       </Panel>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

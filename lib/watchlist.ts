@@ -29,6 +29,13 @@ export const CRIPTO_COINGECKO_IDS: Record<string, string> = {
   JTO: "jito-governance-token",
 };
 
+export const FII_WATCHLIST: WatchlistEntry[] = [
+  { symbol: "MXRF11", label: "Maxi Renda" },
+  { symbol: "HGLG11", label: "CSHG Logística" },
+  { symbol: "KNRI11", label: "Kinea Renda Imobiliária" },
+  { symbol: "BCFF11", label: "BTG Pactual Fundo de Fundos" },
+];
+
 export const STOCKS_WATCHLIST: WatchlistEntry[] = [
   { symbol: "NVDA", label: "NVIDIA" },
   { symbol: "TSLA", label: "Tesla" },

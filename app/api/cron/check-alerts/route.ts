@@ -130,9 +130,14 @@ export async function GET(request: Request) {
     // fontes de preço indisponíveis nesta rodada
   }
 
-  // 5. Preço-alvo dos analistas atingido/ultrapassado (watchlist Stocks)
+  // 5. Preço-alvo dos analistas atingido/ultrapassado (watchlist Stocks + B3)
+  // FII e Cripto ficam de fora aqui de propósito: Yahoo não tem cobertura de
+  // analistas pra esses dois (confirmado — financialData vem vazio), não é
+  // limitação nossa, é ausência real da fonte gratuita.
   try {
-    const symbols = STOCKS_WATCHLIST.map((w) => w.symbol).join(",");
+    const stockSymbols = STOCKS_WATCHLIST.map((w) => w.symbol);
+    const b3Symbols = B3_WATCHLIST.map((w) => `${w.symbol}.SA`);
+    const symbols = [...stockSymbols, ...b3Symbols].join(",");
     const res = await fetch(`${getBaseUrl()}/api/analyst-targets?symbols=${encodeURIComponent(symbols)}`, {
       cache: "no-store",
     });
@@ -142,7 +147,10 @@ export async function GET(request: Request) {
       for (const t of targets) {
         if (t.currentPrice === null || t.targetMeanPrice === null) continue;
         if (t.currentPrice >= t.targetMeanPrice) {
-          const label = `Preço-alvo atingido: ${t.symbol} em US$ ${t.currentPrice.toFixed(2)} já bateu o alvo médio dos analistas (US$ ${t.targetMeanPrice.toFixed(2)}).`;
+          const isB3 = t.symbol.endsWith(".SA");
+          const symbolLabel = isB3 ? t.symbol.replace(".SA", "") : t.symbol;
+          const currencyLabel = isB3 ? "R$" : "US$";
+          const label = `Preço-alvo atingido: ${symbolLabel} em ${currencyLabel} ${t.currentPrice.toFixed(2)} já bateu o alvo médio dos analistas (${currencyLabel} ${t.targetMeanPrice.toFixed(2)}).`;
           // Cooldown de 30 dias — não repete todo dia enquanto o preço seguir acima do alvo.
           const ok = await notify(`price_target:${t.symbol}`, label, "preco", 24 * 30);
           if (ok) sent.push(label);

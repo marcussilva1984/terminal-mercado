@@ -14,10 +14,12 @@ interface WatchlistItem {
   currency: string | null;
 }
 
-const ASSET_CLASS_LABEL: Record<string, string> = {
-  b3: "Ação B3",
-  cripto: "Cripto",
-};
+const ASSET_CLASSES = [
+  { value: "b3", label: "Ação B3" },
+  { value: "fii", label: "FII" },
+  { value: "stocks", label: "Stock (EUA)" },
+  { value: "cripto", label: "Cripto" },
+];
 
 export function WatchlistManager() {
   const [items, setItems] = useState<WatchlistItem[] | null>(null);
@@ -55,7 +57,7 @@ export function WatchlistManager() {
     });
     // Mantém a classe selecionada (só limpa símbolo/nome) — evita que ao
     // cadastrar vários itens da mesma classe em sequência, o formulário volte
-    // pra "Ação B3" e o usuário acabe salvando cripto como B3 sem perceber.
+    // pra classe padrão e o usuário acabe salvando algo na classe errada.
     setForm((f) => ({ ...f, symbol: "", label: "" }));
     setSubmitting(false);
     load();
@@ -76,75 +78,51 @@ export function WatchlistManager() {
     );
   }
 
-  const b3Items = items?.filter((i) => i.assetClass === "b3") ?? [];
-  const criptoItems = items?.filter((i) => i.assetClass === "cripto") ?? [];
-
   return (
     <Panel title="Watchlist (Z-Score / Volatilidade)">
       <p className="mb-4 text-sm text-text-muted">
-        Papéis/moedas aqui têm o preço coletado diariamente pelo cron e alimentam os painéis de
-        z-score e volatilidade. Para B3, sem um <code>BRAPI_TOKEN</code> gratuito da brapi.dev,
-        só PETR4/VALE3/MGLU3/ITUB4 têm histórico coletável — adicionar outro papel sem token não
-        vai funcionar.
+        Ativos aqui têm o preço coletado diariamente pelo cron e alimentam os painéis de z-score
+        (e, pra B3, volatilidade). Para B3, sem um <code>BRAPI_TOKEN</code> gratuito da brapi.dev,
+        só PETR4/VALE3/MGLU3/ITUB4 têm histórico coletável via brapi — os demais papéis B3 usam
+        Yahoo Finance, que não tem essa limitação.
       </p>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-        <div>
-          <h3 className="mb-2 text-xs font-medium uppercase text-text-muted">B3</h3>
-          <ul className="flex flex-col divide-y divide-border/50">
-            {b3Items.map((i) => (
-              <li key={i.id} className="flex items-center justify-between py-2 text-sm">
-                <span className="text-text">
-                  {i.symbol} <span className="text-text-muted">— {i.label}</span>
-                </span>
-                <div className="flex items-center gap-3">
-                  {i.price !== null ? (
-                    <span className="text-right">
-                      <span className="text-text">{formatPrice(i.price, i.currency ?? undefined)}</span>{" "}
-                      {i.changePct !== null && (
-                        <span className={changeColorClass(i.changePct)}>{formatPct(i.changePct)}</span>
-                      )}
+        {ASSET_CLASSES.map((cls) => {
+          const classItems = items?.filter((i) => i.assetClass === cls.value) ?? [];
+          return (
+            <div key={cls.value}>
+              <h3 className="mb-2 text-xs font-medium uppercase text-text-muted">{cls.label}</h3>
+              <ul className="flex flex-col divide-y divide-border/50">
+                {classItems.map((i) => (
+                  <li key={i.id} className="flex items-center justify-between py-2 text-sm">
+                    <span className="text-text">
+                      {i.symbol} <span className="text-text-muted">— {i.label}</span>
                     </span>
-                  ) : (
-                    <span className="text-xs text-text-muted">sem preço</span>
-                  )}
-                  <button onClick={() => handleRemove(i.id)} className="text-xs text-down hover:underline">
-                    remover
-                  </button>
-                </div>
-              </li>
-            ))}
-            {b3Items.length === 0 && <li className="py-2 text-sm text-text-muted">Nenhum papel na watchlist.</li>}
-          </ul>
-        </div>
-        <div>
-          <h3 className="mb-2 text-xs font-medium uppercase text-text-muted">Cripto</h3>
-          <ul className="flex flex-col divide-y divide-border/50">
-            {criptoItems.map((i) => (
-              <li key={i.id} className="flex items-center justify-between py-2 text-sm">
-                <span className="text-text">
-                  {i.symbol} <span className="text-text-muted">— {i.label}</span>
-                </span>
-                <div className="flex items-center gap-3">
-                  {i.price !== null ? (
-                    <span className="text-right">
-                      <span className="text-text">{formatPrice(i.price, i.currency ?? undefined)}</span>{" "}
-                      {i.changePct !== null && (
-                        <span className={changeColorClass(i.changePct)}>{formatPct(i.changePct)}</span>
+                    <div className="flex items-center gap-3">
+                      {i.price !== null ? (
+                        <span className="text-right">
+                          <span className="text-text">{formatPrice(i.price, i.currency ?? undefined)}</span>{" "}
+                          {i.changePct !== null && (
+                            <span className={changeColorClass(i.changePct)}>{formatPct(i.changePct)}</span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-text-muted">sem preço</span>
                       )}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-text-muted">sem preço</span>
-                  )}
-                  <button onClick={() => handleRemove(i.id)} className="text-xs text-down hover:underline">
-                    remover
-                  </button>
-                </div>
-              </li>
-            ))}
-            {criptoItems.length === 0 && <li className="py-2 text-sm text-text-muted">Nenhuma moeda na watchlist.</li>}
-          </ul>
-        </div>
+                      <button onClick={() => handleRemove(i.id)} className="text-xs text-down hover:underline">
+                        remover
+                      </button>
+                    </div>
+                  </li>
+                ))}
+                {classItems.length === 0 && (
+                  <li className="py-2 text-sm text-text-muted">Nenhum ativo na watchlist.</li>
+                )}
+              </ul>
+            </div>
+          );
+        })}
       </div>
 
       <form onSubmit={handleAdd} className="mt-6 flex flex-wrap items-end gap-2 border-t border-border pt-4">
@@ -154,8 +132,8 @@ export function WatchlistManager() {
             required
             value={form.symbol}
             onChange={(e) => setForm({ ...form, symbol: e.target.value })}
-            placeholder="WEGE3 ou ETH"
-            className="w-32 rounded border border-border bg-panel-alt px-2 py-1 text-sm text-text"
+            placeholder="WEGE3, MXRF11, AAPL ou ETH"
+            className="w-40 rounded border border-border bg-panel-alt px-2 py-1 text-sm text-text"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -165,8 +143,11 @@ export function WatchlistManager() {
             onChange={(e) => setForm({ ...form, assetClass: e.target.value })}
             className="rounded border border-border bg-panel-alt px-2 py-1 text-sm text-text"
           >
-            <option value="b3">Ação B3</option>
-            <option value="cripto">Cripto</option>
+            {ASSET_CLASSES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
           </select>
         </div>
         <div className="flex flex-col gap-1">
