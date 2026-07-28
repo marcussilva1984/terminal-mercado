@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { hasDatabase } from "@/lib/db/client";
 import { upsertCloses, type PriceSeriesRow } from "@/lib/db/priceSeriesRepo";
 import { getWatchlist, seedWatchlistIfEmpty } from "@/lib/db/watchlistRepo";
-import { getBrapiLastClose } from "@/lib/sources/brapi";
 import { getTopCoinMarkets } from "@/lib/sources/coingecko";
 import { getYahooQuote } from "@/lib/sources/yahoo";
 import { B3_WATCHLIST, CRIPTO_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST } from "@/lib/watchlist";
@@ -31,12 +30,13 @@ export async function GET(request: Request) {
   const stocksWatchlist = await getWatchlist("stocks");
   const today = new Date().toISOString().slice(0, 10);
 
+  // Yahoo (não brapi) pra B3 aqui de propósito: sem BRAPI_TOKEN, a brapi.dev só
+  // libera histórico pra 4 tickers fixos, o que travava o z-score em qualquer
+  // papel novo adicionado na watchlist. Yahoo não tem esse limite.
   for (const { symbol } of b3Watchlist) {
     try {
-      const point = await getBrapiLastClose(symbol);
-      if (point) {
-        rows.push({ symbol, assetClass: "b3", date: point.date, closePrice: point.close, source: "brapi.dev" });
-      }
+      const q = await getYahooQuote(`${symbol}.SA`);
+      if (q) rows.push({ symbol, assetClass: "b3", date: today, closePrice: q.price, source: "yahoo" });
     } catch {
       // fonte indisponível para este ativo — segue para os demais
     }

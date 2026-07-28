@@ -24,6 +24,10 @@ const MAIN_PAIRS: { symbol: string; pair: string; label: string }[] = [
   { symbol: "AUDUSD=X", pair: "AUD/USD", label: "Dólar Australiano" },
   { symbol: "NZDUSD=X", pair: "NZD/USD", label: "Dólar Neozelandês" },
   { symbol: "BRL=X", pair: "USD/BRL", label: "Real Brasileiro" },
+  { symbol: "GBPAUD=X", pair: "GBP/AUD", label: "Libra x Dólar Australiano" },
+  { symbol: "GBPNZD=X", pair: "GBP/NZD", label: "Libra x Dólar Neozelandês" },
+  { symbol: "EURAUD=X", pair: "EUR/AUD", label: "Euro x Dólar Australiano" },
+  { symbol: "EURNZD=X", pair: "EUR/NZD", label: "Euro x Dólar Neozelandês" },
 ];
 
 export async function getForexPairs(): Promise<ForexPairQuote[]> {

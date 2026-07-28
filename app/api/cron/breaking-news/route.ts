@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { hasDatabase } from "@/lib/db/client";
 import { getLastBreakingNewsCheck, markBreakingNewsChecked } from "@/lib/db/alertRepo";
 import { getAllNewsWithCategory } from "@/lib/sources/rss";
-import { isExtremeNews } from "@/lib/sentiment";
+import { getNewsPriority } from "@/lib/sentiment";
+
+const PRIORITY_EMOJI: Record<"alta" | "media", string> = { alta: "🔴", media: "🟡" };
 import { sendTelegramMessage, hasTelegramConfig } from "@/lib/sources/telegram";
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -34,14 +36,16 @@ export async function GET(request: Request) {
   const cutoff = lastCheck ?? new Date(Date.now() - 15 * 60 * 1000);
 
   const allNews = await getAllNewsWithCategory(200);
-  const breaking = allNews.filter(
-    (item) => new Date(item.publishedAt).getTime() > cutoff.getTime() && isExtremeNews(item.title)
-  );
+  const breaking = allNews
+    .filter((item) => new Date(item.publishedAt).getTime() > cutoff.getTime())
+    .map((item) => ({ item, priority: getNewsPriority(item.title) }))
+    .filter((x): x is { item: (typeof allNews)[number]; priority: "alta" | "media" } => x.priority !== "baixa");
 
-  for (const item of breaking) {
+  for (const { item, priority } of breaking) {
     const label = CATEGORY_LABEL[item.category] ?? item.category;
+    const priorityLabel = priority === "alta" ? "Alta Prioridade" : "Média Prioridade";
     const text =
-      `🚨 <b>Alto impacto — ${label}</b>\n${item.title}\n<i>${item.source}</i>\n${item.url}`;
+      `${PRIORITY_EMOJI[priority]} <b>${priorityLabel} — ${label}</b>\n${item.title}\n<i>${item.source}</i>\n${item.url}`;
     await sendTelegramMessage(text).catch(() => {});
   }
 

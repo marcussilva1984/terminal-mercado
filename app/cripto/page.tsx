@@ -13,7 +13,7 @@ import { getZScoreHighlights } from "@/lib/zscoreService";
 import { formatPrice } from "@/lib/format";
 import { LongShortPanel, FundingRateTable, OpenInterestPanel } from "@/components/DerivativesPanel";
 import { OnChainPanel } from "@/components/OnChainPanel";
-import { buildGenericInsights } from "@/lib/insights";
+import { buildGenericInsights, fillMinimumInsights } from "@/lib/insights";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -175,6 +175,8 @@ export default async function CriptoPage() {
     else if (fearGreed.value >= 80) insights.push(`Fear & Greed Index em ${fearGreed.value} (ganância extrema) — historicamente zona de cautela.`);
   }
 
+  const finalInsights = fillMinimumInsights(insights, [...gainers, ...losers]);
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -182,10 +184,10 @@ export default async function CriptoPage() {
         <p className="mt-1 text-sm text-text-muted">Dados reais via CoinGecko (delay curto, sem chave de API).</p>
       </div>
 
-      {insights.length > 0 && (
+      {finalInsights.length > 0 && (
         <Panel title="Insights do Dia" updatedAt={now}>
           <ul className="flex flex-col gap-2 text-sm text-text">
-            {insights.map((insight, i) => (
+            {finalInsights.map((insight, i) => (
               <li key={i} className="flex gap-2">
                 <span className="text-gold-bright">•</span>
                 <span>{insight}</span>

@@ -34,10 +34,9 @@ export function VolatilityTable({ items }: { items: VolatilityResult[] }) {
       </table>
       <p className="mt-3 text-xs text-text-muted">
         Volatilidade = desvio-padrão dos retornos diários (proxy de risco/oscilação, calculado a
-        partir do histórico coletado). Não é short interest nem alavancagem financeira oficial —
-        essas fontes não existem gratuitas para o mercado brasileiro. Limitado aos 4 papéis livres
-        da brapi.dev (PETR4, VALE3, MGLU3, ITUB4); com um token gratuito da brapi.dev dá pra
-        expandir para o mercado inteiro.
+        partir do histórico coletado via Yahoo Finance). Não é short interest nem alavancagem
+        financeira oficial — essas fontes não existem gratuitas para o mercado brasileiro. Cobre
+        qualquer papel adicionado na Watchlist, sem limite de quantidade.
       </p>
     </div>
   );

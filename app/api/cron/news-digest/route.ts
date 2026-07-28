@@ -3,6 +3,11 @@ import { hasDatabase } from "@/lib/db/client";
 import { getLastDigestTime, markDigestSent } from "@/lib/db/alertRepo";
 import { getAllNewsWithCategory, type NewsItemWithCategory } from "@/lib/sources/rss";
 import { sendTelegramMessage, hasTelegramConfig } from "@/lib/sources/telegram";
+import { getNewsPriority } from "@/lib/sentiment";
+
+// Telegram não suporta cor de texto (só HTML básico: negrito, itálico, link) —
+// usa emoji como substituto visual de prioridade nas mensagens.
+const PRIORITY_EMOJI: Record<"alta" | "media" | "baixa", string> = { alta: "🔴", media: "🟡", baixa: "⚪" };
 
 const CATEGORY_LABEL: Record<string, string> = {
   b3: "B3 / Brasil",
@@ -32,7 +37,8 @@ function buildMessages(items: NewsItemWithCategory[]): string[] {
     const header = `📰 <b>${label}</b> — últimos 30 min (${categoryItems.length})`;
     let current = header;
     for (const item of categoryItems) {
-      const line = `• ${item.title} <i>(${item.source})</i>`;
+      const priority = getNewsPriority(item.title);
+      const line = `${PRIORITY_EMOJI[priority]} ${item.title} <i>(${item.source})</i>`;
       if ((current + "\n" + line).length > TELEGRAM_MESSAGE_LIMIT) {
         messages.push(current);
         current = `📰 <b>${label} (cont.)</b>`;

@@ -6,7 +6,7 @@ import { changeColorClass, formatPct, formatPrice } from "@/lib/format";
 import { getYahooQuotes, getYahooScreener, type YahooScreenerItem } from "@/lib/sources/yahoo";
 import { getNews } from "@/lib/sources/rss";
 import { STOCKS_WATCHLIST, US_INDICES } from "@/lib/watchlist";
-import { buildGenericInsights } from "@/lib/insights";
+import { buildGenericInsights, fillMinimumInsights } from "@/lib/insights";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import type { RankingItem } from "@/lib/types";
@@ -70,6 +70,8 @@ export default async function StocksPage() {
     }
   }
 
+  const finalInsights = gainers && losers ? fillMinimumInsights(insights, [...gainers, ...losers]) : insights;
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -89,10 +91,10 @@ export default async function StocksPage() {
         })}
       </div>
 
-      {insights.length > 0 && (
+      {finalInsights.length > 0 && (
         <Panel title="Insights do Dia" updatedAt={now}>
           <ul className="flex flex-col gap-2 text-sm text-text">
-            {insights.slice(0, 15).map((insight, i) => (
+            {finalInsights.slice(0, 15).map((insight, i) => (
               <li key={i} className="flex gap-2">
                 <span className="text-gold-bright">•</span>
                 <span>{insight}</span>

@@ -7,7 +7,7 @@ import { getBrapiRanking, getFiiSectorPerformance, type BrapiListItem } from "@/
 import { getFiiDividendYieldRanking } from "@/lib/sources/investidor10";
 import { getNews } from "@/lib/sources/rss";
 import { formatNumber } from "@/lib/format";
-import { buildGenericInsights } from "@/lib/insights";
+import { buildGenericInsights, fillMinimumInsights } from "@/lib/insights";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import { classifyIndicator, TONE_CLASS } from "@/lib/indicatorColor";
@@ -111,6 +111,8 @@ export default async function FiiPage() {
     "Para próxima data de dividendo (ex-dividendo) de um fundo específico, consulte a aba Fundamentalista do fundo."
   );
 
+  const finalInsights = gainers && losers ? fillMinimumInsights(insights, [...gainers, ...losers]) : insights;
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -126,10 +128,10 @@ export default async function FiiPage() {
         </div>
       )}
 
-      {insights.length > 0 && (
+      {finalInsights.length > 0 && (
         <Panel title="Insights do Dia" updatedAt={now}>
           <ul className="flex flex-col gap-2 text-sm text-text">
-            {insights.slice(0, 10).map((insight, i) => (
+            {finalInsights.slice(0, 12).map((insight, i) => (
               <li key={i} className="flex gap-2">
                 <span className="text-gold-bright">•</span>
                 <span>{insight}</span>

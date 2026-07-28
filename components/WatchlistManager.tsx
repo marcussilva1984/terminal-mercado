@@ -81,10 +81,9 @@ export function WatchlistManager() {
   return (
     <Panel title="Watchlist (Z-Score / Volatilidade)">
       <p className="mb-4 text-sm text-text-muted">
-        Ativos aqui têm o preço coletado diariamente pelo cron e alimentam os painéis de z-score
-        (e, pra B3, volatilidade). Para B3, sem um <code>BRAPI_TOKEN</code> gratuito da brapi.dev,
-        só PETR4/VALE3/MGLU3/ITUB4 têm histórico coletável via brapi — os demais papéis B3 usam
-        Yahoo Finance, que não tem essa limitação.
+        Ativos aqui têm o preço coletado diariamente pelo cron (via Yahoo Finance, sem limite de
+        quantidade) e alimentam os painéis de z-score e, pra B3, volatilidade. Z-score e volatilidade
+        só ficam confiáveis depois de alguns dias de coleta acumulada.
       </p>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">

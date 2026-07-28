@@ -10,7 +10,11 @@ import { getNews } from "@/lib/sources/rss";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 import { getB3VolatilityRanking } from "@/lib/volatilityService";
 import { getBrapiRanking, type BrapiListItem } from "@/lib/sources/brapi";
-import { buildB3Insights } from "@/lib/insights";
+import { buildB3Insights, fillMinimumInsights } from "@/lib/insights";
+import { getBaseUrl } from "@/lib/baseUrl";
+import { B3_WATCHLIST } from "@/lib/watchlist";
+import { formatNumber } from "@/lib/format";
+import type { AnalystTarget } from "@/lib/sources/yahooAnalyst";
 import { VolatilityTable } from "@/components/VolatilityTable";
 import { getFatosRelevantes } from "@/lib/sources/cvmFatosRelevantes";
 import { FatosRelevantesTable } from "@/components/FatosRelevantesTable";
@@ -28,10 +32,37 @@ function toRankingItem(item: BrapiListItem): RankingItem {
   };
 }
 
+interface PriceTargetHit {
+  symbol: string;
+  currentPrice: number;
+  targetMeanPrice: number;
+}
+
+async function getB3PriceTargetHits(): Promise<PriceTargetHit[] | null> {
+  try {
+    const symbols = B3_WATCHLIST.map((w) => `${w.symbol}.SA`).join(",");
+    const res = await fetch(`${getBaseUrl()}/api/analyst-targets?symbols=${encodeURIComponent(symbols)}`, {
+      cache: "no-store",
+    });
+    const json = await res.json();
+    if (!json.available) return null;
+    const targets: AnalystTarget[] = json.data;
+    return targets
+      .filter((t) => t.currentPrice !== null && t.targetMeanPrice !== null && t.currentPrice >= t.targetMeanPrice)
+      .map((t) => ({
+        symbol: t.symbol.replace(".SA", ""),
+        currentPrice: t.currentPrice as number,
+        targetMeanPrice: t.targetMeanPrice as number,
+      }));
+  } catch {
+    return null;
+  }
+}
+
 export default async function AcoesPage() {
   const now = new Date().toISOString();
 
-  const [flowResult, newsResult, zScoreResult, gainersResult, losersResult, volumeResult, volatilityResult, fatosResult] =
+  const [flowResult, newsResult, zScoreResult, gainersResult, losersResult, volumeResult, volatilityResult, fatosResult, priceTargetResult] =
     await Promise.allSettled([
       getFlowHistory(),
       getNews("b3", 10),
@@ -41,6 +72,7 @@ export default async function AcoesPage() {
       getBrapiRanking("volume", "desc", 20),
       getB3VolatilityRanking(),
       getFatosRelevantes(25),
+      getB3PriceTargetHits(),
     ]);
 
   const news = newsResult.status === "fulfilled" ? newsResult.value : [];
@@ -50,6 +82,7 @@ export default async function AcoesPage() {
   const byVolume = volumeResult.status === "fulfilled" ? volumeResult.value.map(toRankingItem) : null;
   const volatility = volatilityResult.status === "fulfilled" ? volatilityResult.value : null;
   const fatosRelevantes = fatosResult.status === "fulfilled" ? fatosResult.value : null;
+  const priceTargetHits = priceTargetResult.status === "fulfilled" ? priceTargetResult.value : null;
 
   const insights =
     gainers && losers && byVolume && flowResult.status === "fulfilled"
@@ -58,6 +91,7 @@ export default async function AcoesPage() {
   if (insights.length > 0) {
     insights.push("Para próxima data de resultado (balanço) de uma ação específica, consulte a aba Fundamentalista.");
   }
+  const finalInsights = gainers && losers ? fillMinimumInsights(insights, [...gainers, ...losers]) : insights;
 
   return (
     <div className="flex flex-col gap-6">
@@ -69,10 +103,10 @@ export default async function AcoesPage() {
         </p>
       </div>
 
-      {insights.length > 0 && (
+      {finalInsights.length > 0 && (
         <Panel title="Insights do Dia" updatedAt={now}>
           <ul className="flex flex-col gap-2 text-sm text-text">
-            {insights.map((insight, i) => (
+            {finalInsights.map((insight, i) => (
               <li key={i} className="flex gap-2">
                 <span className="text-gold-bright">•</span>
                 <span>{insight}</span>
@@ -109,14 +143,45 @@ export default async function AcoesPage() {
         )}
       </Panel>
 
-      <Panel title="Z-Score — Watchlist B3" updatedAt={now}>
-        {zScoreHighlights ? (
-          <ZScoreHighlightList items={zScoreHighlights} />
-        ) : (
-          <p className="text-sm text-text-muted">
-            Configure <code>DATABASE_URL</code> e rode o backfill para habilitar o z-score.
-          </p>
-        )}
+      <Panel title="Oportunidades — Watchlist B3" updatedAt={now}>
+        <div className="flex flex-col gap-4">
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Z-Score</h3>
+            {zScoreHighlights ? (
+              <ZScoreHighlightList items={zScoreHighlights} />
+            ) : (
+              <p className="text-sm text-text-muted">
+                Configure <code>DATABASE_URL</code> e rode o backfill para habilitar o z-score.
+              </p>
+            )}
+          </div>
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
+              Preço-Alvo dos Analistas Atingido
+            </h3>
+            {priceTargetHits ? (
+              priceTargetHits.length > 0 ? (
+                <ul className="flex flex-col divide-y divide-border/50">
+                  {priceTargetHits.map((t) => (
+                    <li key={t.symbol} className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
+                      <a href={`/ticker/${t.symbol}?class=b3`} className="text-sm font-medium text-gold-bright hover:underline">
+                        {t.symbol}
+                      </a>
+                      <span className="text-sm text-text">
+                        R$ {formatNumber(t.currentPrice)}{" "}
+                        <span className="text-text-muted">(alvo R$ {formatNumber(t.targetMeanPrice)})</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-text-muted">Nenhum papel da watchlist bateu o alvo médio dos analistas agora.</p>
+              )
+            ) : (
+              <p className="text-sm text-down">Fonte indisponível no momento.</p>
+            )}
+          </div>
+        </div>
       </Panel>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
