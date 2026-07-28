@@ -11,6 +11,8 @@ import { B3_WATCHLIST, CRIPTO_WATCHLIST, STOCKS_WATCHLIST } from "@/lib/watchlis
 import { getActivePriceAlerts, markPriceAlertTriggered } from "@/lib/db/portfolioRepo";
 import { getCurrentPrice } from "@/lib/priceLookup";
 import { formatPrice } from "@/lib/format";
+import { getBaseUrl } from "@/lib/baseUrl";
+import type { AnalystTarget } from "@/lib/sources/yahooAnalyst";
 
 const WATCHLIST_MOVE_THRESHOLD = 5; // %
 
@@ -126,6 +128,29 @@ export async function GET(request: Request) {
     }
   } catch {
     // fontes de preço indisponíveis nesta rodada
+  }
+
+  // 5. Preço-alvo dos analistas atingido/ultrapassado (watchlist Stocks)
+  try {
+    const symbols = STOCKS_WATCHLIST.map((w) => w.symbol).join(",");
+    const res = await fetch(`${getBaseUrl()}/api/analyst-targets?symbols=${encodeURIComponent(symbols)}`, {
+      cache: "no-store",
+    });
+    const json = await res.json();
+    if (json.available) {
+      const targets: AnalystTarget[] = json.data;
+      for (const t of targets) {
+        if (t.currentPrice === null || t.targetMeanPrice === null) continue;
+        if (t.currentPrice >= t.targetMeanPrice) {
+          const label = `Preço-alvo atingido: ${t.symbol} em US$ ${t.currentPrice.toFixed(2)} já bateu o alvo médio dos analistas (US$ ${t.targetMeanPrice.toFixed(2)}).`;
+          // Cooldown de 30 dias — não repete todo dia enquanto o preço seguir acima do alvo.
+          const ok = await notify(`price_target:${t.symbol}`, label, "preco", 24 * 30);
+          if (ok) sent.push(label);
+        }
+      }
+    }
+  } catch {
+    // fonte de preço-alvo indisponível nesta rodada
   }
 
   return NextResponse.json({ checked: true, alertsSent: sent.length, sent });
