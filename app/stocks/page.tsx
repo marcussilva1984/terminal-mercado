@@ -4,13 +4,9 @@ import { RankingPanel } from "@/components/RankingPanel";
 import { NewsFeed } from "@/components/NewsFeed";
 import { changeColorClass, formatPct, formatPrice } from "@/lib/format";
 import { getYahooQuotes, getYahooScreener, type YahooScreenerItem } from "@/lib/sources/yahoo";
-import type { AnalystTarget } from "@/lib/sources/yahooAnalyst";
 import { getNews } from "@/lib/sources/rss";
 import { STOCKS_WATCHLIST, US_INDICES } from "@/lib/watchlist";
-import { AnalystTargetTable, type AnalystTargetRow } from "@/components/AnalystTargetTable";
-import { InsiderTable } from "@/components/InsiderTable";
-import type { InsiderTransaction } from "@/lib/sources/secInsiders";
-import { getBaseUrl } from "@/lib/baseUrl";
+import { buildGenericInsights } from "@/lib/insights";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -22,64 +18,63 @@ function toRankingItem(item: YahooScreenerItem): RankingItem {
 export default async function StocksPage() {
   const now = new Date().toISOString();
 
-  const fetchAnalystTargets = async (): Promise<AnalystTarget[]> => {
-    const symbols = STOCKS_WATCHLIST.map((w) => w.symbol).join(",");
-    const res = await fetch(`${getBaseUrl()}/api/analyst-targets?symbols=${encodeURIComponent(symbols)}`, {
-      cache: "no-store",
-    });
-    const json = await res.json();
-    if (!json.available) throw new Error(json.error ?? "Falha ao carregar preço-alvo");
-    return json.data;
-  };
-
-  const fetchInsiders = async (): Promise<InsiderTransaction[]> => {
-    const symbols = STOCKS_WATCHLIST.map((w) => w.symbol).join(",");
-    const res = await fetch(`${getBaseUrl()}/api/insiders?symbols=${encodeURIComponent(symbols)}`, { cache: "no-store" });
-    const json = await res.json();
-    if (!json.available) throw new Error(json.error ?? "Falha ao carregar insiders");
-    return json.data;
-  };
-
-  const [indices, watchlistQuotes, gainersResult, losersResult, activesResult, news, analystTargets, insiders] = await Promise.all([
+  const [indices, watchlistQuotes, gainersResult, losersResult, activesResult, news] = await Promise.all([
     getYahooQuotes(US_INDICES.map((i) => i.symbol)),
     getYahooQuotes(STOCKS_WATCHLIST.map((w) => w.symbol)),
     getYahooScreener("day_gainers", 20).catch(() => null),
     getYahooScreener("day_losers", 20).catch(() => null),
     getYahooScreener("most_actives", 20).catch(() => null),
     getNews("internacional", 10),
-    fetchAnalystTargets().catch(() => []),
-    fetchInsiders().catch(() => []),
   ]);
 
   const gainers = gainersResult?.map(toRankingItem) ?? null;
   const losers = losersResult?.map(toRankingItem) ?? null;
   const actives = activesResult?.map(toRankingItem) ?? null;
 
-  const analystRows: AnalystTargetRow[] = analystTargets
-    .map((a) => {
-      const quote = watchlistQuotes[a.symbol];
-      const label = STOCKS_WATCHLIST.find((w) => w.symbol === a.symbol)?.label ?? a.symbol;
-      const price = a.currentPrice ?? quote?.price;
-      if (!price || a.targetMeanPrice === null) return null;
-      return {
-        symbol: a.symbol,
-        label,
-        currentPrice: price,
-        targetMeanPrice: a.targetMeanPrice,
-        targetHighPrice: a.targetHighPrice,
-        targetLowPrice: a.targetLowPrice,
-        upsidePct: ((a.targetMeanPrice - price) / price) * 100,
-        recommendationMean: a.recommendationMean,
-        numberOfAnalysts: a.numberOfAnalysts,
-      };
-    })
-    .filter((r): r is AnalystTargetRow => r !== null);
+  const insights: string[] =
+    gainers && losers && actives ? buildGenericInsights(gainers, losers, actives) : [];
+
+  // Índices em alta/baixa forte (>1%) — sinal de dia direcional pro mercado como um todo.
+  for (const idx of US_INDICES) {
+    const q = indices[idx.symbol];
+    if (q && Math.abs(q.changePct) >= 1) {
+      insights.push(`${idx.label} ${q.changePct >= 0 ? "sobe" : "cai"} ${formatPct(Math.abs(q.changePct)).replace("+", "")} — movimento direcional no mercado americano.`);
+    }
+  }
+
+  // Destaques da watchlist com movimento forte (>3%).
+  for (const w of STOCKS_WATCHLIST) {
+    const q = watchlistQuotes[w.symbol];
+    if (q && Math.abs(q.changePct) >= 3) {
+      insights.push(`${w.symbol} (watchlist) ${q.changePct >= 0 ? "dispara" : "despenca"} ${formatPct(Math.abs(q.changePct)).replace("+", "")} hoje.`);
+    }
+  }
+
+  // Ações que aparecem simultaneamente em altas E maiores volumes (convicção),
+  // e o mesmo pro lado das baixas.
+  if (gainers && actives) {
+    const activeSymbols = new Set(actives.slice(0, 15).map((a) => a.symbol));
+    const convictionGainers = gainers.filter((g) => activeSymbols.has(g.symbol)).slice(0, 3);
+    for (const g of convictionGainers) {
+      insights.push(`${g.symbol} sobe com volume elevado (${formatPct(g.changePct)}) — não é só ruído de baixa liquidez.`);
+    }
+  }
+  if (losers && actives) {
+    const activeSymbols = new Set(actives.slice(0, 15).map((a) => a.symbol));
+    const convictionLosers = losers.filter((l) => activeSymbols.has(l.symbol)).slice(0, 3);
+    for (const l of convictionLosers) {
+      insights.push(`${l.symbol} cai com volume elevado (${formatPct(l.changePct)}) — pressão vendedora real, não ruído.`);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold text-text">Stocks (EUA)</h1>
-        <p className="mt-1 text-sm text-text-muted">Dados reais via Yahoo Finance (sem chave de API).</p>
+        <p className="mt-1 text-sm text-text-muted">
+          Dados reais via Yahoo Finance (sem chave de API). Preço-alvo dos analistas e insiders ficaram
+          concentrados na aba Fundamentalista, por ativo.
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -90,6 +85,19 @@ export default async function StocksPage() {
           ) : null;
         })}
       </div>
+
+      {insights.length > 0 && (
+        <Panel title="Insights do Dia" updatedAt={now}>
+          <ul className="flex flex-col gap-2 text-sm text-text">
+            {insights.slice(0, 15).map((insight, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-gold-bright">•</span>
+                <span>{insight}</span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
 
       <Panel title="Watchlist" updatedAt={now}>
         <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
@@ -113,14 +121,6 @@ export default async function StocksPage() {
             );
           })}
         </div>
-      </Panel>
-
-      <Panel title="Preço-Alvo dos Analistas" updatedAt={now}>
-        <AnalystTargetTable items={analystRows} />
-      </Panel>
-
-      <Panel title="Insiders (SEC EDGAR)" updatedAt={now}>
-        <InsiderTable items={insiders} />
       </Panel>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

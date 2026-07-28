@@ -53,6 +53,8 @@ export interface TickerDetail {
   numberOfAnalysts: number | null;
   recommendationMean: number | null;
   upgradeHistory: UpgradeDowngrade[];
+  nextEarningsDate: string | null; // ISO
+  exDividendDate: string | null; // ISO
 }
 
 export interface CandlePoint {
@@ -109,7 +111,7 @@ export async function fetchCandles(symbol: string, interval: ChartInterval = "1d
 export async function getTickerDetail(symbol: string): Promise<TickerDetail | null> {
   try {
     const { crumb, cookie } = await getCrumb();
-    const modules = "summaryDetail,defaultKeyStatistics,financialData,upgradeDowngradeHistory,price";
+    const modules = "summaryDetail,defaultKeyStatistics,financialData,upgradeDowngradeHistory,price,calendarEvents";
     const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${modules}&crumb=${encodeURIComponent(crumb)}`;
 
     const summaryRes = await fetch(url, { headers: { "user-agent": "Mozilla/5.0", cookie }, next: { revalidate: 30 * 60 } });
@@ -123,6 +125,9 @@ export async function getTickerDetail(symbol: string): Promise<TickerDetail | nu
     const summaryDetail = result.summaryDetail ?? {};
     const keyStats = result.defaultKeyStatistics ?? {};
     const financialData = result.financialData ?? {};
+    const calendarEvents = result.calendarEvents ?? {};
+    const earningsDateRaw = calendarEvents.earnings?.earningsDate?.[0]?.raw;
+    const exDividendRaw = calendarEvents.exDividendDate?.raw;
     const upgradeHistory: UpgradeDowngrade[] = (result.upgradeDowngradeHistory?.history ?? [])
       .slice(0, 15)
       .map((h: Record<string, number | string>) => ({
@@ -159,6 +164,8 @@ export async function getTickerDetail(symbol: string): Promise<TickerDetail | nu
       numberOfAnalysts: financialData.numberOfAnalystOpinions?.raw ?? null,
       recommendationMean: financialData.recommendationMean?.raw ?? null,
       upgradeHistory,
+      nextEarningsDate: typeof earningsDateRaw === "number" ? new Date(earningsDateRaw * 1000).toISOString().slice(0, 10) : null,
+      exDividendDate: typeof exDividendRaw === "number" ? new Date(exDividendRaw * 1000).toISOString().slice(0, 10) : null,
     };
   } catch {
     return null;

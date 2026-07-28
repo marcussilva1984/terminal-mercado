@@ -55,6 +55,9 @@ export default async function AcoesPage() {
     gainers && losers && byVolume && flowResult.status === "fulfilled"
       ? buildB3Insights(gainers, losers, byVolume, buildFlowSegments(flowResult.value), zScoreHighlights ?? [])
       : [];
+  if (insights.length > 0) {
+    insights.push("Para próxima data de resultado (balanço) de uma ação específica, consulte a aba Fundamentalista.");
+  }
 
   return (
     <div className="flex flex-col gap-6">

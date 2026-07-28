@@ -125,6 +125,8 @@ export default async function TickerDetailPage({
                   ["Market Cap", data.marketCap !== null ? formatCompact(data.marketCap, currency === "BRL" ? "R$" : "US$") : "—"],
                   ["Mín. 52 sem.", data.fiftyTwoWeekLow ? formatNumber(data.fiftyTwoWeekLow) : "—"],
                   ["Máx. 52 sem.", data.fiftyTwoWeekHigh !== null ? formatNumber(data.fiftyTwoWeekHigh) : "—"],
+                  ["Próximo Resultado", data.nextEarningsDate ? new Date(data.nextEarningsDate).toLocaleDateString("pt-BR") : "—"],
+                  ["Próx. Ex-Dividendo", data.exDividendDate ? new Date(data.exDividendDate).toLocaleDateString("pt-BR") : "—"],
                 ].map(([label, value]) => (
                   <div key={label}>
                     <div className="text-xs text-text-muted">{label}</div>

@@ -35,22 +35,42 @@ export default async function FiiPage() {
   if (gainers && losers) {
     insights.push(...buildGenericInsights(gainers, losers, gainers));
   }
+
   // DY acima de ~25%/ano é quase sempre anomalia de dado (fundo em liquidação,
   // amortização pontual etc.), não rendimento real recorrente — não destaca.
-  const plausibleDY = dyResult?.find((f) => f.dividendYieldPct > 0 && f.dividendYieldPct <= 25);
-  if (plausibleDY) {
-    insights.push(`${plausibleDY.symbol} lidera dividend yield 12m entre os fundos líquidos (${formatNumber(plausibleDY.dividendYieldPct)}%).`);
-  }
+  const plausibleDYs = dyResult?.filter((f) => f.dividendYieldPct > 0 && f.dividendYieldPct <= 25).slice(0, 3) ?? [];
+  plausibleDYs.forEach((f, i) => {
+    insights.push(
+      i === 0
+        ? `${f.symbol} lidera dividend yield 12m entre os fundos líquidos (${formatNumber(f.dividendYieldPct)}%).`
+        : `${f.symbol} também entre os maiores DY 12m (${formatNumber(f.dividendYieldPct)}%).`
+    );
+  });
+
   if (sectorResult && sectorResult.length > 0) {
-    const best = sectorResult[0];
-    const worst = sectorResult[sectorResult.length - 1];
-    if (best.avgChangePct > 0) {
-      insights.push(`Segmento ${best.subsector} lidera o dia (${formatNumber(best.avgChangePct)}%), entre ${best.count} fundos líquidos.`);
-    }
-    if (worst.avgChangePct < 0 && worst.subsector !== best.subsector) {
-      insights.push(`Segmento ${worst.subsector} é o pior do dia (${formatNumber(worst.avgChangePct)}%).`);
-    }
+    const bestSectors = sectorResult.slice(0, 3).filter((s) => s.avgChangePct > 0);
+    const worstSectors = sectorResult.slice(-2).filter((s) => s.avgChangePct < 0);
+    bestSectors.forEach((s, i) => {
+      insights.push(
+        i === 0
+          ? `Segmento ${s.subsector} lidera o dia (${formatNumber(s.avgChangePct)}%), entre ${s.count} fundos líquidos.`
+          : `Segmento ${s.subsector} também em alta (${formatNumber(s.avgChangePct)}%).`
+      );
+    });
+    worstSectors.forEach((s) => {
+      insights.push(`Segmento ${s.subsector} é dos piores do dia (${formatNumber(s.avgChangePct)}%).`);
+    });
   }
+
+  if (ifixResult) {
+    insights.push(
+      `IFIX ${ifixResult.changePct >= 0 ? "sobe" : "cai"} ${formatNumber(Math.abs(ifixResult.changePct))}% hoje — leitura geral do humor do mercado de FIIs.`
+    );
+  }
+
+  insights.push(
+    "Para próxima data de dividendo (ex-dividendo) de um fundo específico, consulte a aba Fundamentalista do fundo."
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -70,7 +90,7 @@ export default async function FiiPage() {
       {insights.length > 0 && (
         <Panel title="Insights do Dia" updatedAt={now}>
           <ul className="flex flex-col gap-2 text-sm text-text">
-            {insights.map((insight, i) => (
+            {insights.slice(0, 10).map((insight, i) => (
               <li key={i} className="flex gap-2">
                 <span className="text-gold-bright">•</span>
                 <span>{insight}</span>
