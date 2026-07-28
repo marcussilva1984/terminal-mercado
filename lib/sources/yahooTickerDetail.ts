@@ -34,7 +34,6 @@ export interface TickerDetail {
   currency: string | null;
   price: number | null;
   changePct: number | null;
-  chart: { date: string; close: number }[];
   // Fundamentais (podem faltar dependendo do tipo de ativo)
   trailingPE: number | null;
   forwardPE: number | null;
@@ -56,17 +55,55 @@ export interface TickerDetail {
   upgradeHistory: UpgradeDowngrade[];
 }
 
-async function fetchChart(symbol: string): Promise<{ date: string; close: number }[]> {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=6mo`;
-  const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0" } });
+export interface CandlePoint {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export type ChartInterval = "1d" | "1wk" | "1mo";
+
+const RANGE_BY_INTERVAL: Record<ChartInterval, string> = {
+  "1d": "2y", // ~500 pregões — dá pra calcular SMA200 com folga
+  "1wk": "5y",
+  "1mo": "max",
+};
+
+export async function fetchCandles(symbol: string, interval: ChartInterval = "1d"): Promise<CandlePoint[]> {
+  const range = RANGE_BY_INTERVAL[interval];
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
+  const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0" }, next: { revalidate: 15 * 60 } });
   if (!res.ok) return [];
   const json = await res.json();
   const result = json?.chart?.result?.[0];
   const timestamps: number[] = result?.timestamp ?? [];
-  const closes: (number | null)[] = result?.indicators?.quote?.[0]?.close ?? [];
+  const quote = result?.indicators?.quote?.[0] ?? {};
+  const opens: (number | null)[] = quote.open ?? [];
+  const highs: (number | null)[] = quote.high ?? [];
+  const lows: (number | null)[] = quote.low ?? [];
+  const closes: (number | null)[] = quote.close ?? [];
+  const volumes: (number | null)[] = quote.volume ?? [];
+
   return timestamps
-    .map((t, i) => ({ date: new Date(t * 1000).toISOString().slice(0, 10), close: closes[i] }))
-    .filter((p): p is { date: string; close: number } => typeof p.close === "number");
+    .map((t, i) => ({
+      date: new Date(t * 1000).toISOString().slice(0, 10),
+      open: opens[i],
+      high: highs[i],
+      low: lows[i],
+      close: closes[i],
+      volume: volumes[i],
+    }))
+    .filter(
+      (p): p is CandlePoint =>
+        typeof p.open === "number" &&
+        typeof p.high === "number" &&
+        typeof p.low === "number" &&
+        typeof p.close === "number"
+    )
+    .map((p) => ({ ...p, volume: p.volume ?? 0 }));
 }
 
 export async function getTickerDetail(symbol: string): Promise<TickerDetail | null> {
@@ -75,10 +112,7 @@ export async function getTickerDetail(symbol: string): Promise<TickerDetail | nu
     const modules = "summaryDetail,defaultKeyStatistics,financialData,upgradeDowngradeHistory,price";
     const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${modules}&crumb=${encodeURIComponent(crumb)}`;
 
-    const [summaryRes, chart] = await Promise.all([
-      fetch(url, { headers: { "user-agent": "Mozilla/5.0", cookie }, next: { revalidate: 30 * 60 } }),
-      fetchChart(symbol),
-    ]);
+    const summaryRes = await fetch(url, { headers: { "user-agent": "Mozilla/5.0", cookie }, next: { revalidate: 30 * 60 } });
 
     if (!summaryRes.ok) return null;
     const json = await summaryRes.json();
@@ -108,7 +142,6 @@ export async function getTickerDetail(symbol: string): Promise<TickerDetail | nu
       currency: price?.currency ?? null,
       price: price?.regularMarketPrice?.raw ?? null,
       changePct: price?.regularMarketChangePercent?.raw != null ? price.regularMarketChangePercent.raw * 100 : null,
-      chart,
       trailingPE: summaryDetail.trailingPE?.raw ?? null,
       forwardPE: summaryDetail.forwardPE?.raw ?? null,
       priceToBook: keyStats.priceToBook?.raw ?? null,

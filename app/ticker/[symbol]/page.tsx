@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Panel } from "@/components/Panel";
 import { TickerChart } from "@/components/TickerChart";
+import { TickerSwitcher } from "@/components/TickerSwitcher";
 import { getBaseUrl } from "@/lib/baseUrl";
 import { formatNumber, formatPct, formatCompact, changeColorClass } from "@/lib/format";
 import type { TickerDetail } from "@/lib/sources/yahooTickerDetail";
@@ -70,9 +71,12 @@ export default async function TickerDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href={backHref} className="text-sm text-gold-bright hover:underline">
-        ← Voltar
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link href={backHref} className="text-sm text-gold-bright hover:underline">
+          ← Voltar
+        </Link>
+        <TickerSwitcher defaultClass={assetClass} />
+      </div>
 
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
@@ -92,8 +96,8 @@ export default async function TickerDetailPage({
         )}
       </div>
 
-      <Panel title="Gráfico (6 meses)">
-        <TickerChart points={data.chart} currency={currency} />
+      <Panel title="Gráfico">
+        <TickerChart symbol={yahooSymbol} currency={currency} />
       </Panel>
 
       <Panel title="Indicadores">
@@ -108,7 +112,7 @@ export default async function TickerDetailPage({
             ["ROE", data.returnOnEquity !== null ? `${formatNumber(data.returnOnEquity)}%` : "—"],
             ["Margem Líquida", data.profitMargin !== null ? `${formatNumber(data.profitMargin)}%` : "—"],
             ["Market Cap", data.marketCap !== null ? formatCompact(data.marketCap, currency === "BRL" ? "R$" : "US$") : "—"],
-            ["Mín. 52 sem.", data.fiftyTwoWeekLow !== null ? formatNumber(data.fiftyTwoWeekLow) : "—"],
+            ["Mín. 52 sem.", data.fiftyTwoWeekLow ? formatNumber(data.fiftyTwoWeekLow) : "—"],
             ["Máx. 52 sem.", data.fiftyTwoWeekHigh !== null ? formatNumber(data.fiftyTwoWeekHigh) : "—"],
           ].map(([label, value]) => (
             <div key={label}>
