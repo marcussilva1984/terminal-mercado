@@ -3,6 +3,7 @@ import { RankingPanel } from "@/components/RankingPanel";
 import { Panel } from "@/components/Panel";
 import { NewsFeed } from "@/components/NewsFeed";
 import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
+import { RankingTable } from "@/components/RankingTable";
 import { getTopCoinMarkets, getCoinCategories, type CoinMarket } from "@/lib/sources/coingecko";
 import type { DerivativeSnapshot } from "@/lib/sources/binanceFutures";
 import { getOnChainSnapshot, getFearGreedIndex } from "@/lib/sources/onchain";
@@ -120,12 +121,32 @@ export default async function CriptoPage() {
     .sort((a, b) => b.market_cap - a.market_cap)
     .map((c) => toRankingItem(c, "marketcap"));
 
+  // Volume anormal: proxy simples de volume/market cap — quanto maior, mais
+  // "quente" o interesse do dia relativo ao tamanho da moeda (filtra micro
+  // caps abaixo de US$ 50mi de market cap pra evitar ruído).
+  const byVolumeRatio = [...coins]
+    .filter((c) => c.market_cap >= 50_000_000)
+    .map((c) => ({
+      symbol: c.symbol.toUpperCase(),
+      label: c.name,
+      value: c.total_volume / c.market_cap,
+      changePct: c.price_change_percentage_24h ?? 0,
+    }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10);
+
   const insights: string[] = buildGenericInsights(
     gainers,
     losers,
     byVolume,
     zScoreHighlights ?? []
   );
+
+  if (byVolumeRatio[0]) {
+    insights.push(
+      `${byVolumeRatio[0].symbol} com volume/market cap de ${(byVolumeRatio[0].value * 100).toFixed(0)}% — atividade de negociação desproporcional ao tamanho da moeda hoje.`
+    );
+  }
 
   if (topSectors && topSectors.length > 0) {
     const bestSector = topSectors[0];
@@ -292,10 +313,23 @@ export default async function CriptoPage() {
             </p>
           )}
         </Panel>
-        <Panel title="Notícias Cripto" updatedAt={now}>
-          <NewsFeed items={news} now={now} />
+        <Panel title="Volume Anormal (top 100 por market cap)" updatedAt={now}>
+          <RankingTable
+            items={byVolumeRatio}
+            valueLabel="Volume/Market Cap"
+            formatValue={(v) => `${(v * 100).toFixed(1)}%`}
+          />
+          <p className="mt-3 text-xs text-text-muted">
+            Proxy simples: volume 24h dividido pelo market cap. Quanto maior, mais desproporcional o
+            interesse de negociação hoje frente ao tamanho normal da moeda — filtra moedas abaixo de
+            US$ 50mi de market cap pra evitar ruído de micro caps.
+          </p>
         </Panel>
       </div>
+
+      <Panel title="Notícias Cripto" updatedAt={now}>
+        <NewsFeed items={news} now={now} />
+      </Panel>
     </div>
   );
 }
