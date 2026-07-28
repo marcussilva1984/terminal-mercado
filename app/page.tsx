@@ -7,8 +7,10 @@ import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import { AlertStatusList } from "@/components/AlertStatusList";
 import { EconomicCalendar } from "@/components/EconomicCalendar";
 import { CopyResumoButton } from "@/components/CopyResumoButton";
+import { Headline } from "@/components/Headline";
 import { changeColorClass, formatPct, formatPrice } from "@/lib/format";
 import { getNews } from "@/lib/sources/rss";
+import { isExtremeNews } from "@/lib/sentiment";
 import { getFlowHistory } from "@/lib/sources/b3Flow";
 import { buildFlowSegments } from "@/lib/semaphore";
 import { getZScoreHighlights } from "@/lib/zscoreService";
@@ -27,7 +29,7 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const [news, flowResult, zScoreHighlights, highlightCards, quotes, gainersResult, losersResult, calendarResult, alerts] =
     await Promise.all([
-      getNews(undefined, 5),
+      getNews(undefined, 15),
       getFlowHistory().catch(() => null),
       getZScoreHighlights().catch(() => null),
       getRealHighlightCards().catch(() => []),
@@ -40,6 +42,8 @@ export default async function HomePage() {
 
   const radarEvents = calendarResult ? filterHighSignal(calendarResult).slice(0, 5) : null;
   const now = new Date().toISOString();
+  const headline = news.find((n) => isExtremeNews(n.title)) ?? null;
+  const feedNews = news.slice(0, 5);
 
   const toRankingItem = (item: NonNullable<typeof gainersResult>[number]): RankingItem => ({
     symbol: item.symbol,
@@ -63,6 +67,8 @@ export default async function HomePage() {
         </div>
         <CopyResumoButton />
       </div>
+
+      {headline && <Headline item={headline} />}
 
       {highlightCards.length > 0 && (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -125,7 +131,7 @@ export default async function HomePage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <Panel title="Notícias Recentes" updatedAt={now}>
-            <NewsFeed items={news} now={now} />
+            <NewsFeed items={feedNews} now={now} />
           </Panel>
         </div>
         <Panel title="Alertas (últimas 24h)" updatedAt={now}>
