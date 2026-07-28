@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { hasDatabase } from "@/lib/db/client";
 import { getWatchlist, addWatchlistItem, removeWatchlistItem, seedWatchlistIfEmpty } from "@/lib/db/watchlistRepo";
 import { B3_WATCHLIST, CRIPTO_WATCHLIST } from "@/lib/watchlist";
+import { getCurrentPrice } from "@/lib/priceLookup";
 
 export async function GET() {
   if (!hasDatabase()) {
@@ -14,7 +15,13 @@ export async function GET() {
       ...CRIPTO_WATCHLIST.map((w) => ({ ...w, assetClass: "cripto" })),
     ]);
     const items = await getWatchlist();
-    return NextResponse.json({ available: true, data: items });
+    const withPrices = await Promise.all(
+      items.map(async (item) => {
+        const current = await getCurrentPrice(item.symbol, item.assetClass).catch(() => null);
+        return { ...item, price: current?.price ?? null, changePct: current?.changePct ?? null, currency: current?.currency ?? null };
+      })
+    );
+    return NextResponse.json({ available: true, data: withPrices });
   } catch (err) {
     return NextResponse.json({
       available: false,

@@ -3,6 +3,8 @@ import { Panel } from "@/components/Panel";
 import { TickerChart } from "@/components/TickerChart";
 import { TickerSwitcher } from "@/components/TickerSwitcher";
 import { TickerTabs } from "@/components/TickerTabs";
+import { ShareholdersTable, InsiderFlowTable } from "@/components/ShareholdersInsidersB3";
+import { getMajorShareholders, getInsiderFlow } from "@/lib/sources/fundamentus";
 import { getBaseUrl } from "@/lib/baseUrl";
 import { formatNumber, formatPct, formatCompact, changeColorClass } from "@/lib/format";
 import type { TickerDetail } from "@/lib/sources/yahooTickerDetail";
@@ -52,6 +54,13 @@ export default async function TickerDetailPage({
   } catch (err) {
     error = err instanceof Error ? err.message : "Falha ao carregar dados";
   }
+
+  const [shareholdersResult, insiderFlowResult] =
+    assetClass === "b3"
+      ? await Promise.allSettled([getMajorShareholders(symbol), getInsiderFlow(symbol)])
+      : [null, null];
+  const shareholders = shareholdersResult?.status === "fulfilled" ? shareholdersResult.value : null;
+  const insiderFlow = insiderFlowResult?.status === "fulfilled" ? insiderFlowResult.value : null;
 
   const backHref = { b3: "/acoes", cripto: "/cripto", stocks: "/stocks", fii: "/fii" }[assetClass];
 
@@ -194,6 +203,25 @@ export default async function TickerDetailPage({
                   {assetClass === "fii" || assetClass === "cripto" ? " (esperado — fundos e cripto não têm equity research)." : "."}
                 </p>
               </Panel>
+            )}
+
+            {assetClass === "b3" && (
+              <>
+                <Panel title="Principais Acionistas">
+                  {shareholders ? (
+                    <ShareholdersTable items={shareholders} />
+                  ) : (
+                    <p className="text-sm text-down">Fonte indisponível no momento.</p>
+                  )}
+                </Panel>
+                <Panel title="Insiders (Fundamentus)">
+                  {insiderFlow ? (
+                    <InsiderFlowTable items={insiderFlow} />
+                  ) : (
+                    <p className="text-sm text-down">Fonte indisponível no momento.</p>
+                  )}
+                </Panel>
+              </>
             )}
           </>
         }

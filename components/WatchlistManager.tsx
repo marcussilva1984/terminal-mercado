@@ -2,12 +2,16 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Panel } from "@/components/Panel";
+import { formatPrice, formatPct, changeColorClass } from "@/lib/format";
 
 interface WatchlistItem {
   id: number;
   symbol: string;
   assetClass: string;
   label: string;
+  price: number | null;
+  changePct: number | null;
+  currency: string | null;
 }
 
 const ASSET_CLASS_LABEL: Record<string, string> = {
@@ -49,7 +53,10 @@ export function WatchlistManager() {
         label: form.label || form.symbol,
       }),
     });
-    setForm({ symbol: "", assetClass: "b3", label: "" });
+    // Mantém a classe selecionada (só limpa símbolo/nome) — evita que ao
+    // cadastrar vários itens da mesma classe em sequência, o formulário volte
+    // pra "Ação B3" e o usuário acabe salvando cripto como B3 sem perceber.
+    setForm((f) => ({ ...f, symbol: "", label: "" }));
     setSubmitting(false);
     load();
   }
@@ -90,9 +97,21 @@ export function WatchlistManager() {
                 <span className="text-text">
                   {i.symbol} <span className="text-text-muted">— {i.label}</span>
                 </span>
-                <button onClick={() => handleRemove(i.id)} className="text-xs text-down hover:underline">
-                  remover
-                </button>
+                <div className="flex items-center gap-3">
+                  {i.price !== null ? (
+                    <span className="text-right">
+                      <span className="text-text">{formatPrice(i.price, i.currency ?? undefined)}</span>{" "}
+                      {i.changePct !== null && (
+                        <span className={changeColorClass(i.changePct)}>{formatPct(i.changePct)}</span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-text-muted">sem preço</span>
+                  )}
+                  <button onClick={() => handleRemove(i.id)} className="text-xs text-down hover:underline">
+                    remover
+                  </button>
+                </div>
               </li>
             ))}
             {b3Items.length === 0 && <li className="py-2 text-sm text-text-muted">Nenhum papel na watchlist.</li>}
@@ -106,9 +125,21 @@ export function WatchlistManager() {
                 <span className="text-text">
                   {i.symbol} <span className="text-text-muted">— {i.label}</span>
                 </span>
-                <button onClick={() => handleRemove(i.id)} className="text-xs text-down hover:underline">
-                  remover
-                </button>
+                <div className="flex items-center gap-3">
+                  {i.price !== null ? (
+                    <span className="text-right">
+                      <span className="text-text">{formatPrice(i.price, i.currency ?? undefined)}</span>{" "}
+                      {i.changePct !== null && (
+                        <span className={changeColorClass(i.changePct)}>{formatPct(i.changePct)}</span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-text-muted">sem preço</span>
+                  )}
+                  <button onClick={() => handleRemove(i.id)} className="text-xs text-down hover:underline">
+                    remover
+                  </button>
+                </div>
               </li>
             ))}
             {criptoItems.length === 0 && <li className="py-2 text-sm text-text-muted">Nenhuma moeda na watchlist.</li>}
