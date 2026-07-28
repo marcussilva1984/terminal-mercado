@@ -4,7 +4,8 @@ import { TickerChart } from "@/components/TickerChart";
 import { TickerSwitcher } from "@/components/TickerSwitcher";
 import { TickerTabs } from "@/components/TickerTabs";
 import { ShareholdersTable, InsiderFlowTable } from "@/components/ShareholdersInsidersB3";
-import { getMajorShareholders, getInsiderFlow } from "@/lib/sources/fundamentus";
+import { FullIndicatorsPanel } from "@/components/FullIndicatorsPanel";
+import { getMajorShareholders, getInsiderFlow, getFullIndicators } from "@/lib/sources/fundamentus";
 import { getBaseUrl } from "@/lib/baseUrl";
 import { formatNumber, formatPct, formatCompact, changeColorClass } from "@/lib/format";
 import type { TickerDetail } from "@/lib/sources/yahooTickerDetail";
@@ -55,12 +56,13 @@ export default async function TickerDetailPage({
     error = err instanceof Error ? err.message : "Falha ao carregar dados";
   }
 
-  const [shareholdersResult, insiderFlowResult] =
+  const [shareholdersResult, insiderFlowResult, fullIndicatorsResult] =
     assetClass === "b3"
-      ? await Promise.allSettled([getMajorShareholders(symbol), getInsiderFlow(symbol)])
-      : [null, null];
+      ? await Promise.allSettled([getMajorShareholders(symbol), getInsiderFlow(symbol), getFullIndicators(symbol)])
+      : [null, null, null];
   const shareholders = shareholdersResult?.status === "fulfilled" ? shareholdersResult.value : null;
   const insiderFlow = insiderFlowResult?.status === "fulfilled" ? insiderFlowResult.value : null;
+  const fullIndicators = fullIndicatorsResult?.status === "fulfilled" ? fullIndicatorsResult.value : null;
 
   const backHref = { b3: "/acoes", cripto: "/cripto", stocks: "/stocks", fii: "/fii" }[assetClass];
 
@@ -207,6 +209,13 @@ export default async function TickerDetailPage({
 
             {assetClass === "b3" && (
               <>
+                <Panel title="Indicadores Completos (Fundamentus)">
+                  {fullIndicators ? (
+                    <FullIndicatorsPanel sections={fullIndicators} />
+                  ) : (
+                    <p className="text-sm text-down">Fonte indisponível no momento.</p>
+                  )}
+                </Panel>
                 <Panel title="Principais Acionistas">
                   {shareholders ? (
                     <ShareholdersTable items={shareholders} />

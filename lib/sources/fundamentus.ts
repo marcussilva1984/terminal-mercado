@@ -73,3 +73,53 @@ export async function getInsiderFlow(symbol: string, limit = 12): Promise<Inside
 
   return rows.slice(0, limit);
 }
+
+export interface FundamentusSection {
+  title: string;
+  items: { label: string; value: string }[];
+}
+
+// Página inteira do Fundamentus é feita de pares rótulo/valor em tabelas —
+// extrai tudo (P/L, P/VP, margens, ROE, ROIC, balanço, DRE etc.) genericamente
+// em vez de tipar campo por campo, pra cobrir "todos os indicadores" de uma vez.
+export async function getFullIndicators(symbol: string): Promise<FundamentusSection[]> {
+  const html = await fetchLatin1(`${BASE}/detalhes.php?papel=${encodeURIComponent(symbol)}`);
+  const $ = cheerio.load(html);
+
+  const sectionTitles: Record<number, string> = {
+    0: "Dados Gerais",
+    1: "Valor de Mercado",
+    2: "Oscilações e Indicadores Fundamentalistas",
+    3: "Balanço Patrimonial",
+    4: "Demonstrativo de Resultados",
+  };
+
+  const sections: FundamentusSection[] = [];
+
+  $("table").each((tableIndex, table) => {
+    const items: { label: string; value: string }[] = [];
+    $(table)
+      .find("tr")
+      .each((_, row) => {
+        const cells = $(row)
+          .find("td")
+          .map((_, c) => $(c).text().trim())
+          .get();
+        // Linhas são pares label/valor repetidos (2 ou 4 colunas por linha).
+        for (let i = 0; i < cells.length - 1; i += 2) {
+          const label = cells[i]?.replace(/^\?/, "").trim();
+          const value = cells[i + 1]?.trim();
+          // Pula linhas de subcabeçalho (ex.: "Oscilações" / "Indicadores
+          // fundamentalistas", "Últimos 12 meses" / "Últimos 3 meses") — não
+          // são pares label/valor de verdade, são títulos de coluna.
+          if (label && value && !/^(Últimos|Indicadores)/.test(value)) items.push({ label, value });
+        }
+      });
+    if (items.length > 0) {
+      sections.push({ title: sectionTitles[tableIndex] ?? `Seção ${tableIndex + 1}`, items });
+    }
+  });
+
+  if (sections.length === 0) throw new Error(`Nenhum indicador encontrado no Fundamentus para ${symbol}`);
+  return sections;
+}
