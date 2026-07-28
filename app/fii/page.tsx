@@ -10,6 +10,10 @@ import { formatNumber } from "@/lib/format";
 import { buildGenericInsights } from "@/lib/insights";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
+import { hasDatabase } from "@/lib/db/client";
+import { getWatchlist } from "@/lib/db/watchlistRepo";
+import { getBaseUrl } from "@/lib/baseUrl";
+import { FII_WATCHLIST } from "@/lib/watchlist";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -18,10 +22,40 @@ function toRankingItem(item: BrapiListItem): RankingItem {
   return { symbol: item.symbol, label: item.name, value: item.close, changePct: item.changePct, volume: item.volume };
 }
 
+interface UpcomingDividend {
+  symbol: string;
+  label: string;
+  exDividendDate: string;
+}
+
+async function getUpcomingDividends(): Promise<UpcomingDividend[]> {
+  const watchlist = hasDatabase() ? await getWatchlist("fii") : FII_WATCHLIST.map((w, i) => ({ ...w, id: i }));
+  const results = await Promise.all(
+    watchlist.map(async (w) => {
+      try {
+        const res = await fetch(`${getBaseUrl()}/api/ticker-detail?symbol=${encodeURIComponent(`${w.symbol}.SA`)}`, {
+          cache: "no-store",
+        });
+        const json = await res.json();
+        if (json.available && json.data.exDividendDate) {
+          return { symbol: w.symbol, label: w.label, exDividendDate: json.data.exDividendDate as string };
+        }
+      } catch {
+        // fonte indisponível para este fundo — segue pros demais
+      }
+      return null;
+    })
+  );
+  const today = new Date().toISOString().slice(0, 10);
+  return results
+    .filter((r): r is UpcomingDividend => r !== null && r.exDividendDate >= today)
+    .sort((a, b) => a.exDividendDate.localeCompare(b.exDividendDate));
+}
+
 export default async function FiiPage() {
   const now = new Date().toISOString();
 
-  const [ifixResult, gainersResult, losersResult, dyResult, sectorResult, news, zScoreResult] = await Promise.all([
+  const [ifixResult, gainersResult, losersResult, dyResult, sectorResult, news, zScoreResult, upcomingDividends] = await Promise.all([
     getYahooQuote("IFIX.SA").catch(() => null),
     getBrapiRanking("change", "desc", 20, "fund").catch(() => null),
     getBrapiRanking("change", "asc", 20, "fund").catch(() => null),
@@ -29,6 +63,7 @@ export default async function FiiPage() {
     getFiiSectorPerformance().catch(() => null),
     getNews("fii", 10),
     getZScoreHighlights("fii").catch(() => null),
+    getUpcomingDividends().catch(() => null),
   ]);
 
   const gainers = gainersResult?.map(toRankingItem) ?? null;
@@ -151,6 +186,30 @@ export default async function FiiPage() {
         ) : (
           <p className="text-sm text-down">Fonte indisponível no momento.</p>
         )}
+      </Panel>
+
+      <Panel title="Próximos Dividendos (Watchlist)" updatedAt={now}>
+        {upcomingDividends && upcomingDividends.length > 0 ? (
+          <ul className="flex flex-col divide-y divide-border/50">
+            {upcomingDividends.map((d) => (
+              <li key={d.symbol} className="flex items-center justify-between py-2 first:pt-0 last:pb-0 text-sm">
+                <span className="text-text">
+                  {d.symbol} <span className="text-text-muted">— {d.label}</span>
+                </span>
+                <span className="text-gold-bright">{new Date(d.exDividendDate).toLocaleDateString("pt-BR")}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-text-muted">Nenhuma data de ex-dividendo futura disponível pra watchlist agora.</p>
+        )}
+        <p className="mt-3 text-xs text-text-muted">
+          Data de ex-dividendo (não é a data de pagamento) via Yahoo Finance, pros fundos da sua{" "}
+          <a href="/watchlist" className="text-gold-bright hover:underline">
+            Watchlist
+          </a>
+          .
+        </p>
       </Panel>
 
       <Panel title="Z-Score — Watchlist FII" updatedAt={now}>

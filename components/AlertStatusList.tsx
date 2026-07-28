@@ -11,7 +11,7 @@ const KIND_LABEL: Record<AlertStatus["kind"], string> = {
 
 export function AlertStatusList({ alerts }: { alerts: AlertStatus[] }) {
   if (alerts.length === 0) {
-    return <p className="text-sm text-text-muted">Nenhum alerta disparado nas últimas 24h.</p>;
+    return <p className="text-sm text-text-muted">Nenhum alerta disparado no período.</p>;
   }
 
   return (

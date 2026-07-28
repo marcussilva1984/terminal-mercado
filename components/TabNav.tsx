@@ -16,6 +16,7 @@ const TABS = [
   { href: "/ticker/PETR4?class=b3", label: "Fundamentalista", matchPrefix: "/ticker" },
   { href: "/carteira", label: "Minha Carteira" },
   { href: "/watchlist", label: "Watchlist" },
+  { href: "/alertas", label: "Alertas" },
 ];
 
 export function TabNav() {
