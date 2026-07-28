@@ -8,6 +8,7 @@ import { FullIndicatorsPanel } from "@/components/FullIndicatorsPanel";
 import { getMajorShareholders, getInsiderFlow, getFullIndicators } from "@/lib/sources/fundamentus";
 import { getBaseUrl } from "@/lib/baseUrl";
 import { formatNumber, formatPct, formatCompact, changeColorClass } from "@/lib/format";
+import { classifyIndicator, TONE_CLASS } from "@/lib/indicatorColor";
 import type { TickerDetail } from "@/lib/sources/yahooTickerDetail";
 
 export const dynamic = "force-dynamic";
@@ -131,7 +132,7 @@ export default async function TickerDetailPage({
                 ].map(([label, value]) => (
                   <div key={label}>
                     <div className="text-xs text-text-muted">{label}</div>
-                    <div className="text-sm font-medium text-text">{value}</div>
+                    <div className={`text-sm font-medium ${TONE_CLASS[classifyIndicator(label, value)]}`}>{value}</div>
                   </div>
                 ))}
               </div>

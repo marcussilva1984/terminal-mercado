@@ -42,10 +42,14 @@ export function classifyIndicator(label: string, rawValue: string): IndicatorTon
     if (value >= 1) return "warning";
     return "bad";
   }
-  if (l.includes("dív líq / patrim") || l.includes("div liq / patrim") || l.includes("dív. líq. / patrim")) {
+  if (l.includes("dív") && l.includes("patrim")) {
     if (value < 0) return "good"; // caixa líquido (dívida líquida negativa)
-    if (value <= 0.5) return "good";
-    if (value <= 1) return "warning";
+    // Fundamentus mostra como razão (ex.: 0,8); o Yahoo (debtToEquity) mostra
+    // como percentual (ex.: 80%) — normaliza pra mesma escala de razão antes
+    // de aplicar o limiar.
+    const ratio = value > 5 ? value / 100 : value;
+    if (ratio <= 0.5) return "good";
+    if (ratio <= 1) return "warning";
     return "bad";
   }
 

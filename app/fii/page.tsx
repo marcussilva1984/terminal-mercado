@@ -10,6 +10,7 @@ import { formatNumber } from "@/lib/format";
 import { buildGenericInsights } from "@/lib/insights";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
+import { classifyIndicator, TONE_CLASS } from "@/lib/indicatorColor";
 import { hasDatabase } from "@/lib/db/client";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { getBaseUrl } from "@/lib/baseUrl";
@@ -178,7 +179,9 @@ export default async function FiiPage() {
                     <div className="font-medium text-text">{f.symbol}</div>
                     <div className="text-xs text-text-muted">{f.name}</div>
                   </td>
-                  <td className="py-2 text-right text-up">{formatNumber(f.dividendYieldPct)}%</td>
+                  <td className={`py-2 text-right ${TONE_CLASS[classifyIndicator("Div. Yield", `${f.dividendYieldPct}`)]}`}>
+                    {formatNumber(f.dividendYieldPct)}%
+                  </td>
                 </tr>
               ))}
             </tbody>
