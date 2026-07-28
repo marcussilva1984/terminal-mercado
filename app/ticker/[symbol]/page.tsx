@@ -127,6 +127,7 @@ export default async function TickerDetailPage({
                   ["Máx. 52 sem.", data.fiftyTwoWeekHigh !== null ? formatNumber(data.fiftyTwoWeekHigh) : "—"],
                   ["Próximo Resultado", data.nextEarningsDate ? new Date(data.nextEarningsDate).toLocaleDateString("pt-BR") : "—"],
                   ["Próx. Ex-Dividendo", data.exDividendDate ? new Date(data.exDividendDate).toLocaleDateString("pt-BR") : "—"],
+                  ["Free Float", data.freeFloatPct !== null ? `${formatNumber(data.freeFloatPct)}%` : "—"],
                 ].map(([label, value]) => (
                   <div key={label}>
                     <div className="text-xs text-text-muted">{label}</div>
@@ -134,6 +135,14 @@ export default async function TickerDetailPage({
                   </div>
                 ))}
               </div>
+              {data.freeFloatPct !== null && (
+                <p className="mt-3 text-xs text-text-muted">
+                  Free float via Yahoo Finance (ações em circulação / total de ações). Não existe fonte
+                  gratuita de volume de aluguel de ações (a B3/TradersClub bloqueiam acesso automatizado) —
+                  com o free float em mãos e o volume alugado que você acompanha manualmente, dá pra
+                  calcular a proporção: <span className="text-text">volume alugado ÷ free float</span>.
+                </p>
+              )}
             </Panel>
 
             {data.targetMeanPrice !== null ? (

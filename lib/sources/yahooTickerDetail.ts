@@ -55,6 +55,9 @@ export interface TickerDetail {
   upgradeHistory: UpgradeDowngrade[];
   nextEarningsDate: string | null; // ISO
   exDividendDate: string | null; // ISO
+  floatShares: number | null;
+  sharesOutstanding: number | null;
+  freeFloatPct: number | null;
 }
 
 export interface CandlePoint {
@@ -135,6 +138,10 @@ export async function getTickerDetail(symbol: string): Promise<TickerDetail | nu
     const calendarEvents = result.calendarEvents ?? {};
     const earningsDateRaw = calendarEvents.earnings?.earningsDate?.[0]?.raw;
     const exDividendRaw = calendarEvents.exDividendDate?.raw;
+    const floatShares: number | null = keyStats.floatShares?.raw ?? null;
+    const sharesOutstanding: number | null = keyStats.sharesOutstanding?.raw ?? null;
+    const freeFloatPct =
+      floatShares !== null && sharesOutstanding ? (floatShares / sharesOutstanding) * 100 : null;
     const upgradeHistory: UpgradeDowngrade[] = (result.upgradeDowngradeHistory?.history ?? [])
       .slice(0, 15)
       .map((h: Record<string, number | string>) => ({
@@ -173,6 +180,9 @@ export async function getTickerDetail(symbol: string): Promise<TickerDetail | nu
       upgradeHistory,
       nextEarningsDate: typeof earningsDateRaw === "number" ? new Date(earningsDateRaw * 1000).toISOString().slice(0, 10) : null,
       exDividendDate: typeof exDividendRaw === "number" ? new Date(exDividendRaw * 1000).toISOString().slice(0, 10) : null,
+      floatShares,
+      sharesOutstanding,
+      freeFloatPct,
     };
   } catch {
     return null;
