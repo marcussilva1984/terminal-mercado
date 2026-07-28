@@ -12,6 +12,8 @@ import { getB3VolatilityRanking } from "@/lib/volatilityService";
 import { getBrapiRanking, type BrapiListItem } from "@/lib/sources/brapi";
 import { buildB3Insights } from "@/lib/insights";
 import { VolatilityTable } from "@/components/VolatilityTable";
+import { getFatosRelevantes } from "@/lib/sources/cvmFatosRelevantes";
+import { FatosRelevantesTable } from "@/components/FatosRelevantesTable";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +31,7 @@ function toRankingItem(item: BrapiListItem): RankingItem {
 export default async function AcoesPage() {
   const now = new Date().toISOString();
 
-  const [flowResult, newsResult, zScoreResult, gainersResult, losersResult, volumeResult, volatilityResult] =
+  const [flowResult, newsResult, zScoreResult, gainersResult, losersResult, volumeResult, volatilityResult, fatosResult] =
     await Promise.allSettled([
       getFlowHistory(),
       getNews("b3", 10),
@@ -38,6 +40,7 @@ export default async function AcoesPage() {
       getBrapiRanking("change", "asc", 20),
       getBrapiRanking("volume", "desc", 20),
       getB3VolatilityRanking(),
+      getFatosRelevantes(25),
     ]);
 
   const news = newsResult.status === "fulfilled" ? newsResult.value : [];
@@ -46,6 +49,7 @@ export default async function AcoesPage() {
   const losers = losersResult.status === "fulfilled" ? losersResult.value.map(toRankingItem) : null;
   const byVolume = volumeResult.status === "fulfilled" ? volumeResult.value.map(toRankingItem) : null;
   const volatility = volatilityResult.status === "fulfilled" ? volatilityResult.value : null;
+  const fatosRelevantes = fatosResult.status === "fulfilled" ? fatosResult.value : null;
 
   const insights =
     gainers && losers && byVolume && flowResult.status === "fulfilled"
@@ -162,6 +166,20 @@ export default async function AcoesPage() {
         </a>
         .
       </p>
+
+      <Panel title="Fatos Relevantes (CVM)" updatedAt={now}>
+        {fatosRelevantes ? (
+          <FatosRelevantesTable items={fatosRelevantes} />
+        ) : (
+          <p className="text-sm text-down">
+            Fonte indisponível{fatosResult.status === "rejected" && fatosResult.reason instanceof Error ? `: ${fatosResult.reason.message}` : "."}
+          </p>
+        )}
+        <p className="mt-3 text-xs text-text-muted">
+          Direto da CVM (dados abertos oficiais) — comunicados obrigatórios de eventos relevantes de todas as
+          companhias abertas do mercado brasileiro, atualizado conforme a CVM publica.
+        </p>
+      </Panel>
 
       <Panel title="Notícias Brasil / B3" updatedAt={now}>
         <NewsFeed items={news} now={now} />

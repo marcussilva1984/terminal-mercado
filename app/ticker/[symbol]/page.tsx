@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Panel } from "@/components/Panel";
 import { TickerChart } from "@/components/TickerChart";
 import { TickerSwitcher } from "@/components/TickerSwitcher";
+import { TickerTabs } from "@/components/TickerTabs";
 import { getBaseUrl } from "@/lib/baseUrl";
 import { formatNumber, formatPct, formatCompact, changeColorClass } from "@/lib/format";
 import type { TickerDetail } from "@/lib/sources/yahooTickerDetail";
@@ -96,101 +97,112 @@ export default async function TickerDetailPage({
         )}
       </div>
 
-      <Panel title="Gráfico">
-        <TickerChart symbol={yahooSymbol} currency={currency} />
-      </Panel>
-
-      <Panel title="Indicadores">
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {[
-            ["P/L", data.trailingPE !== null ? formatNumber(data.trailingPE) : "—"],
-            ["P/L Futuro", data.forwardPE !== null ? formatNumber(data.forwardPE) : "—"],
-            ["P/VP", data.priceToBook !== null ? formatNumber(data.priceToBook) : "—"],
-            ["Div. Yield", data.dividendYield !== null ? `${formatNumber(data.dividendYield)}%` : "—"],
-            ["Beta", data.beta !== null ? formatNumber(data.beta) : "—"],
-            ["Dív./Patrim.", data.debtToEquity !== null ? `${formatNumber(data.debtToEquity)}%` : "—"],
-            ["ROE", data.returnOnEquity !== null ? `${formatNumber(data.returnOnEquity)}%` : "—"],
-            ["Margem Líquida", data.profitMargin !== null ? `${formatNumber(data.profitMargin)}%` : "—"],
-            ["Market Cap", data.marketCap !== null ? formatCompact(data.marketCap, currency === "BRL" ? "R$" : "US$") : "—"],
-            ["Mín. 52 sem.", data.fiftyTwoWeekLow ? formatNumber(data.fiftyTwoWeekLow) : "—"],
-            ["Máx. 52 sem.", data.fiftyTwoWeekHigh !== null ? formatNumber(data.fiftyTwoWeekHigh) : "—"],
-          ].map(([label, value]) => (
-            <div key={label}>
-              <div className="text-xs text-text-muted">{label}</div>
-              <div className="text-sm font-medium text-text">{value}</div>
-            </div>
-          ))}
-        </div>
-      </Panel>
-
-      {data.targetMeanPrice !== null ? (
-        <Panel title="Preço-Alvo dos Analistas">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div>
-              <div className="text-xs text-text-muted">Alvo Médio</div>
-              <div className="text-sm font-medium text-gold-bright">{formatNumber(data.targetMeanPrice)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-text-muted">Faixa</div>
-              <div className="text-sm font-medium text-text">
-                {data.targetLowPrice !== null ? formatNumber(data.targetLowPrice) : "—"} —{" "}
-                {data.targetHighPrice !== null ? formatNumber(data.targetHighPrice) : "—"}
+      <TickerTabs
+        overview={
+          <>
+            <Panel title="Indicadores">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                {[
+                  ["P/L", data.trailingPE !== null ? formatNumber(data.trailingPE) : "—"],
+                  ["P/L Futuro", data.forwardPE !== null ? formatNumber(data.forwardPE) : "—"],
+                  ["P/VP", data.priceToBook !== null ? formatNumber(data.priceToBook) : "—"],
+                  ["Div. Yield", data.dividendYield !== null ? `${formatNumber(data.dividendYield)}%` : "—"],
+                  ["Beta", data.beta !== null ? formatNumber(data.beta) : "—"],
+                  ["Dív./Patrim.", data.debtToEquity !== null ? `${formatNumber(data.debtToEquity)}%` : "—"],
+                  ["ROE", data.returnOnEquity !== null ? `${formatNumber(data.returnOnEquity)}%` : "—"],
+                  ["Margem Líquida", data.profitMargin !== null ? `${formatNumber(data.profitMargin)}%` : "—"],
+                  ["Market Cap", data.marketCap !== null ? formatCompact(data.marketCap, currency === "BRL" ? "R$" : "US$") : "—"],
+                  ["Mín. 52 sem.", data.fiftyTwoWeekLow ? formatNumber(data.fiftyTwoWeekLow) : "—"],
+                  ["Máx. 52 sem.", data.fiftyTwoWeekHigh !== null ? formatNumber(data.fiftyTwoWeekHigh) : "—"],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <div className="text-xs text-text-muted">{label}</div>
+                    <div className="text-sm font-medium text-text">{value}</div>
+                  </div>
+                ))}
               </div>
-            </div>
-            <div>
-              <div className="text-xs text-text-muted">Nº Analistas</div>
-              <div className="text-sm font-medium text-text">{data.numberOfAnalysts ?? "—"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-text-muted">Recomendação</div>
-              <div className="text-sm font-medium text-text">{recomLabel(data.recommendationMean)}</div>
-            </div>
-          </div>
+            </Panel>
 
-          {data.upgradeHistory.length > 0 && (
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs text-text-muted">
-                    <th className="pb-2 font-medium">Data</th>
-                    <th className="pb-2 font-medium">Casa</th>
-                    <th className="pb-2 font-medium">Rating</th>
-                    <th className="pb-2 font-medium text-right">Preço-Alvo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.upgradeHistory.map((h, i) => (
-                    <tr key={i} className="border-b border-border/50 last:border-0">
-                      <td className="py-1.5 text-text-muted">{new Date(h.date).toLocaleDateString("pt-BR")}</td>
-                      <td className="py-1.5 text-text">{h.firm}</td>
-                      <td className="py-1.5 text-text">{h.toGrade}</td>
-                      <td className="py-1.5 text-right text-text">
-                        {h.currentPriceTarget !== null ? (
-                          <>
-                            {h.priorPriceTarget !== null && h.priorPriceTarget > 0 && h.priorPriceTarget !== h.currentPriceTarget
-                              ? `${formatNumber(h.priorPriceTarget)} → `
-                              : ""}
-                            {formatNumber(h.currentPriceTarget)}
-                          </>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Panel>
-      ) : (
-        <Panel title="Preço-Alvo dos Analistas">
-          <p className="text-sm text-text-muted">
-            Sem cobertura de analistas pra {symbol} no Yahoo Finance
-            {assetClass === "fii" || assetClass === "cripto" ? " (esperado — fundos e cripto não têm equity research)." : "."}
-          </p>
-        </Panel>
-      )}
+            {data.targetMeanPrice !== null ? (
+              <Panel title="Preço-Alvo dos Analistas">
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                  <div>
+                    <div className="text-xs text-text-muted">Alvo Médio</div>
+                    <div className="text-sm font-medium text-gold-bright">{formatNumber(data.targetMeanPrice)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-text-muted">Faixa</div>
+                    <div className="text-sm font-medium text-text">
+                      {data.targetLowPrice !== null ? formatNumber(data.targetLowPrice) : "—"} —{" "}
+                      {data.targetHighPrice !== null ? formatNumber(data.targetHighPrice) : "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-text-muted">Nº Analistas</div>
+                    <div className="text-sm font-medium text-text">{data.numberOfAnalysts ?? "—"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-text-muted">Recomendação</div>
+                    <div className="text-sm font-medium text-text">{recomLabel(data.recommendationMean)}</div>
+                  </div>
+                </div>
+
+                {data.upgradeHistory.length > 0 && (
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border text-left text-xs text-text-muted">
+                          <th className="pb-2 font-medium">Data</th>
+                          <th className="pb-2 font-medium">Casa (quem avaliou)</th>
+                          <th className="pb-2 font-medium">Rating</th>
+                          <th className="pb-2 font-medium text-right">Preço-Alvo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.upgradeHistory.map((h, i) => (
+                          <tr key={i} className="border-b border-border/50 last:border-0">
+                            <td className="py-1.5 text-text-muted">{new Date(h.date).toLocaleDateString("pt-BR")}</td>
+                            <td className="py-1.5 text-text">{h.firm}</td>
+                            <td className="py-1.5 text-text">{h.toGrade}</td>
+                            <td className="py-1.5 text-right text-text">
+                              {h.currentPriceTarget !== null ? (
+                                <>
+                                  {h.priorPriceTarget !== null && h.priorPriceTarget > 0 && h.priorPriceTarget !== h.currentPriceTarget
+                                    ? `${formatNumber(h.priorPriceTarget)} → `
+                                    : ""}
+                                  {formatNumber(h.currentPriceTarget)}
+                                </>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="mt-2 text-xs text-text-muted">
+                      Coluna &quot;Casa&quot; mostra qual corretora/banco fez a avaliação (ex: JP Morgan, UBS,
+                      Morgan Stanley) — dá pra comparar reputação e histórico de acerto de cada uma ao longo do tempo.
+                    </p>
+                  </div>
+                )}
+              </Panel>
+            ) : (
+              <Panel title="Preço-Alvo dos Analistas">
+                <p className="text-sm text-text-muted">
+                  Sem cobertura de analistas pra {symbol} no Yahoo Finance
+                  {assetClass === "fii" || assetClass === "cripto" ? " (esperado — fundos e cripto não têm equity research)." : "."}
+                </p>
+              </Panel>
+            )}
+          </>
+        }
+        chart={
+          <Panel title="Gráfico">
+            <TickerChart symbol={yahooSymbol} currency={currency} />
+          </Panel>
+        }
+      />
     </div>
   );
 }
