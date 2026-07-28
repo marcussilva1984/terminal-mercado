@@ -40,6 +40,8 @@ export interface BrapiListItem {
   changePct: number;
   volume: number;
   marketCap: number;
+  sector?: string | null;
+  subsector?: string | null;
 }
 
 const MIN_VOLUME_FOR_RANKING: Record<"stock" | "fund", number> = {
@@ -75,6 +77,8 @@ export async function getBrapiRanking(
     change: number;
     volume: number;
     market_cap: number;
+    sector?: string | null;
+    subsector?: string | null;
   }[] = json?.stocks ?? [];
 
   return stocks
@@ -87,7 +91,58 @@ export async function getBrapiRanking(
       changePct: s.change,
       volume: s.volume,
       marketCap: s.market_cap,
+      sector: s.sector,
+      subsector: s.subsector,
     }));
+}
+
+export interface B3SectorGroup {
+  sector: string;
+  avgChangePct: number;
+  count: number;
+  stocks: { symbol: string; name: string; close: number; changePct: number }[];
+}
+
+// Agrupa ações B3 por setor (campo `sector` que a brapi já retorna) — usado
+// na página de setor pra comparar quem está mais barato/caro dentro do
+// próprio setor, e não com o mercado inteiro.
+export async function getB3SectorGroups(): Promise<B3SectorGroup[]> {
+  const token = process.env.BRAPI_TOKEN;
+  const url = new URL(`${BRAPI_BASE}/quote/list`);
+  url.searchParams.set("type", "stock");
+  url.searchParams.set("limit", "300");
+  if (token) url.searchParams.set("token", token);
+
+  const res = await fetch(url.toString(), { next: { revalidate: 15 * 60 } });
+  if (!res.ok) throw new Error(`brapi.dev respondeu ${res.status} para setores B3`);
+
+  const json = await res.json();
+  const stocks: {
+    stock: string;
+    name: string;
+    close: number;
+    change: number;
+    volume: number;
+    sector?: string | null;
+  }[] = json?.stocks ?? [];
+
+  const bySector = new Map<string, { symbol: string; name: string; close: number; changePct: number }[]>();
+  for (const s of stocks) {
+    if (!s.sector || s.volume < MIN_VOLUME_FOR_RANKING.stock) continue;
+    const list = bySector.get(s.sector) ?? [];
+    list.push({ symbol: s.stock, name: s.name, close: s.close, changePct: s.change });
+    bySector.set(s.sector, list);
+  }
+
+  return Array.from(bySector.entries())
+    .filter(([, list]) => list.length >= 2)
+    .map(([sector, list]) => ({
+      sector,
+      avgChangePct: list.reduce((sum, s) => sum + s.changePct, 0) / list.length,
+      count: list.length,
+      stocks: list.sort((a, b) => b.changePct - a.changePct),
+    }))
+    .sort((a, b) => b.avgChangePct - a.avgChangePct);
 }
 
 export interface FiiSectorPerformance {
