@@ -89,7 +89,7 @@ export async function getFullIndicators(symbol: string): Promise<FundamentusSect
   const sectionTitles: Record<number, string> = {
     0: "Dados Gerais",
     1: "Valor de Mercado",
-    2: "Oscilações e Indicadores Fundamentalistas",
+    2: "Indicadores Fundamentalistas",
     3: "Balanço Patrimonial",
     4: "Demonstrativo de Resultados",
   };
@@ -105,13 +105,17 @@ export async function getFullIndicators(symbol: string): Promise<FundamentusSect
           .find("td")
           .map((_, c) => $(c).text().trim())
           .get();
-        // Linhas são pares label/valor repetidos (2 ou 4 colunas por linha).
-        for (let i = 0; i < cells.length - 1; i += 2) {
+        // A tabela 2 (índice 2) tem 3 colunas por linha: Oscilações (preço %
+        // por período) + Indicadores fundamentalistas (2 pares). Só queremos
+        // os indicadores de verdade aqui — as oscilações de preço já aparecem
+        // no cabeçalho da página, misturar as duas só deixa confuso.
+        const startAt = tableIndex === 2 ? 2 : 0;
+        for (let i = startAt; i < cells.length - 1; i += 2) {
           const label = cells[i]?.replace(/^\?/, "").trim();
           const value = cells[i + 1]?.trim();
-          // Pula linhas de subcabeçalho (ex.: "Oscilações" / "Indicadores
-          // fundamentalistas", "Últimos 12 meses" / "Últimos 3 meses") — não
-          // são pares label/valor de verdade, são títulos de coluna.
+          // Pula linhas de subcabeçalho (ex.: "Indicadores fundamentalistas",
+          // "Últimos 12 meses" / "Últimos 3 meses") — títulos de coluna, não
+          // pares label/valor de verdade.
           if (label && value && !/^(Últimos|Indicadores)/.test(value)) items.push({ label, value });
         }
       });

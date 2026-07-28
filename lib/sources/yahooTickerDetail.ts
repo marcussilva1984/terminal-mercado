@@ -100,10 +100,17 @@ export async function fetchCandles(symbol: string, interval: ChartInterval = "1d
     }))
     .filter(
       (p): p is CandlePoint =>
+        // Yahoo às vezes retorna o período corrente (ainda em formação) com
+        // preço 0/negativo antes de fechar — isso quebrava a escala do
+        // gráfico inteiro (virava um "crash pra zero" falso na última vela).
         typeof p.open === "number" &&
         typeof p.high === "number" &&
         typeof p.low === "number" &&
-        typeof p.close === "number"
+        typeof p.close === "number" &&
+        p.open > 0 &&
+        p.high > 0 &&
+        p.low > 0 &&
+        p.close > 0
     )
     .map((p) => ({ ...p, volume: p.volume ?? 0 }));
 }
