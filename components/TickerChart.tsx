@@ -1,15 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-
-interface Candle {
-  date: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-}
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { computeSupportResistance, computeTrendLines, type Candle } from "@/lib/technicalAnalysis";
 
 const INTERVALS = [
   { value: "1d", label: "Diário" },
@@ -33,6 +25,7 @@ export function TickerChart({ symbol, currency }: { symbol: string; currency: st
   const [candles, setCandles] = useState<Candle[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hover, setHover] = useState<{ x: number; candle: Candle } | null>(null);
+  const [showTA, setShowTA] = useState(true);
 
   const load = useCallback(async () => {
     setCandles(null);
@@ -52,6 +45,9 @@ export function TickerChart({ symbol, currency }: { symbol: string; currency: st
     load();
   }, [load]);
 
+  const srLevels = useMemo(() => (candles ? computeSupportResistance(candles) : []), [candles]);
+  const trendLines = useMemo(() => (candles ? computeTrendLines(candles) : []), [candles]);
+
   if (error) return <p className="text-sm text-down">Fonte indisponível: {error}</p>;
   if (!candles) return <p className="text-sm text-text-muted">Carregando gráfico...</p>;
   if (candles.length < 2) return <p className="text-sm text-text-muted">Sem histórico suficiente pra gráfico.</p>;
@@ -63,6 +59,9 @@ export function TickerChart({ symbol, currency }: { symbol: string; currency: st
 
   const visible = candles.slice(-visibleCount);
   const sma200 = sma200Full.slice(-visibleCount);
+  const offset = candles.length - visible.length;
+
+  const visibleSR = showTA ? srLevels.filter((l) => l.price >= Math.min(...visible.map((c) => c.low)) * 0.85 && l.price <= Math.max(...visible.map((c) => c.high)) * 1.15) : [];
 
   const width = 900;
   const chartHeight = 260;
@@ -74,8 +73,9 @@ export function TickerChart({ symbol, currency }: { symbol: string; currency: st
   const highs = visible.map((c) => c.high);
   const lows = visible.map((c) => c.low);
   const validSma = sma200.filter((v): v is number => v !== null);
-  const min = Math.min(...lows, ...(validSma.length ? validSma : [Infinity]));
-  const max = Math.max(...highs, ...(validSma.length ? validSma : [-Infinity]));
+  const srPrices = visibleSR.map((l) => l.price);
+  const min = Math.min(...lows, ...(validSma.length ? validSma : [Infinity]), ...(srPrices.length ? srPrices : [Infinity]));
+  const max = Math.max(...highs, ...(validSma.length ? validSma : [-Infinity]), ...(srPrices.length ? srPrices : [-Infinity]));
   const range = max - min || 1;
   const maxVolume = Math.max(...visible.map((c) => c.volume), 1);
 
@@ -91,6 +91,24 @@ export function TickerChart({ symbol, currency }: { symbol: string; currency: st
     .map((p, i) => `${i === 0 ? "M" : "L"} ${p}`)
     .join(" ");
 
+  // Converte as linhas de tendência (calculadas no índice da série inteira)
+  // pro espaço de índice visível, recortando na janela mostrada.
+  const visibleTrendLines = showTA
+    ? trendLines
+        .map((t) => {
+          const startVis = Math.max(0, t.startIndex - offset);
+          const endVis = visible.length - 1;
+          if (endVis < 0 || startVis > endVis) return null;
+          const priceAt = (fullIndex: number) => t.slope * fullIndex + t.intercept;
+          const x1 = xFor(startVis);
+          const y1 = yFor(priceAt(startVis + offset));
+          const x2 = xFor(endVis);
+          const y2 = yFor(priceAt(endVis + offset));
+          return { ...t, x1, y1, x2, y2 };
+        })
+        .filter((t): t is NonNullable<typeof t> => t !== null)
+    : [];
+
   function handleMove(e: React.MouseEvent<SVGSVGElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
     const relX = ((e.clientX - rect.left) / rect.width) * width;
@@ -100,18 +118,28 @@ export function TickerChart({ symbol, currency }: { symbol: string; currency: st
 
   return (
     <div>
-      <div className="mb-3 flex gap-1">
-        {INTERVALS.map((opt) => (
-          <button
-            key={opt.value}
-            onClick={() => setInterval_(opt.value)}
-            className={`rounded border px-2 py-1 text-xs transition-colors ${
-              interval === opt.value ? "border-gold bg-gold/10 text-gold-bright" : "border-border text-text-muted hover:text-text"
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-1">
+          {INTERVALS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setInterval_(opt.value)}
+              className={`rounded border px-2 py-1 text-xs transition-colors ${
+                interval === opt.value ? "border-gold bg-gold/10 text-gold-bright" : "border-border text-text-muted hover:text-text"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setShowTA((v) => !v)}
+          className={`rounded border px-2 py-1 text-xs transition-colors ${
+            showTA ? "border-gold bg-gold/10 text-gold-bright" : "border-border text-text-muted hover:text-text"
+          }`}
+        >
+          Suporte/Resistência
+        </button>
       </div>
 
       <div className="relative">
@@ -121,6 +149,37 @@ export function TickerChart({ symbol, currency }: { symbol: string; currency: st
           onMouseMove={handleMove}
           onMouseLeave={() => setHover(null)}
         >
+          {/* suporte/resistência */}
+          {visibleSR.map((l) => (
+            <g key={`sr-${l.price}`}>
+              <line
+                x1={padding}
+                x2={width - padding}
+                y1={yFor(l.price)}
+                y2={yFor(l.price)}
+                className={l.type === "support" ? "stroke-up" : "stroke-down"}
+                strokeWidth={1}
+                strokeDasharray="4 3"
+                opacity={0.55}
+              />
+              <text x={width - padding} y={yFor(l.price) - 3} textAnchor="end" className={`text-[9px] ${l.type === "support" ? "fill-up" : "fill-down"}`}>
+                {l.price.toFixed(2)}
+              </text>
+            </g>
+          ))}
+          {/* linhas de tendência */}
+          {visibleTrendLines.map((t) => (
+            <line
+              key={t.type}
+              x1={t.x1}
+              y1={t.y1}
+              x2={t.x2}
+              y2={t.y2}
+              className={t.type === "support" ? "stroke-up" : "stroke-down"}
+              strokeWidth={1.3}
+              opacity={0.8}
+            />
+          ))}
           {/* candles */}
           {visible.map((c, i) => {
             const x = xFor(i);
