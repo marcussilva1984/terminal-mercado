@@ -6,6 +6,7 @@ const KIND_LABEL: Record<AlertStatus["kind"], string> = {
   watchlist: "Watchlist",
   zscore: "Z-score",
   preco: "Preço",
+  fato_relevante: "Fato Relevante",
 };
 
 export function AlertStatusList({ alerts }: { alerts: AlertStatus[] }) {

@@ -1,4 +1,4 @@
-import { and, desc, gte, eq, notInArray } from "drizzle-orm";
+import { and, desc, gte, eq, notInArray, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { alertLog } from "@/lib/db/schema";
 import type { AlertStatus } from "@/lib/types";
@@ -36,6 +36,16 @@ export async function getLastDigestTime(): Promise<Date | null> {
 
 export async function markDigestSent(): Promise<void> {
   await logAlert("news_digest", "Digest de notícias enviado", "noticia");
+}
+
+export async function hasAnyAlertWithKeyPrefix(prefix: string): Promise<boolean> {
+  const db = getDb();
+  const rows = await db
+    .select({ id: alertLog.id })
+    .from(alertLog)
+    .where(sql`${alertLog.key} LIKE ${prefix + "%"}`)
+    .limit(1);
+  return rows.length > 0;
 }
 
 // Mesmo padrão do digest completo, mas pra checagem de notícias de alto impacto

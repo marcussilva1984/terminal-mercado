@@ -12,6 +12,7 @@ const TABS = [
   { href: "/forex", label: "Forex" },
   { href: "/fii", label: "FII" },
   { href: "/tesouro", label: "Tesouro Direto" },
+  { href: "/ticker/PETR4?class=b3", label: "Fundamentalista", matchPrefix: "/ticker" },
   { href: "/carteira", label: "Minha Carteira" },
   { href: "/watchlist", label: "Watchlist" },
 ];
@@ -23,7 +24,8 @@ export function TabNav() {
     <nav className="w-full border-b border-border bg-panel-alt">
       <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4">
         {TABS.map((tab) => {
-          const active = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
+          const matchAgainst = tab.matchPrefix ?? tab.href;
+          const active = tab.href === "/" ? pathname === "/" : pathname.startsWith(matchAgainst);
           return (
             <Link
               key={tab.href}

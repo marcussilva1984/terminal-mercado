@@ -48,7 +48,7 @@ export interface FlowSegment {
 export interface AlertStatus {
   label: string;
   triggeredAt: string;
-  kind: "fluxo" | "watchlist" | "zscore" | "preco";
+  kind: "fluxo" | "watchlist" | "zscore" | "preco" | "fato_relevante";
 }
 
 export interface DataSourceStatus {
