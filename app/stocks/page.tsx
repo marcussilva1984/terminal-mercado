@@ -8,6 +8,8 @@ import type { AnalystTarget } from "@/lib/sources/yahooAnalyst";
 import { getNews } from "@/lib/sources/rss";
 import { STOCKS_WATCHLIST, US_INDICES } from "@/lib/watchlist";
 import { AnalystTargetTable, type AnalystTargetRow } from "@/components/AnalystTargetTable";
+import { InsiderTable } from "@/components/InsiderTable";
+import type { InsiderTransaction } from "@/lib/sources/secInsiders";
 import { getBaseUrl } from "@/lib/baseUrl";
 import type { RankingItem } from "@/lib/types";
 
@@ -30,7 +32,15 @@ export default async function StocksPage() {
     return json.data;
   };
 
-  const [indices, watchlistQuotes, gainersResult, losersResult, activesResult, news, analystTargets] = await Promise.all([
+  const fetchInsiders = async (): Promise<InsiderTransaction[]> => {
+    const symbols = STOCKS_WATCHLIST.map((w) => w.symbol).join(",");
+    const res = await fetch(`${getBaseUrl()}/api/insiders?symbols=${encodeURIComponent(symbols)}`, { cache: "no-store" });
+    const json = await res.json();
+    if (!json.available) throw new Error(json.error ?? "Falha ao carregar insiders");
+    return json.data;
+  };
+
+  const [indices, watchlistQuotes, gainersResult, losersResult, activesResult, news, analystTargets, insiders] = await Promise.all([
     getYahooQuotes(US_INDICES.map((i) => i.symbol)),
     getYahooQuotes(STOCKS_WATCHLIST.map((w) => w.symbol)),
     getYahooScreener("day_gainers", 20).catch(() => null),
@@ -38,6 +48,7 @@ export default async function StocksPage() {
     getYahooScreener("most_actives", 20).catch(() => null),
     getNews("internacional", 10),
     fetchAnalystTargets().catch(() => []),
+    fetchInsiders().catch(() => []),
   ]);
 
   const gainers = gainersResult?.map(toRankingItem) ?? null;
@@ -106,6 +117,10 @@ export default async function StocksPage() {
 
       <Panel title="Preço-Alvo dos Analistas" updatedAt={now}>
         <AnalystTargetTable items={analystRows} />
+      </Panel>
+
+      <Panel title="Insiders (SEC EDGAR)" updatedAt={now}>
+        <InsiderTable items={insiders} />
       </Panel>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

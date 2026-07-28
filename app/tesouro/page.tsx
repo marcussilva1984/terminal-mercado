@@ -4,11 +4,14 @@ import { formatNumber, formatDateTime, changeColorClass } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-// Prefixo de rentabilidade mostrado ao lado da taxa, conforme o indexador do título.
+// Prefixo de rentabilidade mostrado ao lado da taxa, conforme o indexador do
+// título. Educa+ e Renda+ Aposentadoria Extra são indexados ao IPCA mas o
+// nome oficial do produto não contém "IPCA" — precisa de mapeamento explícito.
 function rateIndex(title: string): string {
   if (title.includes("Selic")) return "Selic +";
-  if (title.includes("IPCA")) return "IPCA +";
+  if (title.includes("IPCA") || title.includes("Educa+") || title.includes("Renda+")) return "IPCA +";
   if (title.includes("IGPM")) return "IGP-M +";
+  if (title.includes("Prefixado")) return ""; // taxa já é o total, não um "+"
   return "";
 }
 
