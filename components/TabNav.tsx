@@ -11,7 +11,6 @@ const TABS = [
   { href: "/stocks", label: "Stocks (EUA)" },
   { href: "/forex", label: "Forex" },
   { href: "/fii", label: "FII" },
-  { href: "/tesouro", label: "Tesouro Direto" },
   { href: "/ticker/PETR4?class=b3", label: "Fundamentalista", matchPrefix: "/ticker" },
   { href: "/comparador", label: "Comparador" },
   { href: "/carteira", label: "Minha Carteira" },

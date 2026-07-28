@@ -16,6 +16,7 @@ export interface RankingItem {
   value: number;
   changePct: number;
   volume?: number;
+  price?: number; // usado quando `value` é outra grandeza (ex.: market cap) e o preço do ativo precisa aparecer também
 }
 
 export interface ZScoreHighlight {

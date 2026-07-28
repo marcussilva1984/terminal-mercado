@@ -29,6 +29,7 @@ function toRankingItem(coin: CoinMarket, metric: "price" | "volume" | "marketcap
     label: coin.name,
     value: valueByMetric[metric],
     changePct: coin.price_change_percentage_24h ?? 0,
+    price: metric !== "price" ? coin.current_price : undefined,
   };
 }
 

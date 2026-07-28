@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { RankingItem } from "@/lib/types";
-import { changeColorClass, formatNumber, formatPct } from "@/lib/format";
+import { changeColorClass, formatNumber, formatPct, formatPrice } from "@/lib/format";
 
 export function RankingTable({
   items,
@@ -22,6 +22,7 @@ export function RankingTable({
       <thead>
         <tr className="border-b border-border text-left text-xs text-text-muted">
           <th className="pb-2 font-medium">Ativo</th>
+          {items[0]?.price !== undefined && <th className="pb-2 font-medium text-right">Preço</th>}
           <th className="pb-2 font-medium text-right">{valueLabel}</th>
           <th className="pb-2 font-medium text-right">Var. %</th>
           {items[0]?.volume !== undefined && (
@@ -45,6 +46,7 @@ export function RankingTable({
                 </>
               )}
             </td>
+            {item.price !== undefined && <td className="py-2 text-right text-text-muted">{formatPrice(item.price, "USD")}</td>}
             <td className="py-2 text-right text-text">{formatValue(item.value)}</td>
             <td className={`py-2 text-right ${changeColorClass(item.changePct)}`}>
               {formatPct(item.changePct)}
