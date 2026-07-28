@@ -168,6 +168,8 @@ export function TickerChart({ symbol, currency }: { symbol: string; currency: st
   const [error, setError] = useState<string | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [showTA, setShowTA] = useState(true);
+  const [viewOffset, setViewOffset] = useState(0); // candles pra trás a partir do mais recente
+  const [drag, setDrag] = useState<{ startX: number; startOffset: number } | null>(null);
 
   const load = useCallback(async () => {
     setCandles(null);
@@ -186,20 +188,27 @@ export function TickerChart({ symbol, currency }: { symbol: string; currency: st
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on mount/interval change, no alternative
     load();
     setHoverIndex(null);
+    setViewOffset(0);
   }, [load]);
 
   const srLevels = useMemo(() => (candles ? computeSupportResistance(candles) : []), [candles]);
   const trendLines = useMemo(() => (candles ? computeTrendLines(candles) : []), [candles]);
 
   const visibleCount = interval === "1d" ? 180 : interval === "1wk" ? 156 : 120;
+  const maxOffset = candles ? Math.max(0, candles.length - visibleCount) : 0;
+  const clampedOffset = Math.min(viewOffset, maxOffset);
 
-  const visible = useMemo(() => (candles ? candles.slice(-visibleCount) : []), [candles, visibleCount]);
+  const sliceEnd = candles ? candles.length - clampedOffset : 0;
+  const visible = useMemo(
+    () => (candles ? candles.slice(Math.max(0, sliceEnd - visibleCount), sliceEnd) : []),
+    [candles, visibleCount, sliceEnd]
+  );
   const sma200 = useMemo(() => {
     if (!candles) return [];
     const closes = candles.map((c) => c.close);
-    return computeSMA(closes, 200).slice(-visibleCount);
-  }, [candles, visibleCount]);
-  const offset = candles ? candles.length - visible.length : 0;
+    return computeSMA(closes, 200).slice(Math.max(0, sliceEnd - visibleCount), sliceEnd);
+  }, [candles, visibleCount, sliceEnd]);
+  const offset = Math.max(0, sliceEnd - visible.length);
 
   const visibleSR = useMemo(() => {
     if (!showTA || visible.length === 0) return [];
@@ -242,17 +251,37 @@ export function TickerChart({ symbol, currency }: { symbol: string; currency: st
 
   function handleMove(e: React.MouseEvent<HTMLDivElement>) {
     if (visible.length === 0) return;
+
+    if (drag) {
+      const deltaPx = e.clientX - drag.startX;
+      const scale = e.currentTarget.getBoundingClientRect().width / WIDTH;
+      // Arrastar pra direita revela histórico mais antigo (aumenta o offset),
+      // igual ao gesto natural de "puxar" o conteúdo pra ver o que tem atrás.
+      const deltaCandles = Math.round(deltaPx / (stepX * scale));
+      setViewOffset(Math.max(0, Math.min(maxOffset, drag.startOffset + deltaCandles)));
+      return;
+    }
+
     const rect = e.currentTarget.getBoundingClientRect();
     const relX = ((e.clientX - rect.left) / rect.width) * WIDTH;
     const i = Math.max(0, Math.min(visible.length - 1, Math.round((relX - PADDING - stepX / 2) / stepX)));
     setHoverIndex(i);
   }
 
+  function handleDown(e: React.MouseEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDrag({ startX: e.clientX, startOffset: clampedOffset });
+  }
+
+  function handleUp() {
+    setDrag(null);
+  }
+
   if (error) return <p className="text-sm text-down">Fonte indisponível: {error}</p>;
   if (!candles) return <p className="text-sm text-text-muted">Carregando gráfico...</p>;
   if (candles.length < 2) return <p className="text-sm text-text-muted">Sem histórico suficiente pra gráfico.</p>;
 
-  const hoverCandle = hoverIndex !== null ? visible[hoverIndex] : null;
+  const hoverCandle = !drag && hoverIndex !== null ? visible[hoverIndex] : null;
   const hoverX = hoverIndex !== null ? PADDING + hoverIndex * stepX + stepX / 2 : 0;
 
   return (
@@ -279,9 +308,26 @@ export function TickerChart({ symbol, currency }: { symbol: string; currency: st
         >
           Suporte/Resistência
         </button>
+        {clampedOffset > 0 && (
+          <button
+            onClick={() => setViewOffset(0)}
+            className="rounded border border-gold/40 bg-gold/10 px-2 py-1 text-xs text-gold-bright"
+          >
+            Voltar ao mais recente
+          </button>
+        )}
       </div>
 
-      <div className="relative" onMouseMove={handleMove} onMouseLeave={() => setHoverIndex(null)}>
+      <div
+        className="relative select-none cursor-grab active:cursor-grabbing"
+        onMouseMove={handleMove}
+        onMouseLeave={() => {
+          setHoverIndex(null);
+          setDrag(null);
+        }}
+        onMouseDown={handleDown}
+        onMouseUp={handleUp}
+      >
         <StaticChart visible={visible} sma200={sma200} visibleSR={visibleSR} visibleTrendLines={visibleTrendLines} min={min} max={max} maxVolume={maxVolume} />
         {hoverCandle && (
           <svg viewBox={`0 0 ${WIDTH} ${TOTAL_HEIGHT}`} className="pointer-events-none absolute inset-0 w-full">
@@ -305,7 +351,8 @@ export function TickerChart({ symbol, currency }: { symbol: string; currency: st
         )}
       </div>
       <p className="mt-2 text-xs text-text-muted">
-        {currency === "BRL" ? "R$" : "US$"} · Linha dourada = média móvel de 200 períodos.
+        {currency === "BRL" ? "R$" : "US$"} · Linha dourada = média móvel de 200 períodos. Arraste o gráfico
+        pros lados pra ver histórico mais antigo.
       </p>
     </div>
   );
