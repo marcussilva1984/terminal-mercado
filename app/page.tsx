@@ -1,26 +1,18 @@
 import { Panel } from "@/components/Panel";
 import { StatCard } from "@/components/StatCard";
-import { RankingTable } from "@/components/RankingTable";
-import { NewsFeed } from "@/components/NewsFeed";
 import { FlowSemaphore } from "@/components/FlowSemaphore";
 import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
-import { AlertStatusList } from "@/components/AlertStatusList";
 import { EconomicCalendar } from "@/components/EconomicCalendar";
 import { CopyResumoButton } from "@/components/CopyResumoButton";
 import { Headline } from "@/components/Headline";
-import { changeColorClass, formatPct, formatPrice } from "@/lib/format";
 import { getNews } from "@/lib/sources/rss";
 import { isExtremeNews } from "@/lib/sentiment";
 import { getFlowHistory } from "@/lib/sources/b3Flow";
 import { buildFlowSegments } from "@/lib/semaphore";
 import { getZScoreHighlights } from "@/lib/zscoreService";
-import { getRealHighlightCards, getRealTickerQuotes } from "@/lib/tickerService";
-import { getBrapiRanking } from "@/lib/sources/brapi";
+import { getRealHighlightCards } from "@/lib/tickerService";
 import { getWeeklyCalendar, filterHighSignal } from "@/lib/sources/economicCalendar";
-import { getRecentAlerts } from "@/lib/db/alertRepo";
-import { getWatchlist } from "@/lib/db/watchlistRepo";
-import { hasDatabase } from "@/lib/db/client";
-import type { RankingItem } from "@/lib/types";
+import { buildDailyHighlights } from "@/lib/dailyHighlights";
 
 // Pouco tráfego = ISR fica "presa" em cache velho até alguém disparar a
 // revalidação em segundo plano. Renderizar sempre fresco garante que o F5
@@ -29,35 +21,22 @@ import type { RankingItem } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [news, flowResult, zScoreHighlights, highlightCards, quotes, gainersResult, losersResult, calendarResult, alerts, watchlist] =
-    await Promise.all([
-      getNews(undefined, 15),
-      getFlowHistory().catch(() => null),
-      getZScoreHighlights().catch(() => null),
-      getRealHighlightCards().catch(() => []),
-      getRealTickerQuotes().catch(() => []),
-      getBrapiRanking("change", "desc", 3).catch(() => null),
-      getBrapiRanking("change", "asc", 3).catch(() => null),
-      getWeeklyCalendar().catch(() => null),
-      getRecentAlerts(24).catch(() => null),
-      hasDatabase() ? getWatchlist().catch(() => []) : Promise.resolve([]),
-    ]);
-  const watchlistSymbols = watchlist.map((w) => w.symbol);
+  const [news, flowResult, zScoreHighlights, highlightCards, calendarResult] = await Promise.all([
+    getNews(undefined, 15),
+    getFlowHistory().catch(() => null),
+    getZScoreHighlights().catch(() => null),
+    getRealHighlightCards().catch(() => []),
+    getWeeklyCalendar().catch(() => null),
+  ]);
 
   const radarEvents = calendarResult ? filterHighSignal(calendarResult).slice(0, 5) : null;
   const now = new Date().toISOString();
   const headline = news.find((n) => isExtremeNews(n.title)) ?? null;
-  const feedNews = news.slice(0, 5);
 
-  const toRankingItem = (item: NonNullable<typeof gainersResult>[number]): RankingItem => ({
-    symbol: item.symbol,
-    label: item.name,
-    value: item.close,
-    changePct: item.changePct,
-    volume: item.volume,
-  });
-  const altas = gainersResult?.map(toRankingItem) ?? null;
-  const baixas = losersResult?.map(toRankingItem) ?? null;
+  const todayISO = now.slice(0, 10);
+  const calendarToday = calendarResult ? filterHighSignal(calendarResult).filter((e) => e.date.slice(0, 10) === todayISO) : [];
+  const flowSegments = flowResult ? buildFlowSegments(flowResult) : null;
+  const dailyHighlights = buildDailyHighlights(calendarToday, flowSegments, zScoreHighlights);
 
   return (
     <div className="flex flex-col gap-6">
@@ -65,8 +44,7 @@ export default async function HomePage() {
         <div>
           <h1 className="text-xl font-semibold text-text">Resumo do Dia</h1>
           <p className="mt-1 text-sm text-text-muted">
-            Notícias, preços, fluxo B3, rankings, z-score e alertas já usam dados reais (precisam de{" "}
-            <code>DATABASE_URL</code> configurada; alertas via Telegram também precisam do bot).
+            Fluxo B3 e z-score já usam dados reais (precisam de <code>DATABASE_URL</code> configurada).
           </p>
         </div>
         <CopyResumoButton />
@@ -82,7 +60,24 @@ export default async function HomePage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {dailyHighlights.length > 0 && (
+        <Panel title="Destaques do Dia" updatedAt={now}>
+          <ul className="flex flex-col divide-y divide-border/50">
+            {dailyHighlights.map((h, i) => (
+              <li key={i} className="flex items-start gap-3 py-2 first:pt-0 last:pb-0 text-sm">
+                <span className="shrink-0 rounded border border-gold/40 px-1.5 py-0.5 text-xs text-gold-bright">{h.category}</span>
+                <span className="text-text">{h.text}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-text-muted">
+            Gerado só a partir de dados já coletados (calendário econômico, fluxo B3, z-score da
+            watchlist) — não interpreta conteúdo de notícia, pra não arriscar inventar detalhe.
+          </p>
+        </Panel>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Panel title="Semáforo de Fluxo B3" updatedAt={now}>
           {flowResult ? (
             <FlowSemaphore segments={buildFlowSegments(flowResult)} compact />
@@ -91,59 +86,12 @@ export default async function HomePage() {
           )}
         </Panel>
 
-        <Panel title="Preços" updatedAt={now}>
-          {quotes.length > 0 ? (
-            <div className="flex flex-col divide-y divide-border/50">
-              {quotes.map((q) => (
-                <div key={q.symbol} className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
-                  <div>
-                    <div className="text-sm font-medium text-text">{q.symbol}</div>
-                    <div className="text-xs text-text-muted">{q.label}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm text-text">{formatPrice(q.price, q.currency)}</div>
-                    <div className={`text-xs ${changeColorClass(q.changePct)}`}>{formatPct(q.changePct)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-down">Fonte indisponível no momento.</p>
-          )}
-        </Panel>
-
         <Panel title="Destaques de Z-Score" updatedAt={now}>
           {zScoreHighlights ? (
-            <ZScoreHighlightList items={zScoreHighlights.slice(0, 5)} />
+            <ZScoreHighlightList items={zScoreHighlights} />
           ) : (
             <p className="text-sm text-text-muted">
               Configure <code>DATABASE_URL</code> e rode o backfill para habilitar o z-score.
-            </p>
-          )}
-        </Panel>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Panel title="Top 3 Altas — B3" updatedAt={now}>
-          {altas ? <RankingTable items={altas} valueLabel="Preço (R$)" /> : <p className="text-sm text-down">Fonte indisponível no momento.</p>}
-        </Panel>
-        <Panel title="Top 3 Baixas — B3" updatedAt={now}>
-          {baixas ? <RankingTable items={baixas} valueLabel="Preço (R$)" /> : <p className="text-sm text-down">Fonte indisponível no momento.</p>}
-        </Panel>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <Panel title="Notícias Recentes" updatedAt={now}>
-            <NewsFeed items={feedNews} now={now} watchlistSymbols={watchlistSymbols} />
-          </Panel>
-        </div>
-        <Panel title="Alertas (últimas 24h)" updatedAt={now}>
-          {alerts ? (
-            <AlertStatusList alerts={alerts} />
-          ) : (
-            <p className="text-sm text-text-muted">
-              Configure <code>DATABASE_URL</code> e o bot do Telegram para habilitar os alertas.
             </p>
           )}
         </Panel>
