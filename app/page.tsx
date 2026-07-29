@@ -18,6 +18,8 @@ import { getRealHighlightCards, getRealTickerQuotes } from "@/lib/tickerService"
 import { getBrapiRanking } from "@/lib/sources/brapi";
 import { getWeeklyCalendar, filterHighSignal } from "@/lib/sources/economicCalendar";
 import { getRecentAlerts } from "@/lib/db/alertRepo";
+import { getWatchlist } from "@/lib/db/watchlistRepo";
+import { hasDatabase } from "@/lib/db/client";
 import type { RankingItem } from "@/lib/types";
 
 // Pouco tráfego = ISR fica "presa" em cache velho até alguém disparar a
@@ -27,7 +29,7 @@ import type { RankingItem } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [news, flowResult, zScoreHighlights, highlightCards, quotes, gainersResult, losersResult, calendarResult, alerts] =
+  const [news, flowResult, zScoreHighlights, highlightCards, quotes, gainersResult, losersResult, calendarResult, alerts, watchlist] =
     await Promise.all([
       getNews(undefined, 15),
       getFlowHistory().catch(() => null),
@@ -38,7 +40,9 @@ export default async function HomePage() {
       getBrapiRanking("change", "asc", 3).catch(() => null),
       getWeeklyCalendar().catch(() => null),
       getRecentAlerts(24).catch(() => null),
+      hasDatabase() ? getWatchlist().catch(() => []) : Promise.resolve([]),
     ]);
+  const watchlistSymbols = watchlist.map((w) => w.symbol);
 
   const radarEvents = calendarResult ? filterHighSignal(calendarResult).slice(0, 5) : null;
   const now = new Date().toISOString();
@@ -131,7 +135,7 @@ export default async function HomePage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <Panel title="Notícias Recentes" updatedAt={now}>
-            <NewsFeed items={feedNews} now={now} />
+            <NewsFeed items={feedNews} now={now} watchlistSymbols={watchlistSymbols} />
           </Panel>
         </div>
         <Panel title="Alertas (últimas 24h)" updatedAt={now}>

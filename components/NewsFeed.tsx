@@ -15,7 +15,16 @@ const PRIORITY_BADGE: Record<"alta" | "media", { label: string; badgeClass: stri
   },
 };
 
-export function NewsFeed({ items, now }: { items: NewsItem[]; now: string }) {
+function matchesWatchlist(title: string, symbols: string[]): string | null {
+  const upperTitle = title.toUpperCase();
+  for (const symbol of symbols) {
+    const re = new RegExp(`\\b${symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+    if (re.test(upperTitle)) return symbol;
+  }
+  return null;
+}
+
+export function NewsFeed({ items, now, watchlistSymbols }: { items: NewsItem[]; now: string; watchlistSymbols?: string[] }) {
   if (items.length === 0) {
     return <p className="text-sm text-text-muted">Sem notícias no momento.</p>;
   }
@@ -28,12 +37,18 @@ export function NewsFeed({ items, now }: { items: NewsItem[]; now: string }) {
       {items.map((item, i) => {
         const priority = getNewsPriority(item.title);
         const badge = priority !== "baixa" ? PRIORITY_BADGE[priority] : null;
+        const watchlistMatch = watchlistSymbols && watchlistSymbols.length > 0 ? matchesWatchlist(item.title, watchlistSymbols) : null;
         return (
           <li key={`${item.url}-${i}`} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
             <span className="mt-1 shrink-0 text-xs tabular-nums text-text-muted">
               {formatTime(item.publishedAt)}
             </span>
             <div className="min-w-0">
+              {watchlistMatch && (
+                <span className="mr-1.5 inline-block rounded border border-gold/40 bg-gold/10 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gold-bright align-middle">
+                  Na Watchlist ({watchlistMatch})
+                </span>
+              )}
               {badge && (
                 <span
                   className={`mr-1.5 inline-block rounded border px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide align-middle ${badge.badgeClass}`}

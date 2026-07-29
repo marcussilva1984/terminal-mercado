@@ -14,7 +14,15 @@ const CATEGORIES: { value: string; label: string }[] = [
   { value: "geral", label: "Geral (mundo)" },
 ];
 
-export function NewsBoard({ items, now }: { items: (NewsItem & { category: string })[]; now: string }) {
+export function NewsBoard({
+  items,
+  now,
+  watchlistSymbols,
+}: {
+  items: (NewsItem & { category: string })[];
+  now: string;
+  watchlistSymbols?: string[];
+}) {
   const [selected, setSelected] = useState("all");
   const filtered = selected === "all" ? items : items.filter((i) => i.category === selected);
 
@@ -35,7 +43,7 @@ export function NewsBoard({ items, now }: { items: (NewsItem & { category: strin
           </button>
         ))}
       </div>
-      <NewsFeed items={filtered} now={now} />
+      <NewsFeed items={filtered} now={now} watchlistSymbols={watchlistSymbols} />
     </div>
   );
 }

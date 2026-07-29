@@ -25,7 +25,7 @@ const YAHOO_TICKER_SYMBOLS = {
   EURJPY: { yahoo: "EURJPY=X", label: "EUR/JPY", currency: "USD", assetClass: "forex" as const },
 };
 
-const CRIPTO_TICKER_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "HYPE", "XRP", "SUI"];
+const CRIPTO_TICKER_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "HYPE", "XRP", "SUI", "BP", "LINK"];
 
 // Cotações reais para o ticker tape e para a Home. Ativos cuja fonte falha são
 // simplesmente omitidos — nunca mostramos um valor de exemplo como se fosse real.
