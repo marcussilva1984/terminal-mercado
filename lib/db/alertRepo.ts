@@ -79,6 +79,7 @@ export async function getRecentAlerts(hours = 24, limit = 20): Promise<AlertStat
     .limit(limit);
 
   return rows.map((r) => ({
+    key: r.key,
     label: r.label,
     triggeredAt: r.triggeredAt.toISOString(),
     kind: r.kind as AlertStatus["kind"],
