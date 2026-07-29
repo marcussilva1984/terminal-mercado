@@ -25,10 +25,10 @@ export function ZScoreHighlightList({ items }: { items: ZScoreHighlight[] }) {
         {items.length > 5 && (
           <input
             type="number"
-            min={1}
-            max={items.length}
+            min={10}
+            max={50}
             value={count}
-            onChange={(e) => setCount(Math.max(1, Math.min(items.length, Number(e.target.value) || 1)))}
+            onChange={(e) => setCount(Math.max(10, Math.min(50, Number(e.target.value) || 10)))}
             className="w-14 rounded border border-border bg-panel-alt px-1.5 py-0.5 text-xs text-text"
           />
         )}
