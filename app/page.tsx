@@ -5,6 +5,7 @@ import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import { EconomicCalendar } from "@/components/EconomicCalendar";
 import { CopyResumoButton } from "@/components/CopyResumoButton";
 import { Headline } from "@/components/Headline";
+import { DailyHighlightsList } from "@/components/DailyHighlightsList";
 import { getNews } from "@/lib/sources/rss";
 import { isExtremeNews } from "@/lib/sentiment";
 import { getFlowHistory } from "@/lib/sources/b3Flow";
@@ -62,14 +63,7 @@ export default async function HomePage() {
 
       {dailyHighlights.length > 0 && (
         <Panel title="Destaques do Dia" updatedAt={now}>
-          <ul className="flex flex-col divide-y divide-border/50">
-            {dailyHighlights.map((h, i) => (
-              <li key={i} className="flex items-start gap-3 py-2 first:pt-0 last:pb-0 text-sm">
-                <span className="shrink-0 rounded border border-gold/40 px-1.5 py-0.5 text-xs text-gold-bright">{h.category}</span>
-                <span className="text-text">{h.text}</span>
-              </li>
-            ))}
-          </ul>
+          <DailyHighlightsList items={dailyHighlights} />
           <p className="mt-3 text-xs text-text-muted">
             Gerado só a partir de dados já coletados (calendário econômico, fluxo B3, z-score da
             watchlist) — não interpreta conteúdo de notícia, pra não arriscar inventar detalhe.
