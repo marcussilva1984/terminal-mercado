@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   if (isFirstRun) {
     for (const fato of fatos) {
       if (!fato.documentUrl) continue;
-      await logAlert(`fato_relevante:${fato.documentUrl}`, `${fato.companyName}: ${fato.subject}`, "fato_relevante");
+      await logAlert(`fato_relevante:${fato.documentUrl}`, `${fato.companyName}: ${fato.subject}`, "fato_relevante", fato.documentUrl);
     }
     return NextResponse.json({ sent: true, count: 0, bootstrapped: fatos.length });
   }
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
       `${new Date(fato.date).toLocaleDateString("pt-BR")}\n${fato.documentUrl}`;
 
     await sendTelegramMessage(text).catch(() => {});
-    await logAlert(key, `${fato.companyName}: ${fato.subject}`, "fato_relevante");
+    await logAlert(key, `${fato.companyName}: ${fato.subject}`, "fato_relevante", fato.documentUrl);
     sent++;
   }
 

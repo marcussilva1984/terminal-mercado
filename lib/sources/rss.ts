@@ -70,7 +70,6 @@ const FEEDS: FeedConfig[] = [
   { source: "Folha de S.Paulo", url: "https://feeds.folha.uol.com.br/emcimadahora/rss091.xml", category: "geral" },
   { source: "Poder360", url: "https://www.poder360.com.br/feed/", category: "geral" },
   { source: "Jovem Pan", url: "https://jovempan.com.br/feed/", category: "geral" },
-  { source: "Metrópoles", url: "https://www.metropoles.com/feed", category: "geral" },
   { source: "Veja", url: "https://veja.abril.com.br/feed/", category: "geral" },
 ];
 
@@ -79,6 +78,13 @@ const parser = new Parser({ timeout: 8000 });
 // Ruído de baixo valor (arquivamentos SEC de rotina, alertas de insider trading em
 // massa) que algumas fontes (Investing.com) publicam em volume alto e afogam o resto.
 const LOW_SIGNAL_TITLE = /^Form [A-Z0-9-]|insider trading|sells? \$[\d,.]+/i;
+
+// Feeds "geral" (G1, UOL, Folha etc.) misturam tudo do site inteiro numa RSS
+// só — sem seção separada de economia/política. Filtra fofoca/celebridades/
+// entretenimento/esporte-resultado, que não tem relação com o propósito do
+// dashboard (mercado financeiro, economia, geopolítica, tecnologia, política).
+const GOSSIP_PATTERN =
+  /novela|bbb\b|big brother|celebridade|famos[ao]s?|ator |atriz |cantor[a]?\b|namoro|affair|term(ina|inou) o? ?namoro|traição|climão|polêmica de|reality show|horóscopo|receita de|beleza e|celebrit(y|ies)|hollywood|red carpet|tapete vermelho|fofoca|paparazzi|separa(ç|c)ão de|ex-namorad[ao]|gravide[z]|casamento de|affair de|dieta d[eo]|maquiagem|moda e beleza|futebol.*(gol|placar|escala(ç|c)ão|jogo de hoje)|campeonato.*futebol/i;
 
 const MAX_ITEMS_PER_FEED = 8;
 
@@ -116,7 +122,7 @@ async function fetchFeed(feed: FeedConfig): Promise<NewsItemWithCategory[]> {
         publishedAt: item.isoDate ?? item.pubDate ?? new Date().toISOString(),
         category: feed.category,
       }))
-      .filter((item) => !LOW_SIGNAL_TITLE.test(item.title))
+      .filter((item) => !LOW_SIGNAL_TITLE.test(item.title) && !GOSSIP_PATTERN.test(item.title))
       .slice(0, MAX_ITEMS_PER_FEED);
   } catch {
     // Fonte indisponível: não derruba o agregado, só fica de fora desta rodada.

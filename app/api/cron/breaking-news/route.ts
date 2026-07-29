@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { hasDatabase } from "@/lib/db/client";
-import { getLastBreakingNewsCheck, markBreakingNewsChecked } from "@/lib/db/alertRepo";
+import { getLastBreakingNewsCheck, markBreakingNewsChecked, logAlert } from "@/lib/db/alertRepo";
 import { getAllNewsWithCategory } from "@/lib/sources/rss";
 import { getNewsPriority } from "@/lib/sentiment";
 
@@ -45,8 +45,9 @@ export async function GET(request: Request) {
     const label = CATEGORY_LABEL[item.category] ?? item.category;
     const priorityLabel = priority === "alta" ? "Alta Prioridade" : "Média Prioridade";
     const text =
-      `${PRIORITY_EMOJI[priority]} <b>${priorityLabel} — ${label}</b>\n${item.title}\n<i>${item.source}</i>\n${item.url}`;
+      `${PRIORITY_EMOJI[priority]} <b>${priorityLabel} — ${label}</b>\n<a href="${item.url}">${item.title}</a>\n<i>${item.source}</i>`;
     await sendTelegramMessage(text).catch(() => {});
+    await logAlert(`noticia:${item.url}`, item.title, "noticia", item.url);
   }
 
   await markBreakingNewsChecked();

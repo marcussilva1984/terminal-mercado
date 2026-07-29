@@ -16,9 +16,9 @@ export async function hasRecentAlert(key: string, hours: number): Promise<boolea
   return rows.length > 0;
 }
 
-export async function logAlert(key: string, label: string, kind: string): Promise<void> {
+export async function logAlert(key: string, label: string, kind: string, url?: string): Promise<void> {
   const db = getDb();
-  await db.insert(alertLog).values({ key, label, kind });
+  await db.insert(alertLog).values({ key, label, kind, url: url ?? null });
 }
 
 // Estado do último envio do digest de notícias pro Telegram (evita repetir manchete
@@ -82,5 +82,6 @@ export async function getRecentAlerts(hours = 24, limit = 20): Promise<AlertStat
     label: r.label,
     triggeredAt: r.triggeredAt.toISOString(),
     kind: r.kind as AlertStatus["kind"],
+    url: r.url,
   }));
 }

@@ -38,7 +38,7 @@ function buildMessages(items: NewsItemWithCategory[]): string[] {
     let current = header;
     for (const item of categoryItems) {
       const priority = getNewsPriority(item.title);
-      const line = `${PRIORITY_EMOJI[priority]} ${item.title} <i>(${item.source})</i>`;
+      const line = `${PRIORITY_EMOJI[priority]} <a href="${item.url}">${item.title}</a> <i>(${item.source})</i>`;
       if ((current + "\n" + line).length > TELEGRAM_MESSAGE_LIMIT) {
         messages.push(current);
         current = `📰 <b>${label} (cont.)</b>`;

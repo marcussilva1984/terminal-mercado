@@ -43,7 +43,8 @@ export const alertLog = pgTable("alert_log", {
   id: serial("id").primaryKey(),
   key: text("key").notNull(),
   label: text("label").notNull(),
-  kind: text("kind").notNull(), // 'fluxo' | 'zscore' | 'watchlist' | 'preco'
+  kind: text("kind").notNull(), // 'fluxo' | 'zscore' | 'watchlist' | 'preco' | 'noticia' | 'fato_relevante'
+  url: text("url"), // link pra fonte original (notícia, documento CVM etc.), quando existir
   triggeredAt: timestamp("triggered_at").notNull().defaultNow(),
 });
 

@@ -6,6 +6,7 @@ const KIND_LABEL: Record<AlertStatus["kind"], string> = {
   watchlist: "Watchlist",
   zscore: "Z-score",
   preco: "Preço",
+  noticia: "Notícia",
   fato_relevante: "Fato Relevante",
 };
 
@@ -22,7 +23,13 @@ export function AlertStatusList({ alerts }: { alerts: AlertStatus[] }) {
             <span className="rounded border border-gold/40 px-1.5 py-0.5 text-xs text-gold-bright">
               {KIND_LABEL[alert.kind]}
             </span>
-            <span className="text-sm text-text">{alert.label}</span>
+            {alert.url ? (
+              <a href={alert.url} target="_blank" rel="noreferrer" className="text-sm text-text hover:underline">
+                {alert.label} <span className="text-xs text-gold-bright">↗</span>
+              </a>
+            ) : (
+              <span className="text-sm text-text">{alert.label}</span>
+            )}
           </div>
           <span className="shrink-0 text-xs text-text-muted">{formatDateTime(alert.triggeredAt)}</span>
         </li>

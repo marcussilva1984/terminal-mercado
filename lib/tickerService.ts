@@ -13,9 +13,19 @@ const YAHOO_TICKER_SYMBOLS = {
   EURUSD: { yahoo: "EURUSD=X", label: "EUR/USD", currency: "USD", assetClass: "forex" as const },
   GBPUSD: { yahoo: "GBPUSD=X", label: "GBP/USD", currency: "USD", assetClass: "forex" as const },
   BRENT: { yahoo: "BZ=F", label: "Brent", currency: "USD", assetClass: "indice" as const },
+  AUDNZD: { yahoo: "AUDNZD=X", label: "AUD/NZD", currency: "USD", assetClass: "forex" as const },
+  NZDUSD: { yahoo: "NZDUSD=X", label: "NZD/USD", currency: "USD", assetClass: "forex" as const },
+  GBPAUD: { yahoo: "GBPAUD=X", label: "GBP/AUD", currency: "USD", assetClass: "forex" as const },
+  GBPNZD: { yahoo: "GBPNZD=X", label: "GBP/NZD", currency: "USD", assetClass: "forex" as const },
+  EURAUD: { yahoo: "EURAUD=X", label: "EUR/AUD", currency: "USD", assetClass: "forex" as const },
+  EURNZD: { yahoo: "EURNZD=X", label: "EUR/NZD", currency: "USD", assetClass: "forex" as const },
+  EURCHF: { yahoo: "EURCHF=X", label: "EUR/CHF", currency: "USD", assetClass: "forex" as const },
+  GBPCHF: { yahoo: "GBPCHF=X", label: "GBP/CHF", currency: "USD", assetClass: "forex" as const },
+  USDJPY: { yahoo: "USDJPY=X", label: "USD/JPY", currency: "USD", assetClass: "forex" as const },
+  EURJPY: { yahoo: "EURJPY=X", label: "EUR/JPY", currency: "USD", assetClass: "forex" as const },
 };
 
-const CRIPTO_TICKER_SYMBOLS = ["BTC", "ETH", "SOL"];
+const CRIPTO_TICKER_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "HYPE", "XRP", "SUI"];
 
 // Cotações reais para o ticker tape e para a Home. Ativos cuja fonte falha são
 // simplesmente omitidos — nunca mostramos um valor de exemplo como se fosse real.
