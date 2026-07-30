@@ -14,7 +14,9 @@ export interface OnChainSnapshot {
 async function fetchMetric(asset: string, metric: string): Promise<number | null> {
   try {
     const url = `${CM_BASE}?assets=${asset}&metrics=${metric}&page_size=2&frequency=1d`;
-    const res = await fetch(url, { next: { revalidate: 60 * 60 } });
+    // Timeout curto — o community tier da Coin Metrics às vezes demora ou fica
+    // sem responder, e sem isso a página inteira travava esperando o fetch.
+    const res = await fetch(url, { next: { revalidate: 60 * 60 }, signal: AbortSignal.timeout(6000) });
     if (!res.ok) return null;
     const json = await res.json();
     const rows: { [k: string]: string }[] = json?.data ?? [];
@@ -48,7 +50,10 @@ export interface FearGreedPoint {
 // sem chave, via alternative.me.
 export async function getFearGreedIndex(): Promise<FearGreedPoint | null> {
   try {
-    const res = await fetch("https://api.alternative.me/fng/?limit=1", { next: { revalidate: 60 * 60 } });
+    const res = await fetch("https://api.alternative.me/fng/?limit=1", {
+      next: { revalidate: 60 * 60 },
+      signal: AbortSignal.timeout(6000),
+    });
     if (!res.ok) return null;
     const json = await res.json();
     const entry = json?.data?.[0];
