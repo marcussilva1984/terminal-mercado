@@ -12,7 +12,15 @@ export async function sendTelegramMessage(text: string): Promise<void> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+    // prefer_large_media: card grande com imagem/descrição (o "preview arrumado"
+    // que o Telegram já gera sozinho a partir do link, quando é o único link
+    // relevante da mensagem — por isso cada notícia vai em mensagem própria).
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      parse_mode: "HTML",
+      link_preview_options: { prefer_large_media: true },
+    }),
   });
 
   if (!res.ok) {

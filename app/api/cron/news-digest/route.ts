@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { hasDatabase } from "@/lib/db/client";
 import { getLastDigestTime, markDigestSent } from "@/lib/db/alertRepo";
-import { getAllNewsWithCategory, type NewsItemWithCategory } from "@/lib/sources/rss";
+import { getAllNewsWithCategory } from "@/lib/sources/rss";
 import { sendTelegramMessage, hasTelegramConfig } from "@/lib/sources/telegram";
 import { getNewsPriority } from "@/lib/sentiment";
 
@@ -18,37 +18,9 @@ const CATEGORY_LABEL: Record<string, string> = {
   geral: "Geral",
 };
 
-const TELEGRAM_MESSAGE_LIMIT = 3500;
-
-// Uma mensagem Telegram por categoria (em vez de um bloco único com tudo
-// misturado) — mais fácil de ler no celular e dá pra silenciar categoria por
-// categoria se quiser no futuro.
-function buildMessages(items: NewsItemWithCategory[]): string[] {
-  const byCategory = new Map<string, NewsItemWithCategory[]>();
-  for (const item of items) {
-    const list = byCategory.get(item.category) ?? [];
-    list.push(item);
-    byCategory.set(item.category, list);
-  }
-
-  const messages: string[] = [];
-  for (const [category, categoryItems] of byCategory) {
-    const label = CATEGORY_LABEL[category] ?? category;
-    const header = `📰 <b>${label}</b> — últimos 30 min (${categoryItems.length})`;
-    let current = header;
-    for (const item of categoryItems) {
-      const priority = getNewsPriority(item.title);
-      const line = `${PRIORITY_EMOJI[priority]} <a href="${item.url}">${item.title}</a> <i>(${item.source})</i>`;
-      if ((current + "\n" + line).length > TELEGRAM_MESSAGE_LIMIT) {
-        messages.push(current);
-        current = `📰 <b>${label} (cont.)</b>`;
-      }
-      current += `\n${line}`;
-    }
-    messages.push(current);
-  }
-  return messages;
-}
+// Limite de segurança pra uma rodada não disparar uma enxurrada de mensagens
+// se o cron ficar muito tempo sem rodar (ex.: deploy fora do ar por horas).
+const MAX_MESSAGES_PER_RUN = 40;
 
 export async function GET(request: Request) {
   const auth = request.headers.get("authorization");
@@ -67,18 +39,27 @@ export async function GET(request: Request) {
   const cutoff = lastRun ?? new Date(Date.now() - 35 * 60 * 1000); // primeira vez: últimos 35 min
 
   const allNews = await getAllNewsWithCategory(200);
-  const fresh = allNews.filter((item) => new Date(item.publishedAt).getTime() > cutoff.getTime());
+  const fresh = allNews
+    .filter((item) => new Date(item.publishedAt).getTime() > cutoff.getTime())
+    .sort((a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime())
+    .slice(0, MAX_MESSAGES_PER_RUN);
 
   if (fresh.length === 0) {
     await markDigestSent();
     return NextResponse.json({ sent: true, count: 0 });
   }
 
-  const messages = buildMessages(fresh);
-  for (const msg of messages) {
-    await sendTelegramMessage(msg).catch(() => {});
+  // Uma mensagem por notícia (em vez de um bloco com várias) — assim o
+  // Telegram consegue montar o preview grande (imagem + descrição) de cada
+  // link individualmente, em vez de só previsualizar o primeiro link de uma
+  // mensagem com vários.
+  for (const item of fresh) {
+    const label = CATEGORY_LABEL[item.category] ?? item.category;
+    const priority = getNewsPriority(item.title);
+    const text = `${PRIORITY_EMOJI[priority]} <b>${label}</b>\n<a href="${item.url}">${item.title}</a>\n<i>${item.source}</i>`;
+    await sendTelegramMessage(text).catch(() => {});
   }
 
   await markDigestSent();
-  return NextResponse.json({ sent: true, count: fresh.length, messages: messages.length });
+  return NextResponse.json({ sent: true, count: fresh.length });
 }
