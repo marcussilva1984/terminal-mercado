@@ -30,8 +30,16 @@ const MAIN_PAIRS: { symbol: string; pair: string; label: string }[] = [
   { symbol: "EURNZD=X", pair: "EUR/NZD", label: "Euro x Dólar Neozelandês" },
 ];
 
+// Cache curto (30s) — forex se move o tempo todo (24/5), diferente de ações
+// que já ficam "paradas" fora do pregão; o cache padrão de 5min do Yahoo
+// deixava os pares principais visivelmente atrasados.
+const FOREX_REVALIDATE_SECONDS = 30;
+
 export async function getForexPairs(): Promise<ForexPairQuote[]> {
-  const quotes = await getYahooQuotes(MAIN_PAIRS.map((p) => p.symbol));
+  const quotes = await getYahooQuotes(
+    MAIN_PAIRS.map((p) => p.symbol),
+    FOREX_REVALIDATE_SECONDS
+  );
   return MAIN_PAIRS.filter((p) => quotes[p.symbol]).map((p) => ({
     pair: p.pair,
     label: p.label,
@@ -87,7 +95,7 @@ export async function getCurrencyStrength(period: StrengthPeriod = "1d"): Promis
   const changeVsUsd: Record<G8Currency, number> = { USD: 0 } as Record<G8Currency, number>;
 
   if (period === "1d") {
-    const quotes = await getYahooQuotes(symbols);
+    const quotes = await getYahooQuotes(symbols, FOREX_REVALIDATE_SECONDS);
     for (const [ccy, symbol] of Object.entries(USD_QUOTED_DIRECT)) {
       const q = quotes[symbol];
       if (q) changeVsUsd[ccy as G8Currency] = q.changePct;
@@ -123,7 +131,7 @@ export async function getCurrencyStrength(period: StrengthPeriod = "1d"): Promis
 }
 
 export async function getDXY() {
-  return getYahooQuote("DX-Y.NYB");
+  return getYahooQuote("DX-Y.NYB", FOREX_REVALIDATE_SECONDS);
 }
 
 export interface YieldPoint {

@@ -58,6 +58,10 @@ export default async function ForexPage() {
           ) : (
             <p className="text-sm text-down">Fonte indisponível no momento.</p>
           )}
+          <p className="mt-3 text-xs text-text-muted">
+            Cache reduzido a 30s (Yahoo Finance, sem chave). Cotação de forex tem um delay natural
+            pequeno da própria fonte gratuita — não existe API 100% real-time sem custo.
+          </p>
         </Panel>
 
         <Panel title="Força das Moedas (G8)" updatedAt={now}>

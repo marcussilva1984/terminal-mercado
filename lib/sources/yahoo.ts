@@ -9,12 +9,12 @@ export interface YahooQuote {
 // ^IXIC, ^DJI, ^RUT, ^VIX), moedas (BRL=X, EURUSD=X...), commodities (CL=F, GC=F),
 // DXY (DX-Y.NYB) e ações de qualquer bolsa (NVDA, PETR4.SA...). Validado manualmente
 // antes de usar — ver notas no README.
-export async function getYahooQuote(symbol: string): Promise<YahooQuote | null> {
+export async function getYahooQuote(symbol: string, revalidateSeconds = 300): Promise<YahooQuote | null> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d`;
 
   const res = await fetch(url, {
     headers: { "user-agent": "Mozilla/5.0" },
-    next: { revalidate: 300 },
+    next: { revalidate: revalidateSeconds },
   });
 
   if (!res.ok) return null;
@@ -30,8 +30,8 @@ export async function getYahooQuote(symbol: string): Promise<YahooQuote | null> 
   return { symbol, price, changePct, currency: meta.currency ?? "USD" };
 }
 
-export async function getYahooQuotes(symbols: string[]): Promise<Record<string, YahooQuote>> {
-  const results = await Promise.allSettled(symbols.map((s) => getYahooQuote(s)));
+export async function getYahooQuotes(symbols: string[], revalidateSeconds = 300): Promise<Record<string, YahooQuote>> {
+  const results = await Promise.allSettled(symbols.map((s) => getYahooQuote(s, revalidateSeconds)));
   const map: Record<string, YahooQuote> = {};
   results.forEach((r, i) => {
     if (r.status === "fulfilled" && r.value) map[symbols[i]] = r.value;
