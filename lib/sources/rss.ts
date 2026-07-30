@@ -34,6 +34,7 @@ const FEEDS: FeedConfig[] = [
   { source: "Bitcoinist", url: "https://bitcoinist.com/feed/", category: "cripto" },
   { source: "BeInCrypto", url: "https://beincrypto.com/feed/", category: "cripto" },
   { source: "Daily Hodl", url: "https://dailyhodl.com/feed/", category: "cripto" },
+  { source: "The Defiant", url: "https://thedefiant.io/api/feed", category: "cripto" },
 
   // Internacional (mercado/finanças — usado na aba Stocks)
   { source: "CNBC", url: "https://www.cnbc.com/id/100003114/device/rss/rss.html", category: "internacional" },
@@ -45,9 +46,12 @@ const FEEDS: FeedConfig[] = [
   { source: "The Economist", url: "https://www.economist.com/finance-and-economics/rss.xml", category: "internacional" },
   { source: "Seeking Alpha", url: "https://seekingalpha.com/feed.xml", category: "internacional" },
   { source: "DigiTimes", url: "https://www.digitimes.com/rss/daily.xml", category: "internacional" },
+  { source: "Nikkei Asia", url: "https://asia.nikkei.com/rss/feed/nar", category: "internacional" },
+  { source: "ING Think", url: "https://think.ing.com/rss/", category: "internacional" },
 
   // Forex
   { source: "FXStreet", url: "https://www.fxstreet.com/rss/news", category: "forex" },
+  { source: "InvestingLive (ex-ForexLive)", url: "https://investinglive.com/feed/", category: "forex" },
 
   // FII
   { source: "InfoMoney FIIs", url: "https://www.infomoney.com.br/tudo-sobre/fundos-imobiliarios/feed/", category: "fii" },
@@ -64,6 +68,7 @@ const FEEDS: FeedConfig[] = [
   { source: "The New York Times", url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", category: "geral" },
   { source: "WSJ Mundo", url: "https://feeds.a.dj.com/rss/RSSWorldNews.xml", category: "geral" },
   { source: "Financial Times", url: "https://www.ft.com/rss/home/international", category: "geral" },
+  { source: "South China Morning Post", url: "https://www.scmp.com/rss/91/feed/", category: "geral" },
   { source: "G1", url: "https://g1.globo.com/rss/g1/", category: "geral" },
   { source: "UOL", url: "https://rss.uol.com.br/feed/noticias.xml", category: "geral" },
   { source: "CNN Brasil", url: "https://admin.cnnbrasil.com.br/feed/", category: "geral" },
