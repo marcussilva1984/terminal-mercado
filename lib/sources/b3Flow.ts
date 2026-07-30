@@ -31,12 +31,12 @@ function parseBRDate(raw: string): string {
 // endpoint oficial da B3, que só disponibiliza o detalhamento via DataWise+, pago).
 // Retorna em ordem cronológica ascendente (mais antigo primeiro).
 export async function getFlowHistory(): Promise<FlowDayRaw[]> {
-  // Sem cache do Next: quem chama essa função já controla a frequência (o cron
-  // roda 1x/dia, e as páginas são force-dynamic) — cachear aqui só arriscava
-  // servir HTML velho indefinidamente se a revalidação não disparasse.
+  // Cache curto (60s) — as páginas usam ISR (revalidate: 30s) agora, então um
+  // fetch com no-store aqui forçaria a página inteira a voltar a ser 100%
+  // dinâmica (Next trata qualquer no-store dentro da rota como opt-out do ISR).
   const res = await fetch(SOURCE_URL, {
     headers: { "user-agent": "Mozilla/5.0" },
-    cache: "no-store",
+    next: { revalidate: 60 },
   });
 
   if (!res.ok) {

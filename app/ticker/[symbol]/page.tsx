@@ -48,7 +48,7 @@ export default async function TickerDetailPage({
 
   try {
     const res = await fetch(`${getBaseUrl()}/api/ticker-detail?symbol=${encodeURIComponent(yahooSymbol)}`, {
-      cache: "no-store",
+      next: { revalidate: 30 },
     });
     const json = await res.json();
     if (json.available) data = json.data;

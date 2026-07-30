@@ -42,7 +42,7 @@ async function getB3PriceTargetHits(): Promise<PriceTargetHit[] | null> {
   try {
     const symbols = B3_WATCHLIST.map((w) => `${w.symbol}.SA`).join(",");
     const res = await fetch(`${getBaseUrl()}/api/analyst-targets?symbols=${encodeURIComponent(symbols)}`, {
-      cache: "no-store",
+      next: { revalidate: 30 },
     });
     const json = await res.json();
     if (!json.available) return null;

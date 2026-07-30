@@ -39,7 +39,7 @@ export default async function CriptoPage() {
   let fetchError: string | undefined;
 
   const fetchDerivatives = async (): Promise<DerivativeSnapshot[]> => {
-    const res = await fetch(`${getBaseUrl()}/api/derivatives`, { cache: "no-store" });
+    const res = await fetch(`${getBaseUrl()}/api/derivatives`, { next: { revalidate: 30 } });
     const json = await res.json();
     if (!json.available) throw new Error(json.error ?? "Falha ao carregar derivativos");
     return json.data;
