@@ -18,10 +18,6 @@ const CATEGORY_LABEL: Record<string, string> = {
   geral: "Geral",
 };
 
-// Limite de segurança pra uma rodada não disparar uma enxurrada de mensagens
-// se o cron ficar muito tempo sem rodar (ex.: deploy fora do ar por horas).
-const MAX_MESSAGES_PER_RUN = 40;
-
 export async function GET(request: Request) {
   const auth = request.headers.get("authorization");
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -41,8 +37,7 @@ export async function GET(request: Request) {
   const allNews = await getAllNewsWithCategory(200);
   const fresh = allNews
     .filter((item) => new Date(item.publishedAt).getTime() > cutoff.getTime())
-    .sort((a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime())
-    .slice(0, MAX_MESSAGES_PER_RUN);
+    .sort((a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime());
 
   if (fresh.length === 0) {
     await markDigestSent();
