@@ -1,5 +1,4 @@
 import { getYahooQuote, getYahooQuotes } from "@/lib/sources/yahoo";
-import { fetchCandles } from "@/lib/sources/yahooTickerDetail";
 
 export const G8_CURRENCIES = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "NZD"] as const;
 export type G8Currency = (typeof G8_CURRENCIES)[number];
@@ -46,17 +45,36 @@ export interface CurrencyStrength {
   score: number; // % médio de variação contra a cesta das outras 7 moedas
 }
 
-export type StrengthPeriod = "1d" | "1wk" | "1mo";
+export type StrengthPeriod = "15m" | "30m" | "1h" | "4h" | "1d" | "1wk" | "1mo";
 
-// Quantos candles diários olhar pra trás pra cada período (aprox. pregões
-// úteis — não precisa ser exato, é só a janela de comparação).
-const PERIOD_LOOKBACK_DAYS: Record<StrengthPeriod, number> = { "1d": 1, "1wk": 5, "1mo": 22 };
+// Cada período usa candles de 15min (granularidade mínima confiável do Yahoo
+// pra forex) e olha `lookback` candles pra trás — 1h = 4×15min, 4h = 16×15min
+// etc. Períodos diários usam candles de 1d, mais estáveis pra janelas longas.
+const PERIOD_CONFIG: Record<StrengthPeriod, { interval: string; range: string; lookback: number }> = {
+  "15m": { interval: "15m", range: "5d", lookback: 1 },
+  "30m": { interval: "15m", range: "5d", lookback: 2 },
+  "1h": { interval: "15m", range: "5d", lookback: 4 },
+  "4h": { interval: "15m", range: "5d", lookback: 16 },
+  "1d": { interval: "1d", range: "1mo", lookback: 1 },
+  "1wk": { interval: "1d", range: "3mo", lookback: 5 },
+  "1mo": { interval: "1d", range: "6mo", lookback: 22 },
+};
 
-async function getChangePctOverPeriod(symbol: string, days: number): Promise<number | null> {
-  const candles = await fetchCandles(symbol, "1d");
-  if (candles.length < days + 1) return null;
-  const first = candles[candles.length - 1 - days].close;
-  const last = candles[candles.length - 1].close;
+async function fetchCloses(symbol: string, interval: string, range: string): Promise<number[]> {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
+  const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0" }, next: { revalidate: 5 * 60 } });
+  if (!res.ok) return [];
+  const json = await res.json();
+  const closes: (number | null)[] = json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
+  return closes.filter((c): c is number => typeof c === "number" && c > 0);
+}
+
+async function getChangePctOverPeriod(symbol: string, period: StrengthPeriod): Promise<number | null> {
+  const { interval, range, lookback } = PERIOD_CONFIG[period];
+  const closes = await fetchCloses(symbol, interval, range);
+  if (closes.length < lookback + 1) return null;
+  const first = closes[closes.length - 1 - lookback];
+  const last = closes[closes.length - 1];
   if (first === 0) return null;
   return ((last - first) / first) * 100;
 }
@@ -79,8 +97,7 @@ export async function getCurrencyStrength(period: StrengthPeriod = "1d"): Promis
       if (q) changeVsUsd[ccy as G8Currency] = -q.changePct;
     }
   } else {
-    const days = PERIOD_LOOKBACK_DAYS[period];
-    const results = await Promise.all(symbols.map((s) => getChangePctOverPeriod(s, days)));
+    const results = await Promise.all(symbols.map((s) => getChangePctOverPeriod(s, period)));
     const bySymbol = Object.fromEntries(symbols.map((s, i) => [s, results[i]]));
     for (const [ccy, symbol] of Object.entries(USD_QUOTED_DIRECT)) {
       const pct = bySymbol[symbol];

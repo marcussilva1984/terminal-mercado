@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrencyStrength, type StrengthPeriod } from "@/lib/forexService";
 
-const VALID_PERIODS: StrengthPeriod[] = ["1d", "1wk", "1mo"];
+const VALID_PERIODS: StrengthPeriod[] = ["15m", "30m", "1h", "4h", "1d", "1wk", "1mo"];
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);

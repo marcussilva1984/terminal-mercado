@@ -5,6 +5,10 @@ import type { CurrencyStrength, StrengthPeriod } from "@/lib/forexService";
 import { formatNumber } from "@/lib/format";
 
 const PERIOD_OPTIONS: { value: StrengthPeriod; label: string }[] = [
+  { value: "15m", label: "15 min" },
+  { value: "30m", label: "30 min" },
+  { value: "1h", label: "1h" },
+  { value: "4h", label: "4h" },
   { value: "1d", label: "1 dia" },
   { value: "1wk", label: "1 semana" },
   { value: "1mo", label: "1 mês" },
@@ -77,7 +81,7 @@ export function CurrencyStrengthMeter({ items }: { items: CurrencyStrength[] }) 
 
   return (
     <div>
-      <div className="mb-2 flex items-center justify-end gap-1">
+      <div className="mb-2 flex flex-wrap items-center justify-end gap-1">
         {PERIOD_OPTIONS.map((opt) => (
           <button
             key={opt.value}
