@@ -48,10 +48,12 @@ const FEEDS: FeedConfig[] = [
   { source: "DigiTimes", url: "https://www.digitimes.com/rss/daily.xml", category: "internacional" },
   { source: "Nikkei Asia", url: "https://asia.nikkei.com/rss/feed/nar", category: "internacional" },
   { source: "ING Think", url: "https://think.ing.com/rss/", category: "internacional" },
+  { source: "ECB (Banco Central Europeu)", url: "https://www.ecb.europa.eu/rss/press.html", category: "internacional" },
 
   // Forex
   { source: "FXStreet", url: "https://www.fxstreet.com/rss/news", category: "forex" },
   { source: "InvestingLive (ex-ForexLive)", url: "https://investinglive.com/feed/", category: "forex" },
+  { source: "MarketPulse (OANDA)", url: "https://www.marketpulse.com/feed/", category: "forex" },
 
   // FII
   { source: "InfoMoney FIIs", url: "https://www.infomoney.com.br/tudo-sobre/fundos-imobiliarios/feed/", category: "fii" },
