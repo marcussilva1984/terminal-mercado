@@ -1,7 +1,16 @@
-import type { CurrencyStrength } from "@/lib/forexService";
+"use client";
+
+import { useEffect, useState } from "react";
+import type { CurrencyStrength, StrengthPeriod } from "@/lib/forexService";
 import { formatNumber } from "@/lib/format";
 
-export function CurrencyStrengthMeter({ items }: { items: CurrencyStrength[] }) {
+const PERIOD_OPTIONS: { value: StrengthPeriod; label: string }[] = [
+  { value: "1d", label: "1 dia" },
+  { value: "1wk", label: "1 semana" },
+  { value: "1mo", label: "1 mês" },
+];
+
+function Meter({ items }: { items: CurrencyStrength[] }) {
   const maxAbs = Math.max(...items.map((i) => Math.abs(i.score)), 0.01);
 
   return (
@@ -26,6 +35,70 @@ export function CurrencyStrengthMeter({ items }: { items: CurrencyStrength[] }) 
           </div>
         );
       })}
+    </div>
+  );
+}
+
+export function CurrencyStrengthMeter({ items }: { items: CurrencyStrength[] }) {
+  const [period, setPeriod] = useState<StrengthPeriod>("1d");
+  const [data, setData] = useState<CurrencyStrength[]>(items);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (period === "1d") {
+      setData(items);
+      setError(null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/forex/strength?period=${period}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (cancelled) return;
+        if (json.available) {
+          setData(json.data);
+          setError(null);
+        } else {
+          setError(json.error ?? "Fonte indisponível no momento.");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError("Fonte indisponível no momento.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [period, items]);
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-end gap-1">
+        {PERIOD_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => setPeriod(opt.value)}
+            className={`rounded border px-2 py-0.5 text-xs transition-colors ${
+              period === opt.value
+                ? "border-gold bg-gold/10 text-gold-bright"
+                : "border-border text-text-muted hover:text-text"
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+      {error ? (
+        <p className="text-sm text-down">{error}</p>
+      ) : (
+        <div className={loading ? "opacity-50 transition-opacity" : ""}>
+          <Meter items={data} />
+        </div>
+      )}
     </div>
   );
 }

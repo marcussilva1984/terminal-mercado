@@ -1,4 +1,5 @@
 import { getYahooQuote, getYahooQuotes } from "@/lib/sources/yahoo";
+import { fetchCandles } from "@/lib/sources/yahooTickerDetail";
 
 export const G8_CURRENCIES = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "NZD"] as const;
 export type G8Currency = (typeof G8_CURRENCIES)[number];
@@ -45,22 +46,50 @@ export interface CurrencyStrength {
   score: number; // % médio de variação contra a cesta das outras 7 moedas
 }
 
+export type StrengthPeriod = "1d" | "1wk" | "1mo";
+
+// Quantos candles diários olhar pra trás pra cada período (aprox. pregões
+// úteis — não precisa ser exato, é só a janela de comparação).
+const PERIOD_LOOKBACK_DAYS: Record<StrengthPeriod, number> = { "1d": 1, "1wk": 5, "1mo": 22 };
+
+async function getChangePctOverPeriod(symbol: string, days: number): Promise<number | null> {
+  const candles = await fetchCandles(symbol, "1d");
+  if (candles.length < days + 1) return null;
+  const first = candles[candles.length - 1 - days].close;
+  const last = candles[candles.length - 1].close;
+  if (first === 0) return null;
+  return ((last - first) / first) * 100;
+}
+
 // Calcula a variação de cada moeda G8 em relação ao USD e deriva um score médio
 // contra a cesta das outras 7 (aproximação por diferença de variações USD-relativas,
 // método comum em strength meters de varejo — não são 28 pares cruzados reais).
-export async function getCurrencyStrength(): Promise<CurrencyStrength[]> {
+export async function getCurrencyStrength(period: StrengthPeriod = "1d"): Promise<CurrencyStrength[]> {
   const symbols = [...Object.values(USD_QUOTED_DIRECT), ...Object.values(USD_QUOTED_INVERSE)];
-  const quotes = await getYahooQuotes(symbols);
-
   const changeVsUsd: Record<G8Currency, number> = { USD: 0 } as Record<G8Currency, number>;
 
-  for (const [ccy, symbol] of Object.entries(USD_QUOTED_DIRECT)) {
-    const q = quotes[symbol];
-    if (q) changeVsUsd[ccy as G8Currency] = q.changePct;
-  }
-  for (const [ccy, symbol] of Object.entries(USD_QUOTED_INVERSE)) {
-    const q = quotes[symbol];
-    if (q) changeVsUsd[ccy as G8Currency] = -q.changePct;
+  if (period === "1d") {
+    const quotes = await getYahooQuotes(symbols);
+    for (const [ccy, symbol] of Object.entries(USD_QUOTED_DIRECT)) {
+      const q = quotes[symbol];
+      if (q) changeVsUsd[ccy as G8Currency] = q.changePct;
+    }
+    for (const [ccy, symbol] of Object.entries(USD_QUOTED_INVERSE)) {
+      const q = quotes[symbol];
+      if (q) changeVsUsd[ccy as G8Currency] = -q.changePct;
+    }
+  } else {
+    const days = PERIOD_LOOKBACK_DAYS[period];
+    const results = await Promise.all(symbols.map((s) => getChangePctOverPeriod(s, days)));
+    const bySymbol = Object.fromEntries(symbols.map((s, i) => [s, results[i]]));
+    for (const [ccy, symbol] of Object.entries(USD_QUOTED_DIRECT)) {
+      const pct = bySymbol[symbol];
+      if (pct !== null && pct !== undefined) changeVsUsd[ccy as G8Currency] = pct;
+    }
+    for (const [ccy, symbol] of Object.entries(USD_QUOTED_INVERSE)) {
+      const pct = bySymbol[symbol];
+      if (pct !== null && pct !== undefined) changeVsUsd[ccy as G8Currency] = -pct;
+    }
   }
 
   const available = Object.keys(changeVsUsd) as G8Currency[];
