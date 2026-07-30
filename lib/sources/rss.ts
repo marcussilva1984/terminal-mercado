@@ -49,6 +49,9 @@ const FEEDS: FeedConfig[] = [
   { source: "Nikkei Asia", url: "https://asia.nikkei.com/rss/feed/nar", category: "internacional" },
   { source: "ING Think", url: "https://think.ing.com/rss/", category: "internacional" },
   { source: "ECB (Banco Central Europeu)", url: "https://www.ecb.europa.eu/rss/press.html", category: "internacional" },
+  { source: "Federal Reserve (Fed)", url: "https://www.federalreserve.gov/feeds/press_all.xml", category: "internacional" },
+  { source: "Bank of England (BoE)", url: "https://www.bankofengland.co.uk/rss/news", category: "internacional" },
+  { source: "Bank of Japan (BoJ)", url: "https://www.boj.or.jp/en/rss/whatsnew.xml", category: "internacional" },
 
   // Forex
   { source: "FXStreet", url: "https://www.fxstreet.com/rss/news", category: "forex" },
