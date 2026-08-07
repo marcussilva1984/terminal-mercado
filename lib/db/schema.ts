@@ -1,4 +1,4 @@
-import { pgTable, serial, text, real, date, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, real, date, timestamp, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 
 export const watchlistItems = pgTable("watchlist_items", {
   id: serial("id").primaryKey(),
@@ -58,6 +58,17 @@ export const priceAlerts = pgTable("price_alerts", {
   active: text("active").notNull().default("true"),
   triggeredAt: timestamp("triggered_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Cache dos dados de derivativos (Binance Futures) — a Vercel bloqueia esse
+// fetch quando feito de dentro da própria infra (serverless-to-serverless
+// ou até direto, aparentemente bloqueio de IP da Binance pro range da
+// Vercel). Um job externo (GitHub Actions, fora da rede da Vercel) busca o
+// dado já validado como funcionando e grava aqui; a página só lê daqui.
+export const derivativesCache = pgTable("derivatives_cache", {
+  id: serial("id").primaryKey(),
+  data: jsonb("data").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 export const portfolioHoldings = pgTable("portfolio_holdings", {

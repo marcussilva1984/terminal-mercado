@@ -1,0 +1,26 @@
+name: Derivatives snapshot (Binance Futures)
+
+# A Vercel bloqueia (aparentemente por IP) chamadas server-to-server pra
+# Binance, mesmo a mesma rota /api/derivatives funcionando perfeitamente
+# quando acessada de fora. Esse job roda fora da rede da Vercel, busca o
+# dado já validado como funcionando, e manda pro endpoint que só grava no
+# banco — a página do Cripto passa a ler do banco em vez de chamar ao vivo.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch derivatives and relay to ingest endpoint
+        run: |
+          DATA=$(curl -sf "https://terminal-mercado.vercel.app/api/derivatives")
+          echo "$DATA" | head -c 200
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d "$DATA" \
+            "https://terminal-mercado.vercel.app/api/cron/derivatives-ingest"
