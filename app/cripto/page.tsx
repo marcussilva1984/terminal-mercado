@@ -5,9 +5,8 @@ import { NewsFeed } from "@/components/NewsFeed";
 import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import { RankingTable } from "@/components/RankingTable";
 import { getTopCoinMarkets, getCoinCategories, type CoinMarket } from "@/lib/sources/coingecko";
-import type { DerivativeSnapshot } from "@/lib/sources/binanceFutures";
+import { getDerivativesSnapshot } from "@/lib/sources/binanceFutures";
 import { getOnChainSnapshot, getFearGreedIndex } from "@/lib/sources/onchain";
-import { getBaseUrl } from "@/lib/baseUrl";
 import { getNews } from "@/lib/sources/rss";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 import { formatPrice } from "@/lib/format";
@@ -38,11 +37,14 @@ export default async function CriptoPage() {
   let available = true;
   let fetchError: string | undefined;
 
-  const fetchDerivatives = async (): Promise<DerivativeSnapshot[]> => {
-    const res = await fetch(`${getBaseUrl()}/api/derivatives`, { next: { revalidate: 30 } });
-    const json = await res.json();
-    if (!json.available) throw new Error(json.error ?? "Falha ao carregar derivativos");
-    return json.data;
+  // Chama a função direto (sem passar pelo /api/derivatives via HTTP) — o
+  // self-fetch entre a function desta página e a rota edge estava falhando
+  // silenciosamente (retornando vazio) mesmo com a rota funcionando normal
+  // quando acessada de fora. Direto evita esse round-trip problemático.
+  const fetchDerivatives = async (): Promise<import("@/lib/sources/binanceFutures").DerivativeSnapshot[]> => {
+    const data = await getDerivativesSnapshot();
+    if (data.length === 0) throw new Error("Binance Futures indisponível (todos os pares falharam)");
+    return data;
   };
 
   const [coinsResult, newsResult, zScoreResult, categoriesResult, derivativesResult, onChainResult, fearGreedResult] =
