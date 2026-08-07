@@ -86,19 +86,13 @@ async function fetchSymbolSnapshot(symbol: string): Promise<DerivativeSnapshot |
   }
 }
 
-// Cada símbolo dispara 4 requests em paralelo pra Binance; buscar os 8 símbolos
-// de uma vez só dispararia 32 conexões simultâneas da mesma function — sob
-// carga isso batia rate-limit/timeout da Binance e derrubava TODOS os
-// símbolos de uma vez (silenciosamente, sem erro visível). Processa em lotes
-// menores pra reduzir o pico de conexões simultâneas.
-const BATCH_SIZE = 3;
-
+// Processar em lotes sequenciais parecia uma boa ideia pra reduzir conexões
+// simultâneas, mas na prática piorou: 3 lotes × até 10s de timeout cada podia
+// passar do limite de execução da function edge, derrubando a rodada inteira
+// antes mesmo de terminar. A Binance/edge é intermitente por natureza (falha
+// uma hora, funciona na seguinte) — paralelo total é mais rápido no pior caso
+// e o job externo de 15/15min já absorve a intermitência tentando de novo.
 export async function getDerivativesSnapshot(): Promise<DerivativeSnapshot[]> {
-  const results: (DerivativeSnapshot | null)[] = [];
-  for (let i = 0; i < DERIVATIVES_SYMBOLS.length; i += BATCH_SIZE) {
-    const batch = DERIVATIVES_SYMBOLS.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(batch.map(fetchSymbolSnapshot));
-    results.push(...batchResults);
-  }
+  const results = await Promise.all(DERIVATIVES_SYMBOLS.map(fetchSymbolSnapshot));
   return results.filter((r): r is DerivativeSnapshot => r !== null);
 }
