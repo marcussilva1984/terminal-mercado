@@ -4,7 +4,8 @@ import { Panel } from "@/components/Panel";
 import { NewsFeed } from "@/components/NewsFeed";
 import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import { RankingTable } from "@/components/RankingTable";
-import { getTopCoinMarkets, getCoinCategories, type CoinMarket } from "@/lib/sources/coingecko";
+import { getTopCoinMarkets, getCoinCategories, getTrendingCoins, type CoinMarket } from "@/lib/sources/coingecko";
+import { TrendingCoinsPanel } from "@/components/TrendingCoinsPanel";
 import { getOnChainSnapshot, getFearGreedIndex } from "@/lib/sources/onchain";
 import { getEtfFlows } from "@/lib/sources/etfFlow";
 import { EtfFlowPanel } from "@/components/EtfFlowPanel";
@@ -52,7 +53,7 @@ export default async function CriptoPage() {
     return cache;
   };
 
-  const [coinsResult, newsResult, zScoreResult, categoriesResult, derivativesResult, onChainResult, fearGreedResult, etfFlowResult] =
+  const [coinsResult, newsResult, zScoreResult, categoriesResult, derivativesResult, onChainResult, fearGreedResult, etfFlowResult, trendingResult] =
     await Promise.allSettled([
       getTopCoinMarkets(100),
       getNews("cripto", 10),
@@ -62,6 +63,7 @@ export default async function CriptoPage() {
       getOnChainSnapshot(),
       getFearGreedIndex(),
       getEtfFlows(),
+      getTrendingCoins(),
     ]);
 
   if (coinsResult.status === "fulfilled") {
@@ -79,6 +81,7 @@ export default async function CriptoPage() {
   const onChain = onChainResult.status === "fulfilled" ? onChainResult.value : null;
   const fearGreed = fearGreedResult.status === "fulfilled" ? fearGreedResult.value : null;
   const etfFlows = etfFlowResult.status === "fulfilled" ? etfFlowResult.value : null;
+  const trending = trendingResult.status === "fulfilled" ? trendingResult.value : null;
   const topSectors = categories
     ? [...categories].filter((c) => c.marketCapChange24h !== null).sort((a, b) => (b.marketCapChange24h ?? 0) - (a.marketCapChange24h ?? 0))
     : null;
@@ -207,6 +210,10 @@ export default async function CriptoPage() {
           </ul>
         </Panel>
       )}
+
+      <Panel title="Trending — Onde a Atenção Está" updatedAt={now}>
+        {trending ? <TrendingCoinsPanel items={trending} /> : <p className="text-sm text-down">Fonte indisponível no momento.</p>}
+      </Panel>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {btc && (

@@ -59,6 +59,47 @@ export async function getCoinHistory(coinId: string, days = 90): Promise<CoinHis
   return Array.from(byDate.entries()).map(([date, close]) => ({ date, close }));
 }
 
+export interface TrendingCoin {
+  id: string;
+  symbol: string;
+  name: string;
+  marketCapRank: number | null;
+  priceChangePct24h: number | null;
+}
+
+// "Onde a atenção do mercado cripto está agora" — ranking de busca da própria
+// CoinGecko (proxy de relevância/interesse, sem precisar de rede social).
+// Sem API key.
+export async function getTrendingCoins(): Promise<TrendingCoin[]> {
+  const url = `${COINGECKO_BASE}/search/trending`;
+
+  const res = await fetch(url, {
+    next: { revalidate: 10 * 60 },
+    headers: { accept: "application/json" },
+  });
+
+  if (!res.ok) throw new Error(`CoinGecko respondeu ${res.status}`);
+
+  const json = await res.json();
+  const coins: {
+    item: {
+      id: string;
+      symbol: string;
+      name: string;
+      market_cap_rank: number | null;
+      data?: { price_change_percentage_24h?: { usd?: number } };
+    };
+  }[] = json.coins ?? [];
+
+  return coins.map(({ item }) => ({
+    id: item.id,
+    symbol: item.symbol.toUpperCase(),
+    name: item.name,
+    marketCapRank: item.market_cap_rank,
+    priceChangePct24h: item.data?.price_change_percentage_24h?.usd ?? null,
+  }));
+}
+
 export interface CoinCategory {
   id: string;
   name: string;
