@@ -278,7 +278,12 @@ export default async function CriptoPage() {
           {derivatives && derivatives.length > 0 ? (
             <LongShortPanel items={derivatives} />
           ) : (
-            <p className="text-sm text-down">Fonte indisponível no momento.</p>
+            <p className="text-sm text-down">
+              Fonte indisponível
+              {derivativesResult.status === "rejected" && derivativesResult.reason instanceof Error
+                ? `: ${derivativesResult.reason.message}`
+                : "."}
+            </p>
           )}
         </Panel>
         <Panel title="Open Interest — Perpétuos (Binance Futures)" updatedAt={now}>
