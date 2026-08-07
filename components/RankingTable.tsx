@@ -1,6 +1,36 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { RankingItem } from "@/lib/types";
 import { changeColorClass, formatNumber, formatPct, formatPrice } from "@/lib/format";
+
+type SortKey = "symbol" | "price" | "value" | "changePct" | "volume";
+type SortDirection = "asc" | "desc";
+
+function SortHeader({
+  label,
+  active,
+  direction,
+  onClick,
+  align = "right",
+}: {
+  label: string;
+  active: boolean;
+  direction: SortDirection;
+  onClick: () => void;
+  align?: "left" | "right";
+}) {
+  return (
+    <th
+      onClick={onClick}
+      className={`cursor-pointer select-none pb-2 font-medium hover:text-text ${align === "right" ? "text-right" : "text-left"}`}
+    >
+      {label}
+      {active && <span className="ml-1 text-gold-bright">{direction === "asc" ? "↑" : "↓"}</span>}
+    </th>
+  );
+}
 
 export function RankingTable({
   items,
@@ -13,6 +43,35 @@ export function RankingTable({
   formatValue?: (value: number) => string;
   assetClass?: "b3" | "cripto" | "stocks" | "fii";
 }) {
+  const [sortKey, setSortKey] = useState<SortKey>("changePct");
+  const [sortDir, setSortDir] = useState<SortDirection>("desc");
+
+  const hasPrice = items[0]?.price !== undefined;
+  const hasVolume = items[0]?.volume !== undefined;
+
+  const sorted = useMemo(() => {
+    const copy = [...items];
+    copy.sort((a, b) => {
+      let diff = 0;
+      if (sortKey === "symbol") diff = a.symbol.localeCompare(b.symbol);
+      else if (sortKey === "price") diff = (a.price ?? 0) - (b.price ?? 0);
+      else if (sortKey === "value") diff = a.value - b.value;
+      else if (sortKey === "changePct") diff = a.changePct - b.changePct;
+      else if (sortKey === "volume") diff = (a.volume ?? 0) - (b.volume ?? 0);
+      return sortDir === "asc" ? diff : -diff;
+    });
+    return copy;
+  }, [items, sortKey, sortDir]);
+
+  function handleSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  }
+
   if (items.length === 0) {
     return <p className="text-sm text-text-muted">Sem dados disponíveis.</p>;
   }
@@ -21,17 +80,19 @@ export function RankingTable({
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-border text-left text-xs text-text-muted">
-          <th className="pb-2 font-medium">Ativo</th>
-          {items[0]?.price !== undefined && <th className="pb-2 font-medium text-right">Preço</th>}
-          <th className="pb-2 font-medium text-right">{valueLabel}</th>
-          <th className="pb-2 font-medium text-right">Var. %</th>
-          {items[0]?.volume !== undefined && (
-            <th className="pb-2 font-medium text-right">Volume</th>
+          <SortHeader label="Ativo" align="left" active={sortKey === "symbol"} direction={sortDir} onClick={() => handleSort("symbol")} />
+          {hasPrice && (
+            <SortHeader label="Preço" active={sortKey === "price"} direction={sortDir} onClick={() => handleSort("price")} />
+          )}
+          <SortHeader label={valueLabel} active={sortKey === "value"} direction={sortDir} onClick={() => handleSort("value")} />
+          <SortHeader label="Var. %" active={sortKey === "changePct"} direction={sortDir} onClick={() => handleSort("changePct")} />
+          {hasVolume && (
+            <SortHeader label="Volume" active={sortKey === "volume"} direction={sortDir} onClick={() => handleSort("volume")} />
           )}
         </tr>
       </thead>
       <tbody>
-        {items.map((item) => (
+        {sorted.map((item) => (
           <tr key={item.symbol} className="border-b border-border/50 last:border-0">
             <td className="py-2">
               {assetClass ? (

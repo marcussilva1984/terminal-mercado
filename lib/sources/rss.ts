@@ -106,7 +106,13 @@ export interface NewsItemWithCategory extends NewsItem {
 // `fetch` sempre decodifica como texto em UTF-8, corrompendo acentos — por isso
 // buscamos os bytes crus e decodificamos manualmente conforme o encoding declarado.
 async function fetchFeedXml(url: string): Promise<string> {
-  const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0" } });
+  // Sem isso, cada navegação buscava as ~29 fontes RSS do zero (sem cache
+  // nenhum) — de longe o maior contribuinte pro delay ao trocar de aba.
+  const res = await fetch(url, {
+    headers: { "user-agent": "Mozilla/5.0" },
+    next: { revalidate: 5 * 60 },
+    signal: AbortSignal.timeout(8000),
+  });
   if (!res.ok) throw new Error(`Feed respondeu ${res.status}`);
 
   const buffer = Buffer.from(await res.arrayBuffer());

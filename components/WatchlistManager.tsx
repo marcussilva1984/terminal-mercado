@@ -21,11 +21,34 @@ const ASSET_CLASSES = [
   { value: "cripto", label: "Cripto" },
 ];
 
+type SortKey = "symbol" | "price" | "changePct";
+type SortDirection = "asc" | "desc";
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: "symbol", label: "Símbolo" },
+  { value: "price", label: "Preço" },
+  { value: "changePct", label: "Variação %" },
+];
+
+function sortItems(items: WatchlistItem[], key: SortKey, dir: SortDirection): WatchlistItem[] {
+  const copy = [...items];
+  copy.sort((a, b) => {
+    let diff = 0;
+    if (key === "symbol") diff = a.symbol.localeCompare(b.symbol);
+    else if (key === "price") diff = (a.price ?? -Infinity) - (b.price ?? -Infinity);
+    else if (key === "changePct") diff = (a.changePct ?? -Infinity) - (b.changePct ?? -Infinity);
+    return dir === "asc" ? diff : -diff;
+  });
+  return copy;
+}
+
 export function WatchlistManager() {
   const [items, setItems] = useState<WatchlistItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ symbol: "", assetClass: "b3", label: "" });
   const [submitting, setSubmitting] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("changePct");
+  const [sortDir, setSortDir] = useState<SortDirection>("desc");
 
   const load = useCallback(async () => {
     try {
@@ -86,9 +109,31 @@ export function WatchlistManager() {
         só ficam confiáveis depois de alguns dias de coleta acumulada.
       </p>
 
+      <div className="mb-4 flex items-center justify-end gap-2">
+        <span className="text-xs text-text-muted">Ordenar por</span>
+        <select
+          value={sortKey}
+          onChange={(e) => setSortKey(e.target.value as SortKey)}
+          className="rounded border border-border bg-panel-alt px-1.5 py-0.5 text-xs text-text"
+        >
+          {SORT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+          className="rounded border border-border px-1.5 py-0.5 text-xs text-text-muted hover:text-text"
+          title={sortDir === "asc" ? "Crescente" : "Decrescente"}
+        >
+          {sortDir === "asc" ? "↑ Crescente" : "↓ Decrescente"}
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         {ASSET_CLASSES.map((cls) => {
-          const classItems = items?.filter((i) => i.assetClass === cls.value) ?? [];
+          const classItems = sortItems(items?.filter((i) => i.assetClass === cls.value) ?? [], sortKey, sortDir);
           return (
             <div key={cls.value}>
               <h3 className="mb-2 text-xs font-medium uppercase text-text-muted">{cls.label}</h3>
