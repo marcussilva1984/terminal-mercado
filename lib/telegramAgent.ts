@@ -138,14 +138,15 @@ async function executeTool(toolCall: ToolUseBlock): Promise<string> {
       const assetClass = String(input.assetClass);
       const current = await getCurrentPrice(symbol, assetClass);
       if (!current) return `Não consegui achar preço pra ${symbol} (${assetClass}) agora.`;
-      return `${symbol}: ${formatPrice(current.price, current.currency)} (${current.changePct >= 0 ? "+" : ""}${current.changePct.toFixed(2)}%)`;
+      const changeSign = current.changePct >= 0 ? "+" : "";
+      return `💰 <b>${symbol}</b>\n\nPreço: ${formatPrice(current.price, current.currency)}\nVariação: ${changeSign}${current.changePct.toFixed(2)}%`;
     }
 
     case "get_resumo": {
       const res = await fetch(`${getBaseUrl()}/api/resumo`, { cache: "no-store" });
       const json = await res.json();
-      const markdown: string = json.markdown ?? "Resumo indisponível no momento.";
-      return markdown.length > 3500 ? `${markdown.slice(0, 3450)}\n\n[...continua no dashboard]` : markdown;
+      const html: string = json.telegramHtml ?? "Resumo indisponível no momento.";
+      return html.length > 3500 ? `${html.slice(0, 3450)}\n\n[...continua no dashboard]` : html;
     }
 
     case "watchlist_add": {
@@ -153,7 +154,7 @@ async function executeTool(toolCall: ToolUseBlock): Promise<string> {
       const assetClass = String(input.assetClass);
       const label = input.label ? String(input.label) : symbol;
       await addWatchlistItem({ symbol, assetClass, label });
-      return `✅ ${symbol} adicionado na watchlist (${assetClass}).`;
+      return `✅ <b>${symbol}</b>\n\nAdicionado na watchlist (${assetClass}).`;
     }
 
     case "watchlist_remove": {
@@ -163,7 +164,7 @@ async function executeTool(toolCall: ToolUseBlock): Promise<string> {
       const match = items.find((i) => i.symbol.toUpperCase() === symbol);
       if (!match) return `Não achei ${symbol} na watchlist de ${assetClass}.`;
       await removeWatchlistItem(match.id);
-      return `✅ ${symbol} removido da watchlist.`;
+      return `✅ <b>${symbol}</b>\n\nRemovido da watchlist.`;
     }
 
     case "price_alert_create": {
@@ -174,7 +175,7 @@ async function executeTool(toolCall: ToolUseBlock): Promise<string> {
       const targetPrice = Number(input.targetPrice);
       await addPriceAlert({ symbol, assetClass, label, direction, targetPrice });
       const verb = direction === "above" ? "subir acima de" : "cair abaixo de";
-      return `✅ Alerta criado: aviso quando ${symbol} ${verb} ${targetPrice}.`;
+      return `🔔 <b>Alerta criado</b>\n\nAviso quando ${symbol} ${verb} ${targetPrice}.`;
     }
 
     default:

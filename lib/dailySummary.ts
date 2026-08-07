@@ -68,3 +68,59 @@ export function buildDailySummaryMarkdown(input: DailySummaryInput): string {
 
   return lines.join("\n");
 }
+
+// Versão pro Telegram: o bot manda mensagem com parse_mode HTML, então
+// markdown (##, **, -) apareceria cru — usa <b> e emoji como marcador de
+// seção, com linha em branco de verdade entre cada bloco (não fica tudo
+// grudado).
+export function buildDailySummaryTelegramHTML(input: DailySummaryInput): string {
+  const blocks: string[] = [];
+
+  blocks.push(`📅 <b>Resumo do Dia — ${input.date}</b>`);
+
+  if (input.insights.length > 0) {
+    blocks.push(["💡 <b>Insights</b>", ...input.insights.map((i) => `• ${i}`)].join("\n"));
+  }
+
+  if (input.flowSegments && input.flowSegments.length > 0) {
+    blocks.push(
+      [
+        "💹 <b>Fluxo de Investidores B3 (dia)</b>",
+        ...input.flowSegments.map((seg) => `• <b>${seg.segment}</b>: ${formatBRLCompact(seg.dailyBRL)} — sinal ${seg.signal}`),
+      ].join("\n")
+    );
+  }
+
+  if (input.altas && input.altas.length > 0) {
+    blocks.push(
+      ["📈 <b>Maiores Altas — B3</b>", ...input.altas.map((item) => `• ${item.symbol} (${item.label}): ${formatPct(item.changePct)}`)].join(
+        "\n"
+      )
+    );
+  }
+
+  if (input.baixas && input.baixas.length > 0) {
+    blocks.push(
+      ["📉 <b>Maiores Baixas — B3</b>", ...input.baixas.map((item) => `• ${item.symbol} (${item.label}): ${formatPct(item.changePct)}`)].join(
+        "\n"
+      )
+    );
+  }
+
+  if (input.zScoreHighlights && input.zScoreHighlights.length > 0) {
+    blocks.push(
+      [
+        "⚠️ <b>Z-Score — movimentos fora do padrão</b>",
+        ...input.zScoreHighlights.slice(0, 8).map((z) => `• ${z.symbol} (${z.assetClass.toUpperCase()}): ${formatPct(z.changePct)}, z=${z.zScore.toFixed(1)}`),
+      ].join("\n")
+    );
+  }
+
+  if (input.alerts && input.alerts.length > 0) {
+    blocks.push(
+      ["🔔 <b>Alertas disparados (24h)</b>", ...input.alerts.slice(0, 10).map((a) => `• [${a.kind}] ${a.label}`)].join("\n")
+    );
+  }
+
+  return blocks.join("\n\n");
+}

@@ -5,7 +5,7 @@ import { getZScoreHighlights } from "@/lib/zscoreService";
 import { getBrapiRanking, type BrapiListItem } from "@/lib/sources/brapi";
 import { getRecentAlerts } from "@/lib/db/alertRepo";
 import { buildB3Insights } from "@/lib/insights";
-import { buildDailySummaryMarkdown } from "@/lib/dailySummary";
+import { buildDailySummaryMarkdown, buildDailySummaryTelegramHTML } from "@/lib/dailySummary";
 import type { RankingItem } from "@/lib/types";
 
 function toRankingItem(item: BrapiListItem): RankingItem {
@@ -35,7 +35,7 @@ export async function GET() {
       ? buildB3Insights(altas, baixas, byVolume, flowSegments, zScoreHighlights ?? [])
       : [];
 
-  const markdown = buildDailySummaryMarkdown({
+  const summaryInput = {
     date: new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }),
     flowSegments,
     altas: altas?.slice(0, 5) ?? null,
@@ -43,7 +43,10 @@ export async function GET() {
     zScoreHighlights,
     alerts,
     insights,
-  });
+  };
 
-  return NextResponse.json({ markdown });
+  return NextResponse.json({
+    markdown: buildDailySummaryMarkdown(summaryInput),
+    telegramHtml: buildDailySummaryTelegramHTML(summaryInput),
+  });
 }
