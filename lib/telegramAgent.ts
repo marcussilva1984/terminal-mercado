@@ -3,6 +3,8 @@
 // mensagens vindas do TELEGRAM_CHAT_ID configurado — qualquer outro chat é
 // ignorado, mesmo que descubra o bot.
 import { getCurrentPrice } from "@/lib/priceLookup";
+import { getEtfFlows } from "@/lib/sources/etfFlow";
+import { formatCompact } from "@/lib/format";
 import { addWatchlistItem, removeWatchlistItem, getWatchlist } from "@/lib/db/watchlistRepo";
 import { addPriceAlert } from "@/lib/db/portfolioRepo";
 import { formatPrice } from "@/lib/format";
@@ -21,6 +23,17 @@ const TOOLS = [
         assetClass: { type: "string", enum: ["b3", "stocks", "cripto", "fii"] },
       },
       required: ["symbol", "assetClass"],
+    },
+  },
+  {
+    name: "get_etf_flow",
+    description:
+      "Consulta o fluxo líquido diário dos ETFs spot de cripto nos EUA (entrada/saída de dinheiro). Só existe ETF spot pra BTC, ETH e SOL — não existe pra outras criptos.",
+    input_schema: {
+      type: "object",
+      properties: {
+        asset: { type: "string", enum: ["btc", "eth", "sol"], description: "Opcional — se não especificado, retorna os 3." },
+      },
     },
   },
   {
@@ -82,7 +95,11 @@ Regras pra inferir a classe do ativo (assetClass) quando o usuário não disser 
 
 Se a mensagem não corresponder a nenhuma ação clara (ex: só um "oi", pergunta genérica sem
 relação com o dashboard), NÃO chame nenhuma ferramenta — responda só com texto curto explicando
-o que você pode fazer.`;
+o que você pode fazer.
+
+Sobre ETF de cripto: só existe ETF spot aprovado nos EUA pra BTC, ETH e SOL. Se o usuário
+perguntar sobre ETF de outra moeda (ex: LINK, HYPE, XRP), NÃO chame get_etf_flow — responda em
+texto explicando que essa moeda não tem ETF spot aprovado ainda.`;
 
 interface ToolUseBlock {
   type: "tool_use";
@@ -140,6 +157,18 @@ async function executeTool(toolCall: ToolUseBlock): Promise<string> {
       if (!current) return `Não consegui achar preço pra ${symbol} (${assetClass}) agora.`;
       const changeSign = current.changePct >= 0 ? "+" : "";
       return `💰 <b>${symbol}</b>\n\nPreço: ${formatPrice(current.price, current.currency)}\nVariação: ${changeSign}${current.changePct.toFixed(2)}%`;
+    }
+
+    case "get_etf_flow": {
+      const assetFilter = input.asset ? String(input.asset) : null;
+      const flows = await getEtfFlows();
+      const filtered = assetFilter ? flows.filter((f) => f.asset === assetFilter) : flows;
+      if (filtered.length === 0) return "Sem dado de ETF disponível agora.";
+      const lines = filtered.map((f) => {
+        const sign = f.dailyNetInflowUsd >= 0 ? "+" : "-";
+        return `<b>${f.asset.toUpperCase()}</b>\nFluxo do dia: ${sign} ${formatCompact(Math.abs(f.dailyNetInflowUsd), "US$")}\nPatrimônio total: ${formatCompact(f.totalNetAssetsUsd, "US$")}`;
+      });
+      return `📊 <b>Fluxo de ETFs Spot</b>\n\n${lines.join("\n\n")}`;
     }
 
     case "get_resumo": {

@@ -6,6 +6,8 @@ import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import { RankingTable } from "@/components/RankingTable";
 import { getTopCoinMarkets, getCoinCategories, type CoinMarket } from "@/lib/sources/coingecko";
 import { getOnChainSnapshot, getFearGreedIndex } from "@/lib/sources/onchain";
+import { getEtfFlows } from "@/lib/sources/etfFlow";
+import { EtfFlowPanel } from "@/components/EtfFlowPanel";
 import { getDerivativesCache } from "@/lib/db/derivativesCacheRepo";
 import { hasDatabase } from "@/lib/db/client";
 import { getNews } from "@/lib/sources/rss";
@@ -50,7 +52,7 @@ export default async function CriptoPage() {
     return cache;
   };
 
-  const [coinsResult, newsResult, zScoreResult, categoriesResult, derivativesResult, onChainResult, fearGreedResult] =
+  const [coinsResult, newsResult, zScoreResult, categoriesResult, derivativesResult, onChainResult, fearGreedResult, etfFlowResult] =
     await Promise.allSettled([
       getTopCoinMarkets(100),
       getNews("cripto", 10),
@@ -59,6 +61,7 @@ export default async function CriptoPage() {
       fetchDerivatives(),
       getOnChainSnapshot(),
       getFearGreedIndex(),
+      getEtfFlows(),
     ]);
 
   if (coinsResult.status === "fulfilled") {
@@ -75,6 +78,7 @@ export default async function CriptoPage() {
   const derivativesUpdatedAt = derivativesResult.status === "fulfilled" ? derivativesResult.value.updatedAt : null;
   const onChain = onChainResult.status === "fulfilled" ? onChainResult.value : null;
   const fearGreed = fearGreedResult.status === "fulfilled" ? fearGreedResult.value : null;
+  const etfFlows = etfFlowResult.status === "fulfilled" ? etfFlowResult.value : null;
   const topSectors = categories
     ? [...categories].filter((c) => c.marketCapChange24h !== null).sort((a, b) => (b.marketCapChange24h ?? 0) - (a.marketCapChange24h ?? 0))
     : null;
@@ -313,6 +317,14 @@ export default async function CriptoPage() {
       <Panel title="On-Chain — BTC / ETH" updatedAt={now}>
         {onChain && onChain.length > 0 ? (
           <OnChainPanel snapshots={onChain} fearGreed={fearGreed} />
+        ) : (
+          <p className="text-sm text-down">Fonte indisponível no momento.</p>
+        )}
+      </Panel>
+
+      <Panel title="Fluxo de ETFs Spot (EUA)" updatedAt={now}>
+        {etfFlows && etfFlows.length > 0 ? (
+          <EtfFlowPanel items={etfFlows} />
         ) : (
           <p className="text-sm text-down">Fonte indisponível no momento.</p>
         )}
