@@ -35,7 +35,7 @@ export interface DerivativeSnapshot {
 }
 
 async function getJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 5 * 60 }, signal: AbortSignal.timeout(6000) });
+  const res = await fetch(url, { next: { revalidate: 5 * 60 }, signal: AbortSignal.timeout(10000) });
   if (!res.ok) throw new Error(`Binance Futures respondeu ${res.status} para ${url}`);
   return res.json();
 }
@@ -86,7 +86,19 @@ async function fetchSymbolSnapshot(symbol: string): Promise<DerivativeSnapshot |
   }
 }
 
+// Cada símbolo dispara 4 requests em paralelo pra Binance; buscar os 8 símbolos
+// de uma vez só dispararia 32 conexões simultâneas da mesma function — sob
+// carga isso batia rate-limit/timeout da Binance e derrubava TODOS os
+// símbolos de uma vez (silenciosamente, sem erro visível). Processa em lotes
+// menores pra reduzir o pico de conexões simultâneas.
+const BATCH_SIZE = 3;
+
 export async function getDerivativesSnapshot(): Promise<DerivativeSnapshot[]> {
-  const results = await Promise.all(DERIVATIVES_SYMBOLS.map(fetchSymbolSnapshot));
+  const results: (DerivativeSnapshot | null)[] = [];
+  for (let i = 0; i < DERIVATIVES_SYMBOLS.length; i += BATCH_SIZE) {
+    const batch = DERIVATIVES_SYMBOLS.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(batch.map(fetchSymbolSnapshot));
+    results.push(...batchResults);
+  }
   return results.filter((r): r is DerivativeSnapshot => r !== null);
 }

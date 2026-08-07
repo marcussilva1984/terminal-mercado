@@ -9,6 +9,10 @@ export const runtime = "edge";
 export async function GET() {
   try {
     const data = await getDerivativesSnapshot();
+    // getDerivativesSnapshot descarta falhas por símbolo silenciosamente
+    // (retorna null pra cada um) — se TODOS falharam, isso não é "sem dado",
+    // é a fonte fora do ar; trata como erro pra aparecer certo na UI.
+    if (data.length === 0) throw new Error("Binance Futures indisponível (todos os pares falharam)");
     return NextResponse.json({ available: true, data });
   } catch (err) {
     return NextResponse.json({
