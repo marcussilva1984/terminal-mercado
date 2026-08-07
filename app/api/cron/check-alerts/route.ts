@@ -12,6 +12,8 @@ import { getActivePriceAlerts, markPriceAlertTriggered } from "@/lib/db/portfoli
 import { getCurrentPrice } from "@/lib/priceLookup";
 import { formatPrice } from "@/lib/format";
 import { getBaseUrl } from "@/lib/baseUrl";
+import { getTrendingCoins } from "@/lib/sources/coingecko";
+import { getWatchlist } from "@/lib/db/watchlistRepo";
 import type { AnalystTarget } from "@/lib/sources/yahooAnalyst";
 
 const WATCHLIST_MOVE_THRESHOLD = 5; // %
@@ -159,6 +161,26 @@ export async function GET(request: Request) {
     }
   } catch {
     // fonte de preço-alvo indisponível nesta rodada
+  }
+
+  // 6. Ativo da watchlist cripto entrou no Trending da CoinGecko — sinal de
+  // que o mercado começou a prestar atenção nele agora.
+  try {
+    const dbWatchlist = await getWatchlist("cripto").catch(() => []);
+    const watchlistSymbols = new Set([
+      ...CRIPTO_WATCHLIST.map((w) => w.symbol.toUpperCase()),
+      ...dbWatchlist.map((w) => w.symbol.toUpperCase()),
+    ]);
+    const trending = await getTrendingCoins();
+    for (const coin of trending) {
+      if (!watchlistSymbols.has(coin.symbol)) continue;
+      const label = `🔥 ${coin.symbol} (${coin.name}) entrou no Trending da CoinGecko — mercado prestando atenção nele agora.`;
+      // Cooldown de 12h — evita repetir enquanto continuar em alta na lista.
+      const ok = await notify(`trending:${coin.symbol}`, label, "watchlist", 12);
+      if (ok) sent.push(label);
+    }
+  } catch {
+    // fonte de trending indisponível nesta rodada
   }
 
   return NextResponse.json({ checked: true, alertsSent: sent.length, sent });
