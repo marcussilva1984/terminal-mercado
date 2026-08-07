@@ -8,6 +8,7 @@ export interface HoldingInput {
   label: string;
   quantity: number;
   avgPrice: number;
+  notes?: string;
 }
 
 export async function getHoldings() {
@@ -23,6 +24,11 @@ export async function addHolding(input: HoldingInput) {
 export async function removeHolding(id: number) {
   const db = getDb();
   await db.delete(portfolioHoldings).where(eq(portfolioHoldings.id, id));
+}
+
+export async function updateHoldingNotes(id: number, notes: string) {
+  const db = getDb();
+  await db.update(portfolioHoldings).set({ notes }).where(eq(portfolioHoldings.id, id));
 }
 
 export interface PriceAlertInput {

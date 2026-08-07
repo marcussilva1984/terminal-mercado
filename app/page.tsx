@@ -48,7 +48,15 @@ export default async function HomePage() {
             Fluxo B3 e z-score já usam dados reais (precisam de <code>DATABASE_URL</code> configurada).
           </p>
         </div>
-        <CopyResumoButton />
+        <div className="flex items-center gap-2">
+          <CopyResumoButton />
+          <a
+            href="/relatorio"
+            className="rounded border border-gold/40 bg-panel-alt px-3 py-1.5 text-sm text-gold-bright hover:bg-panel"
+          >
+            Relatório PDF
+          </a>
+        </div>
       </div>
 
       {headline && <Headline item={headline} />}

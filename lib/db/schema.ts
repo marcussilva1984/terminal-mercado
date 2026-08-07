@@ -78,5 +78,8 @@ export const portfolioHoldings = pgTable("portfolio_holdings", {
   label: text("label").notNull(),
   quantity: real("quantity").notNull(),
   avgPrice: real("avg_price").notNull(),
+  // Tese de investimento — por que comprou, o que espera. Histórico de decisão
+  // pra revisar acerto/erro depois, prática comum em mesa institucional.
+  notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

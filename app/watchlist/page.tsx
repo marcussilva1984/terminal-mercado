@@ -1,13 +1,22 @@
 import { Panel } from "@/components/Panel";
 import { WatchlistManager } from "@/components/WatchlistManager";
 import { CorrelationTable } from "@/components/CorrelationTable";
-import { getWatchlistCorrelations } from "@/lib/correlationService";
+import { BenchmarkCorrelationTable } from "@/components/BenchmarkCorrelationTable";
+import { getWatchlistCorrelations, getBenchmarkCorrelations } from "@/lib/correlationService";
+import { getWatchlist } from "@/lib/db/watchlistRepo";
+import { hasDatabase } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 
 export default async function WatchlistPage() {
   const now = new Date().toISOString();
   const correlations = await getWatchlistCorrelations().catch(() => null);
+
+  const benchmarkCorrelations = hasDatabase()
+    ? await getWatchlist()
+        .then((items) => getBenchmarkCorrelations(items))
+        .catch(() => null)
+    : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -25,6 +34,16 @@ export default async function WatchlistPage() {
         ) : (
           <p className="text-sm text-text-muted">
             Configure <code>DATABASE_URL</code> e rode o backfill para habilitar a correlação.
+          </p>
+        )}
+      </Panel>
+
+      <Panel title="Correlação e Beta vs. Benchmarks (IBOV / S&P 500 / DXY)" updatedAt={now}>
+        {benchmarkCorrelations ? (
+          <BenchmarkCorrelationTable items={benchmarkCorrelations} />
+        ) : (
+          <p className="text-sm text-text-muted">
+            Configure <code>DATABASE_URL</code> e rode o backfill para habilitar esta comparação.
           </p>
         )}
       </Panel>

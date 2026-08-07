@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getHoldings, addHolding, removeHolding } from "@/lib/db/portfolioRepo";
+import { getHoldings, addHolding, removeHolding, updateHoldingNotes } from "@/lib/db/portfolioRepo";
 import { getCurrentPrice } from "@/lib/priceLookup";
 
 export async function GET() {
@@ -21,6 +21,7 @@ export async function GET() {
           label: h.label,
           quantity: h.quantity,
           avgPrice: h.avgPrice,
+          notes: h.notes,
           currentPrice,
           currentValue,
           pnl,
@@ -42,7 +43,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { symbol, assetClass, label, quantity, avgPrice } = body;
+  const { symbol, assetClass, label, quantity, avgPrice, notes } = body;
 
   if (!symbol || !assetClass || !quantity || !avgPrice) {
     return NextResponse.json({ error: "Campos obrigatórios: symbol, assetClass, quantity, avgPrice" }, { status: 400 });
@@ -54,8 +55,18 @@ export async function POST(request: Request) {
     label: label || symbol,
     quantity: Number(quantity),
     avgPrice: Number(avgPrice),
+    notes: notes ? String(notes) : undefined,
   });
 
+  return NextResponse.json({ ok: true });
+}
+
+export async function PATCH(request: Request) {
+  const body = await request.json();
+  const { id, notes } = body;
+  if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
+
+  await updateHoldingNotes(Number(id), String(notes ?? ""));
   return NextResponse.json({ ok: true });
 }
 

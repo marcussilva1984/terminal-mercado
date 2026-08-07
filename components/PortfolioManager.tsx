@@ -12,11 +12,24 @@ interface Holding {
   label: string;
   quantity: number;
   avgPrice: number;
+  notes: string | null;
   currentPrice: number | null;
   currentValue: number | null;
   pnl: number | null;
   pnlPct: number | null;
   currency: string | null;
+}
+
+interface DrawdownEntry {
+  symbol: string;
+  drawdown: { maxDrawdownPct: number; peakDate: string; troughDate: string; points: number } | null;
+}
+
+interface SharpeResult {
+  sharpeRatio: number;
+  annualizedReturnPct: number;
+  annualizedVolPct: number;
+  points: number;
 }
 
 interface PriceAlert {
@@ -38,19 +51,31 @@ const ASSET_CLASS_LABEL: Record<string, string> = {
 export function PortfolioManager() {
   const [holdings, setHoldings] = useState<Holding[] | null>(null);
   const [alerts, setAlerts] = useState<PriceAlert[] | null>(null);
+  const [drawdowns, setDrawdowns] = useState<DrawdownEntry[] | null>(null);
+  const [sharpe, setSharpe] = useState<SharpeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ symbol: "", assetClass: "b3", quantity: "", avgPrice: "" });
+  const [form, setForm] = useState({ symbol: "", assetClass: "b3", quantity: "", avgPrice: "", notes: "" });
   const [alertForm, setAlertForm] = useState({ symbol: "", assetClass: "b3", direction: "above", targetPrice: "" });
   const [submitting, setSubmitting] = useState(false);
+  const [notesDraft, setNotesDraft] = useState<Record<number, string>>({});
 
   const load = useCallback(async () => {
     try {
-      const [hRes, aRes] = await Promise.all([fetch("/api/portfolio"), fetch("/api/portfolio/alerts")]);
+      const [hRes, aRes, mRes] = await Promise.all([
+        fetch("/api/portfolio"),
+        fetch("/api/portfolio/alerts"),
+        fetch("/api/portfolio/metrics"),
+      ]);
       const hJson = await hRes.json();
       const aJson = await aRes.json();
+      const mJson = await mRes.json();
       if (hJson.available) setHoldings(hJson.data);
       else setError(hJson.error ?? "Falha ao carregar carteira");
       if (aJson.available) setAlerts(aJson.data);
+      if (mJson.available) {
+        setDrawdowns(mJson.drawdowns);
+        setSharpe(mJson.sharpe);
+      }
     } catch {
       setError("Falha ao carregar carteira");
     }
@@ -73,15 +98,26 @@ export function PortfolioManager() {
         label: form.symbol,
         quantity: parseFloat(form.quantity),
         avgPrice: parseFloat(form.avgPrice),
+        notes: form.notes || undefined,
       }),
     });
-    setForm({ symbol: "", assetClass: "b3", quantity: "", avgPrice: "" });
+    setForm({ symbol: "", assetClass: "b3", quantity: "", avgPrice: "", notes: "" });
     setSubmitting(false);
     load();
   }
 
   async function handleRemoveHolding(id: number) {
     await fetch(`/api/portfolio?id=${id}`, { method: "DELETE" });
+    load();
+  }
+
+  async function handleSaveNotes(id: number) {
+    const notes = notesDraft[id] ?? "";
+    await fetch("/api/portfolio", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id, notes }),
+    });
     load();
   }
 
@@ -230,6 +266,15 @@ export function PortfolioManager() {
               className="w-24 rounded border border-border bg-panel-alt px-2 py-1 text-sm text-text"
             />
           </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-text-muted">Tese (opcional)</label>
+            <input
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              placeholder="Por que comprei..."
+              className="w-48 rounded border border-border bg-panel-alt px-2 py-1 text-sm text-text"
+            />
+          </div>
           <button
             type="submit"
             disabled={submitting}
@@ -238,6 +283,76 @@ export function PortfolioManager() {
             Adicionar
           </button>
         </form>
+      </Panel>
+
+      <Panel title="Risco da Carteira">
+        {sharpe ? (
+          <div className="mb-4 grid grid-cols-3 gap-3 text-sm">
+            <div>
+              <div className="text-xs text-text-muted">Sharpe Ratio (anualizado)</div>
+              <div className="text-text">{sharpe.sharpeRatio.toFixed(2)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-text-muted">Retorno anualizado</div>
+              <div className={changeColorClass(sharpe.annualizedReturnPct)}>{formatPct(sharpe.annualizedReturnPct)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-text-muted">Volatilidade anualizada</div>
+              <div className="text-text">{formatPct(sharpe.annualizedVolPct).replace("+", "")}</div>
+            </div>
+          </div>
+        ) : (
+          <p className="mb-4 text-sm text-text-muted">
+            Sharpe indisponível ainda — precisa de alguns dias de histórico coletado pra calcular.
+          </p>
+        )}
+
+        {drawdowns && drawdowns.length > 0 ? (
+          <ul className="flex flex-col divide-y divide-border/50">
+            {drawdowns.map((d) => (
+              <li key={d.symbol} className="flex items-center justify-between py-1.5 text-sm">
+                <span className="text-text">{d.symbol}</span>
+                <span className="text-down">Máx. drawdown: {formatPct(d.drawdown!.maxDrawdownPct)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-text-muted">Drawdown indisponível ainda pras posições atuais.</p>
+        )}
+        <p className="mt-3 text-xs text-text-muted">
+          Sharpe simplificado (sem taxa livre de risco, sem conversão cambial entre BRL/USD) e
+          drawdown máximo desde o topo do período coletado (não desde a data de compra). Precisa de
+          alguns dias de coleta acumulada pra ficar confiável.
+        </p>
+      </Panel>
+
+      <Panel title="Tese de Investimento (por posição)">
+        {holdings && holdings.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            {holdings.map((h) => (
+              <div key={h.id} className="flex flex-col gap-1">
+                <label className="text-xs text-text-muted">{h.symbol}</label>
+                <div className="flex gap-2">
+                  <textarea
+                    value={notesDraft[h.id] ?? h.notes ?? ""}
+                    onChange={(e) => setNotesDraft((d) => ({ ...d, [h.id]: e.target.value }))}
+                    placeholder="Por que comprei, o que espero..."
+                    rows={2}
+                    className="flex-1 rounded border border-border bg-panel-alt px-2 py-1 text-sm text-text"
+                  />
+                  <button
+                    onClick={() => handleSaveNotes(h.id)}
+                    className="self-start rounded border border-gold/40 bg-panel-alt px-3 py-1.5 text-xs text-gold-bright hover:bg-panel"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-text-muted">Cadastre uma posição pra anotar sua tese.</p>
+        )}
       </Panel>
 
       <Panel title="Alertas de Preço (via Telegram)">

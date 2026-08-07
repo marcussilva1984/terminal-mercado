@@ -82,3 +82,75 @@ export async function getWatchlistCorrelations(maxPairs = 15): Promise<Correlati
   pairs.sort((p1, p2) => Math.abs(p2.correlation) - Math.abs(p1.correlation));
   return pairs.slice(0, maxPairs);
 }
+
+export interface BenchmarkCorrelation {
+  symbol: string;
+  label: string;
+  benchmark: string;
+  correlation: number;
+  beta: number;
+  points: number;
+}
+
+const BENCHMARKS = [
+  { symbol: "IBOV", label: "Ibovespa" },
+  { symbol: "SPX", label: "S&P 500" },
+  { symbol: "DXY", label: "Índice Dólar (DXY)" },
+] as const;
+
+function returnsByDateFor(closes: { date: string; closePrice: number }[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (let i = 1; i < closes.length; i++) {
+    const prev = closes[i - 1].closePrice;
+    if (prev === 0) continue;
+    map.set(closes[i].date, (closes[i].closePrice - prev) / prev);
+  }
+  return map;
+}
+
+// Beta e correlação de cada item (watchlist ou item avulso, ex.: posição da
+// carteira) contra os 3 benchmarks fixos (IBOV, S&P 500, DXY) — "seu ativo X
+// se move quanto em relação ao mercado", não só entre si.
+export async function getBenchmarkCorrelations(
+  items: { symbol: string; label: string; assetClass: string }[]
+): Promise<BenchmarkCorrelation[]> {
+  if (!hasDatabase()) {
+    throw new Error("DATABASE_URL não configurada — correlação precisa do histórico salvo no banco.");
+  }
+
+  const benchmarkReturns = new Map<string, Map<string, number>>();
+  for (const b of BENCHMARKS) {
+    const closes = await getCloses(b.symbol, "indice", 60);
+    if (closes.length >= 6) benchmarkReturns.set(b.symbol, returnsByDateFor(closes));
+  }
+
+  const results: BenchmarkCorrelation[] = [];
+  for (const item of items) {
+    const closes = await getCloses(item.symbol, item.assetClass, 60);
+    if (closes.length < 6) continue;
+    const itemReturns = returnsByDateFor(closes);
+
+    for (const b of BENCHMARKS) {
+      const benchReturns = benchmarkReturns.get(b.symbol);
+      if (!benchReturns) continue;
+
+      const commonDates = [...itemReturns.keys()].filter((d) => benchReturns.has(d));
+      if (commonDates.length < 5) continue;
+
+      const a = commonDates.map((d) => itemReturns.get(d) as number);
+      const c = commonDates.map((d) => benchReturns.get(d) as number);
+      const correlation = pearson(a, c);
+      if (correlation === null) continue;
+
+      const meanC = c.reduce((s, v) => s + v, 0) / c.length;
+      const varC = c.reduce((s, v) => s + (v - meanC) ** 2, 0);
+      const meanA = a.reduce((s, v) => s + v, 0) / a.length;
+      const covAC = a.reduce((s, v, i) => s + (v - meanA) * (c[i] - meanC), 0);
+      const beta = varC === 0 ? 0 : covAC / varC;
+
+      results.push({ symbol: item.symbol, label: item.label, benchmark: b.label, correlation, beta, points: commonDates.length });
+    }
+  }
+
+  return results;
+}

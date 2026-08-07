@@ -5,6 +5,16 @@ import { getWatchlist, seedWatchlistIfEmpty } from "@/lib/db/watchlistRepo";
 import { getTopCoinMarkets } from "@/lib/sources/coingecko";
 import { getYahooQuote } from "@/lib/sources/yahoo";
 import { B3_WATCHLIST, CRIPTO_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST } from "@/lib/watchlist";
+import { getHoldings } from "@/lib/db/portfolioRepo";
+
+// Benchmarks fixos pra correlação/beta da watchlist e da carteira contra o
+// mercado — não fazem parte de nenhuma watchlist de usuário, coletados à
+// parte sob assetClass "indice".
+const BENCHMARKS = [
+  { symbol: "IBOV", yahoo: "^BVSP" },
+  { symbol: "SPX", yahoo: "^GSPC" },
+  { symbol: "DXY", yahoo: "DX-Y.NYB" },
+] as const;
 
 export async function GET(request: Request) {
   const auth = request.headers.get("authorization");
@@ -24,10 +34,21 @@ export async function GET(request: Request) {
   ]);
 
   const rows: PriceSeriesRow[] = [];
-  const b3Watchlist = await getWatchlist("b3");
-  const criptoWatchlist = await getWatchlist("cripto");
-  const fiiWatchlist = await getWatchlist("fii");
-  const stocksWatchlist = await getWatchlist("stocks");
+  const holdings = await getHoldings().catch(() => []);
+  const holdingsByClass = (cls: string) =>
+    holdings.filter((h) => h.assetClass === cls).map((h) => ({ symbol: h.symbol, label: h.label }));
+
+  // Carteira entra na coleta mesmo se o ativo não estiver na watchlist —
+  // drawdown/Sharpe da carteira precisam de histórico independente disso.
+  const dedupe = (a: { symbol: string; label: string }[], b: { symbol: string; label: string }[]) => {
+    const seen = new Set(a.map((x) => x.symbol));
+    return [...a, ...b.filter((x) => !seen.has(x.symbol))];
+  };
+
+  const b3Watchlist = dedupe(await getWatchlist("b3"), holdingsByClass("b3"));
+  const criptoWatchlist = dedupe(await getWatchlist("cripto"), holdingsByClass("cripto"));
+  const fiiWatchlist = dedupe(await getWatchlist("fii"), holdingsByClass("fii"));
+  const stocksWatchlist = dedupe(await getWatchlist("stocks"), holdingsByClass("stocks"));
   const today = new Date().toISOString().slice(0, 10);
 
   // Yahoo (não brapi) pra B3 aqui de propósito: sem BRAPI_TOKEN, a brapi.dev só
@@ -72,6 +93,15 @@ export async function GET(request: Request) {
       if (q) rows.push({ symbol, assetClass: "stocks", date: today, closePrice: q.price, source: "yahoo" });
     } catch {
       // fonte indisponível para este ativo — segue para os demais
+    }
+  }
+
+  for (const b of BENCHMARKS) {
+    try {
+      const q = await getYahooQuote(b.yahoo);
+      if (q) rows.push({ symbol: b.symbol, assetClass: "indice", date: today, closePrice: q.price, source: "yahoo" });
+    } catch {
+      // fonte indisponível pra esse benchmark — segue pros demais
     }
   }
 
