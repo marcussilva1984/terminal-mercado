@@ -13,6 +13,8 @@ import { getBrapiRanking, type BrapiListItem } from "@/lib/sources/brapi";
 import { buildB3Insights, fillMinimumInsights } from "@/lib/insights";
 import { getBaseUrl } from "@/lib/baseUrl";
 import { B3_WATCHLIST } from "@/lib/watchlist";
+import { hasDatabase } from "@/lib/db/client";
+import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { formatNumber } from "@/lib/format";
 import type { AnalystTarget } from "@/lib/sources/yahooAnalyst";
 import { VolatilityTable } from "@/components/VolatilityTable";
@@ -59,10 +61,40 @@ async function getB3PriceTargetHits(): Promise<PriceTargetHit[] | null> {
   }
 }
 
+interface UpcomingEarnings {
+  symbol: string;
+  label: string;
+  nextEarningsDate: string;
+}
+
+async function getUpcomingEarnings(): Promise<UpcomingEarnings[]> {
+  const watchlist = hasDatabase() ? await getWatchlist("b3") : B3_WATCHLIST.map((w, i) => ({ ...w, id: i }));
+  const results = await Promise.all(
+    watchlist.map(async (w) => {
+      try {
+        const res = await fetch(`${getBaseUrl()}/api/ticker-detail?symbol=${encodeURIComponent(`${w.symbol}.SA`)}`, {
+          next: { revalidate: 30 },
+        });
+        const json = await res.json();
+        if (json.available && json.data.nextEarningsDate) {
+          return { symbol: w.symbol, label: w.label, nextEarningsDate: json.data.nextEarningsDate as string };
+        }
+      } catch {
+        // fonte indisponível pra esse papel — segue pros demais
+      }
+      return null;
+    })
+  );
+  const today = new Date().toISOString().slice(0, 10);
+  return results
+    .filter((r): r is UpcomingEarnings => r !== null && r.nextEarningsDate >= today)
+    .sort((a, b) => a.nextEarningsDate.localeCompare(b.nextEarningsDate));
+}
+
 export default async function AcoesPage() {
   const now = new Date().toISOString();
 
-  const [flowResult, newsResult, zScoreResult, gainersResult, losersResult, volumeResult, volatilityResult, fatosResult, priceTargetResult] =
+  const [flowResult, newsResult, zScoreResult, gainersResult, losersResult, volumeResult, volatilityResult, fatosResult, priceTargetResult, earningsResult] =
     await Promise.allSettled([
       getFlowHistory(),
       getNews("b3", 10),
@@ -73,6 +105,7 @@ export default async function AcoesPage() {
       getB3VolatilityRanking(),
       getFatosRelevantes(25),
       getB3PriceTargetHits(),
+      getUpcomingEarnings(),
     ]);
 
   const news = newsResult.status === "fulfilled" ? newsResult.value : [];
@@ -83,6 +116,7 @@ export default async function AcoesPage() {
   const volatility = volatilityResult.status === "fulfilled" ? volatilityResult.value : null;
   const fatosRelevantes = fatosResult.status === "fulfilled" ? fatosResult.value : null;
   const priceTargetHits = priceTargetResult.status === "fulfilled" ? priceTargetResult.value : null;
+  const upcomingEarnings = earningsResult.status === "fulfilled" ? earningsResult.value : null;
 
   const insights =
     gainers && losers && byVolume && flowResult.status === "fulfilled"
@@ -234,6 +268,30 @@ export default async function AcoesPage() {
         </a>
         .
       </p>
+
+      <Panel title="Próximos Resultados (Watchlist)" updatedAt={now}>
+        {upcomingEarnings && upcomingEarnings.length > 0 ? (
+          <ul className="flex flex-col divide-y divide-border/50">
+            {upcomingEarnings.map((e) => (
+              <li key={e.symbol} className="flex items-center justify-between py-2 first:pt-0 last:pb-0 text-sm">
+                <span className="text-text">
+                  {e.symbol} <span className="text-text-muted">— {e.label}</span>
+                </span>
+                <span className="text-gold-bright">{new Date(e.nextEarningsDate).toLocaleDateString("pt-BR")}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-text-muted">Nenhuma data de resultado futura disponível pra watchlist agora.</p>
+        )}
+        <p className="mt-3 text-xs text-text-muted">
+          Data estimada de divulgação de resultado (balanço), via Yahoo Finance, pros papéis da sua{" "}
+          <a href="/watchlist" className="text-gold-bright hover:underline">
+            Watchlist
+          </a>
+          .
+        </p>
+      </Panel>
 
       <Panel title="Fatos Relevantes (CVM)" updatedAt={now}>
         {fatosRelevantes ? (
