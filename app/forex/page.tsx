@@ -5,7 +5,7 @@ import { CurrencyStrengthMeter } from "@/components/CurrencyStrengthMeter";
 import { EconomicCalendar } from "@/components/EconomicCalendar";
 import { changeColorClass, formatNumber, formatPct } from "@/lib/format";
 import { getForexPairs, getCurrencyStrength, getDXY, getUSYieldCurve } from "@/lib/forexService";
-import { getWeeklyCalendar, filterHighSignal, filterRateDecisions } from "@/lib/sources/economicCalendar";
+import { getWeeklyCalendar, filterHighSignal, filterRateDecisions, filterUpcoming, filterForexRelevant } from "@/lib/sources/economicCalendar";
 import { getNews } from "@/lib/sources/rss";
 
 export const dynamic = "force-dynamic";
@@ -22,8 +22,8 @@ export default async function ForexPage() {
     getNews("forex", 10),
   ]);
 
-  const rateDecisions = calendarResult ? filterRateDecisions(calendarResult) : null;
-  const highSignalEvents = calendarResult ? filterHighSignal(calendarResult) : null;
+  const rateDecisions = calendarResult ? filterUpcoming(filterRateDecisions(calendarResult)) : null;
+  const highSignalEvents = calendarResult ? filterUpcoming(filterForexRelevant(filterHighSignal(calendarResult))) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -111,8 +111,9 @@ export default async function ForexPage() {
             <p className="text-sm text-down">Fonte indisponível no momento.</p>
           )}
           <p className="mt-3 text-xs text-text-muted">
-            Só impacto alto/médio (juros, inflação, emprego, PIB) — sem o ruído de dado
-            irrelevante. Fonte: mesmo feed público usado pelo calendário do ForexFactory.
+            Só impacto alto/médio das 8 moedas mais operadas (USD, EUR, JPY, GBP, CHF, CAD, AUD,
+            NZD) — sem ruído de outros países, e só o que ainda vai acontecer (o que já passou some
+            da lista). Fonte: mesmo feed público usado pelo calendário do ForexFactory.
           </p>
         </Panel>
       </div>

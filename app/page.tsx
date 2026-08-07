@@ -12,7 +12,7 @@ import { getFlowHistory } from "@/lib/sources/b3Flow";
 import { buildFlowSegments } from "@/lib/semaphore";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 import { getRealHighlightCards } from "@/lib/tickerService";
-import { getWeeklyCalendar, filterHighSignal } from "@/lib/sources/economicCalendar";
+import { getWeeklyCalendar, filterHighSignal, filterUpcoming } from "@/lib/sources/economicCalendar";
 import { buildDailyHighlights } from "@/lib/dailyHighlights";
 
 // Pouco tráfego = ISR fica "presa" em cache velho até alguém disparar a
@@ -30,7 +30,7 @@ export default async function HomePage() {
     getWeeklyCalendar().catch(() => null),
   ]);
 
-  const radarEvents = calendarResult ? filterHighSignal(calendarResult).slice(0, 5) : null;
+  const radarEvents = calendarResult ? filterUpcoming(filterHighSignal(calendarResult)).slice(0, 20) : null;
   const now = new Date().toISOString();
   const headline = news.find((n) => isExtremeNews(n.title)) ?? null;
 
@@ -99,7 +99,8 @@ export default async function HomePage() {
         )}
         <p className="mt-3 text-xs text-text-muted">
           Eventos de alto/médio impacto (juros, inflação, emprego) que costumam mexer com ações,
-          forex e cripto ao mesmo tempo. Detalhe completo na aba Forex.
+          forex e cripto ao mesmo tempo — só o que ainda vai acontecer (já passou, some da lista).
+          Detalhe completo na aba Forex.
         </p>
       </Panel>
     </div>

@@ -50,3 +50,17 @@ export function filterRateDecisions(events: CalendarEvent[]): CalendarEvent[] {
     .filter((e) => RATE_DECISION_PATTERN.test(e.title))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
+
+// Tira o que já passou — "fique de olho" é sobre o que vem, não histórico.
+export function filterUpcoming(events: CalendarEvent[]): CalendarEvent[] {
+  const now = Date.now();
+  return events.filter((e) => new Date(e.date).getTime() >= now);
+}
+
+// Países das 8 moedas mais operadas em forex — cobre exatamente o que move
+// os pares que a aba Forex acompanha (USD/EUR/JPY/GBP/CHF/CAD/AUD/NZD).
+const FOREX_COUNTRIES = new Set(["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "NZD"]);
+
+export function filterForexRelevant(events: CalendarEvent[]): CalendarEvent[] {
+  return events.filter((e) => FOREX_COUNTRIES.has(e.country));
+}
