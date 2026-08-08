@@ -232,3 +232,49 @@ export async function getMonteCarloRanges(
     .map((r) => r.value)
     .filter((v): v is MonteCarloResult => v !== null);
 }
+
+export interface FatoRelevanteMatch {
+  symbol: string;
+  label: string;
+  subject: string;
+  date: string;
+  documentUrl: string;
+}
+
+function normalizeCompanyText(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+}
+
+// Nome da empresa na watchlist (ex.: "Petrobras PN") -> primeira palavra
+// significativa (ex.: "PETROBRAS"), removendo sufixo de tipo de ação. Ativos
+// cadastrados sem nome (label = próprio ticker) não têm como casar contra o
+// nome legal usado pela CVM — não é erro, só não dá pra cruzar sem nome real.
+function coreCompanyToken(label: string): string | null {
+  const cleaned = normalizeCompanyText(label).replace(/\b(ON|PN|PNA|PNB|PNC|UNIT|S\.?A\.?)\b/g, "").trim();
+  const token = cleaned.split(/\s+/)[0] ?? "";
+  return token.length >= 4 ? token : null;
+}
+
+// Cruza fatos relevantes recentes (CVM) com a watchlist de B3 pelo nome da
+// empresa — aproximado por substring, não é um cadastro CNPJ->ticker
+// oficial. Pode deixar de casar (falso negativo) quando o ativo foi
+// cadastrado sem nome, mas não deve gerar falso positivo grosseiro (exige
+// pelo menos 4 letras do nome real batendo).
+export function matchFatosRelevantes(
+  watchlist: { symbol: string; label: string }[],
+  fatos: { companyName: string; date: string; subject: string; documentUrl: string }[]
+): FatoRelevanteMatch[] {
+  const matches: FatoRelevanteMatch[] = [];
+  for (const w of watchlist) {
+    const token = coreCompanyToken(w.label);
+    if (!token) continue;
+    const hit = fatos.find((f) => normalizeCompanyText(f.companyName).includes(token));
+    if (hit) {
+      matches.push({ symbol: w.symbol, label: w.label, subject: hit.subject, date: hit.date, documentUrl: hit.documentUrl });
+    }
+  }
+  return matches;
+}

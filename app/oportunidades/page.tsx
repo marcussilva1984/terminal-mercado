@@ -7,10 +7,12 @@ import {
   getBazinValuationsFii,
   getSma200Signals,
   getMonteCarloRanges,
+  matchFatosRelevantes,
 } from "@/lib/valuation";
 import { B3_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST, CRIPTO_WATCHLIST, FOREX_WATCHLIST } from "@/lib/watchlist";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { hasDatabase } from "@/lib/db/client";
+import { getFatosRelevantes } from "@/lib/sources/cvmFatosRelevantes";
 
 export const dynamic = "force-dynamic";
 
@@ -55,13 +57,16 @@ export default async function OportunidadesPage() {
   // manter o custo de CPU razoável com o passo bem maior.
   const MONTE_CARLO_HORIZON_DAYS = 756;
 
-  const [graham, bazinB3, bazinFii, sma200, monteCarlo] = await Promise.all([
+  const [graham, bazinB3, bazinFii, sma200, monteCarlo, fatos] = await Promise.all([
     getGrahamValuations(b3Watchlist).catch(() => []),
     getBazinValuationsB3(b3Watchlist).catch(() => []),
     getBazinValuationsFii(fiiWatchlist).catch(() => []),
     getSma200Signals(trendAndMonteCarloItems).catch(() => []),
     getMonteCarloRanges(trendAndMonteCarloItems, MONTE_CARLO_HORIZON_DAYS, 1000).catch(() => []),
+    getFatosRelevantes(60).catch(() => []),
   ]);
+
+  const fatosMatches = matchFatosRelevantes(b3Watchlist, fatos);
 
   return (
     <div className="flex flex-col gap-6">
@@ -73,6 +78,33 @@ export default async function OportunidadesPage() {
           tabela aqui é sugestão de compra/venda: são pontos de partida pra você investigar mais.
         </p>
       </div>
+
+      {fatosMatches.length > 0 && (
+        <Panel title="Fatos Relevantes recentes na sua watchlist B3" updatedAt={now}>
+          <ul className="flex flex-col divide-y divide-border/50">
+            {fatosMatches.map((m) => (
+              <li key={m.symbol} className="flex items-center justify-between gap-3 py-2 text-sm first:pt-0 last:pb-0">
+                <div>
+                  <span className="font-medium text-text">{m.symbol}</span>{" "}
+                  <span className="text-text-muted">— {m.subject}</span>
+                </div>
+                <a
+                  href={m.documentUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="shrink-0 text-xs text-gold-bright hover:underline"
+                >
+                  {m.date} ↗
+                </a>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-text-muted">
+            Cruzamento aproximado por nome da empresa (CVM) — ativos cadastrados sem um nome real
+            (só o ticker) não entram aqui, já que não tem como casar com o nome legal da CVM.
+          </p>
+        </Panel>
+      )}
 
       <Panel title="Fórmula de Graham — Valor Justo (Ações B3)" updatedAt={now}>
         <GrahamTable items={graham} />
