@@ -61,7 +61,7 @@ export async function GET(request: Request) {
     const highlights = await getZScoreHighlights();
     for (const h of highlights.filter((z) => Math.abs(z.zScore) >= 3)) {
       const label = `Z-score: ${h.symbol} com |z|=${h.zScore.toFixed(1)} (variação de ${h.changePct.toFixed(2)}% no dia) — movimento fora do padrão.`;
-      const ok = await notify(`zscore:${h.symbol}`, label, "zscore", 20);
+      const ok = await notify(`zscore:${h.symbol}`, label, "zscore", 30);
       if (ok) sent.push(label);
     }
   } catch {
@@ -84,7 +84,7 @@ export async function GET(request: Request) {
       const q = b3Quotes[`${w.symbol}.SA`];
       if (q && q.changePct >= WATCHLIST_MOVE_THRESHOLD) {
         const label = `Watchlist B3: ${w.symbol} subiu ${q.changePct.toFixed(2)}% no dia.`;
-        const ok = await notify(`watchlist:${w.symbol}`, label, "watchlist", 20);
+        const ok = await notify(`watchlist:${w.symbol}`, label, "watchlist", 30);
         if (ok) sent.push(label);
       }
     }
@@ -93,7 +93,7 @@ export async function GET(request: Request) {
       const q = stockQuotes[w.symbol];
       if (q && q.changePct >= WATCHLIST_MOVE_THRESHOLD) {
         const label = `Watchlist Stocks: ${w.symbol} subiu ${q.changePct.toFixed(2)}% no dia.`;
-        const ok = await notify(`watchlist:${w.symbol}`, label, "watchlist", 20);
+        const ok = await notify(`watchlist:${w.symbol}`, label, "watchlist", 30);
         if (ok) sent.push(label);
       }
     }
@@ -103,7 +103,7 @@ export async function GET(request: Request) {
       const change = coin?.price_change_percentage_24h;
       if (typeof change === "number" && change >= WATCHLIST_MOVE_THRESHOLD) {
         const label = `Watchlist Cripto: ${w.symbol} subiu ${change.toFixed(2)}% em 24h.`;
-        const ok = await notify(`watchlist:${w.symbol}`, label, "watchlist", 20);
+        const ok = await notify(`watchlist:${w.symbol}`, label, "watchlist", 30);
         if (ok) sent.push(label);
       }
     }
@@ -235,7 +235,7 @@ export async function GET(request: Request) {
       const q = b3Quotes[`${w.symbol}.SA`];
       if (q && q.changePct <= -DROP_THRESHOLD) {
         const label = `📉 Queda forte: ${w.symbol} caiu ${Math.abs(q.changePct).toFixed(2)}% no dia — pode valer a pena olhar o motivo.`;
-        const ok = await notify(`oportunidade:queda:${w.symbol}`, label, "oportunidade", 20);
+        const ok = await notify(`oportunidade:queda:${w.symbol}`, label, "oportunidade", 30);
         if (ok) sent.push(label);
       }
     }
@@ -244,7 +244,7 @@ export async function GET(request: Request) {
       const q = stockQuotesOpp[w.symbol];
       if (q && q.changePct <= -DROP_THRESHOLD) {
         const label = `📉 Queda forte: ${w.symbol} caiu ${Math.abs(q.changePct).toFixed(2)}% no dia — pode valer a pena olhar o motivo.`;
-        const ok = await notify(`oportunidade:queda:${w.symbol}`, label, "oportunidade", 20);
+        const ok = await notify(`oportunidade:queda:${w.symbol}`, label, "oportunidade", 30);
         if (ok) sent.push(label);
       }
     }
@@ -253,7 +253,7 @@ export async function GET(request: Request) {
       const q = fiiQuotes[`${w.symbol}.SA`];
       if (q && q.changePct <= -DROP_THRESHOLD) {
         const label = `📉 Queda forte: ${w.symbol} caiu ${Math.abs(q.changePct).toFixed(2)}% no dia — pode valer a pena olhar o motivo.`;
-        const ok = await notify(`oportunidade:queda:${w.symbol}`, label, "oportunidade", 20);
+        const ok = await notify(`oportunidade:queda:${w.symbol}`, label, "oportunidade", 30);
         if (ok) sent.push(label);
       }
     }
@@ -263,7 +263,7 @@ export async function GET(request: Request) {
       const change = coin?.price_change_percentage_24h;
       if (typeof change === "number" && change <= -DROP_THRESHOLD) {
         const label = `📉 Queda forte: ${w.symbol} caiu ${Math.abs(change).toFixed(2)}% em 24h — pode valer a pena olhar o motivo.`;
-        const ok = await notify(`oportunidade:queda:${w.symbol}`, label, "oportunidade", 20);
+        const ok = await notify(`oportunidade:queda:${w.symbol}`, label, "oportunidade", 30);
         if (ok) sent.push(label);
       }
     }
