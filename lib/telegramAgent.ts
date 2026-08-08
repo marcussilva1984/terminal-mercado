@@ -9,6 +9,7 @@ import { addWatchlistItem, removeWatchlistItem, getWatchlist } from "@/lib/db/wa
 import { addPriceAlert } from "@/lib/db/portfolioRepo";
 import { formatPrice } from "@/lib/format";
 import { getBaseUrl } from "@/lib/baseUrl";
+import { getZScoreHighlights } from "@/lib/zscoreService";
 
 const MODEL = "claude-haiku-4-5-20251001";
 
@@ -20,7 +21,7 @@ const TOOLS = [
       type: "object",
       properties: {
         symbol: { type: "string", description: "Símbolo do ativo, ex: PETR4, AAPL, BTC, MXRF11" },
-        assetClass: { type: "string", enum: ["b3", "stocks", "cripto", "fii"] },
+        assetClass: { type: "string", enum: ["b3", "stocks", "cripto", "fii", "forex"] },
       },
       required: ["symbol", "assetClass"],
     },
@@ -48,7 +49,7 @@ const TOOLS = [
       type: "object",
       properties: {
         symbol: { type: "string" },
-        assetClass: { type: "string", enum: ["b3", "stocks", "cripto", "fii"] },
+        assetClass: { type: "string", enum: ["b3", "stocks", "cripto", "fii", "forex"] },
         label: { type: "string", description: "Nome descritivo opcional" },
       },
       required: ["symbol", "assetClass"],
@@ -61,9 +62,20 @@ const TOOLS = [
       type: "object",
       properties: {
         symbol: { type: "string" },
-        assetClass: { type: "string", enum: ["b3", "stocks", "cripto", "fii"] },
+        assetClass: { type: "string", enum: ["b3", "stocks", "cripto", "fii", "forex"] },
       },
       required: ["symbol", "assetClass"],
+    },
+  },
+  {
+    name: "get_zscore",
+    description:
+      "Consulta os destaques de z-score (desvio do padrão recente) da watchlist — ativos com movimento fora do comum. Opcionalmente filtra por classe.",
+    input_schema: {
+      type: "object",
+      properties: {
+        assetClass: { type: "string", enum: ["b3", "stocks", "cripto", "fii", "forex"], description: "Opcional — se não especificado, retorna de todas as classes." },
+      },
     },
   },
   {
@@ -73,7 +85,7 @@ const TOOLS = [
       type: "object",
       properties: {
         symbol: { type: "string" },
-        assetClass: { type: "string", enum: ["b3", "stocks", "cripto", "fii"] },
+        assetClass: { type: "string", enum: ["b3", "stocks", "cripto", "fii", "forex"] },
         label: { type: "string" },
         direction: { type: "string", enum: ["above", "below"] },
         targetPrice: { type: "number" },
@@ -88,10 +100,20 @@ O usuário manda comandos em português, texto livre, pelo Telegram. Sua tarefa 
 que ele quer e chamar a ferramenta certa.
 
 Regras pra inferir a classe do ativo (assetClass) quando o usuário não disser explicitamente:
-- Ações brasileiras (B3) terminam em número: PETR4, VALE3, MXRF11 (FII), ITUB4
+- Ações brasileiras (B3) terminam em número: PETR4, VALE3, ITUB4
 - FIIs (fundos imobiliários) sempre terminam em "11": MXRF11, HGLG11, KNRI11
 - Stocks americanas são letras sem número: AAPL, TSLA, NVDA
 - Criptomoedas: BTC, ETH, SOL, XRP etc.
+- Pares de forex são duas moedas de 3 letras juntas (6 letras): EURUSD, GBPUSD, USDJPY, AUDNZD,
+  dólar/euro/libra/iene etc. sempre que o usuário falar de câmbio/moeda.
+
+O que você SABE fazer hoje (só isso — não invente outras capacidades): preço atual de um ativo,
+fluxo de ETF spot de cripto (só BTC/ETH/SOL), resumo do dia, z-score da watchlist, adicionar/
+remover ativo da watchlist, criar alerta de preço. Você NÃO tem acesso a: fórmulas de valuation
+(Graham/Bazin), SMA200, Monte Carlo, correlação/beta, fatos relevantes, dividendos recebidos,
+carteira — essas ferramentas ainda só existem no site. Se o usuário pedir uma dessas, diga
+claramente que ainda não está disponível por aqui e que dá pra ver no dashboard, em vez de tentar
+responder sem dado ou de forma vaga.
 
 Se a mensagem não corresponder a nenhuma ação clara (ex: só um "oi", pergunta genérica sem
 relação com o dashboard), NÃO chame nenhuma ferramenta — responda só com texto curto explicando
@@ -176,6 +198,17 @@ async function executeTool(toolCall: ToolUseBlock): Promise<string> {
       const json = await res.json();
       const html: string = json.telegramHtml ?? "Resumo indisponível no momento.";
       return html.length > 3500 ? `${html.slice(0, 3450)}\n\n[...continua no dashboard]` : html;
+    }
+
+    case "get_zscore": {
+      const assetClass = input.assetClass ? String(input.assetClass) : undefined;
+      const highlights = await getZScoreHighlights(assetClass as never).catch(() => null);
+      if (!highlights || highlights.length === 0) return "Sem z-score disponível agora (histórico ainda insuficiente).";
+      const top = highlights.slice(0, 8);
+      const lines = top.map(
+        (h) => `<b>${h.symbol}</b> (${h.assetClass}) — z=${h.zScore.toFixed(1)}, ${h.changePct >= 0 ? "+" : ""}${h.changePct.toFixed(2)}%`
+      );
+      return `📈 <b>Z-Score — Destaques</b>\n\n${lines.join("\n")}`;
     }
 
     case "watchlist_add": {
