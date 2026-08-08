@@ -29,10 +29,16 @@ function loadLimits(categories: AlertCategory[]): Record<string, number> {
 
 export function AlertCategoryPanels({ groups, now }: { groups: CategoryGroup[]; now: string }) {
   const categories = groups.map((g) => g.category);
-  const [limits, setLimits] = useState<Record<string, number>>(() => loadLimits(categories));
+  // Estado inicial tem que bater com o que o servidor renderizou (só
+  // defaults, sem tocar em localStorage) — senão a primeira renderização no
+  // client diverge do HTML do servidor e quebra a hidratação (React #418).
+  // O valor real salvo só entra depois, via useEffect (client-only).
+  const [limits, setLimits] = useState<Record<string, number>>(() =>
+    Object.fromEntries(categories.map((c) => [c, DEFAULT_LIMIT]))
+  );
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage só existe no client
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage só existe no client, roda só após hidratar
     setLimits(loadLimits(categories));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

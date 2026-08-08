@@ -11,6 +11,7 @@ function parseBRNumber(raw: string): number | null {
 function toYahooSymbol(symbol: string, assetClass: string): string {
   if (assetClass === "b3" || assetClass === "fii") return `${symbol}.SA`;
   if (assetClass === "cripto") return `${symbol}-USD`;
+  if (assetClass === "forex") return `${symbol}=X`;
   return symbol;
 }
 

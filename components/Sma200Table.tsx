@@ -1,7 +1,7 @@
 import { formatPrice } from "@/lib/format";
 import type { Sma200Result, MonteCarloResult } from "@/lib/valuation";
 
-const CURRENCY_BY_CLASS: Record<string, string> = { b3: "BRL", fii: "BRL", stocks: "USD", cripto: "USD" };
+const CURRENCY_BY_CLASS: Record<string, string> = { b3: "BRL", fii: "BRL", stocks: "USD", cripto: "USD", forex: "USD" };
 
 export function Sma200Table({ items }: { items: Sma200Result[] }) {
   if (items.length === 0) return <p className="text-sm text-text-muted">Sem histórico de 200 pregões ainda pra nenhum ativo da watchlist.</p>;

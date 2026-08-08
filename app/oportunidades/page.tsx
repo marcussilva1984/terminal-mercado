@@ -8,7 +8,7 @@ import {
   getSma200Signals,
   getMonteCarloRanges,
 } from "@/lib/valuation";
-import { B3_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST, CRIPTO_WATCHLIST } from "@/lib/watchlist";
+import { B3_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST, CRIPTO_WATCHLIST, FOREX_WATCHLIST } from "@/lib/watchlist";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { hasDatabase } from "@/lib/db/client";
 
@@ -35,19 +35,32 @@ export default async function OportunidadesPage() {
   const criptoWatchlist = hasDatabase()
     ? dedupe(CRIPTO_WATCHLIST, await getWatchlist("cripto").catch(() => []))
     : CRIPTO_WATCHLIST;
+  const forexWatchlist = hasDatabase()
+    ? dedupe(FOREX_WATCHLIST, await getWatchlist("forex").catch(() => []))
+    : FOREX_WATCHLIST;
 
   const trendItems = [
     ...b3Watchlist.map((w) => ({ ...w, assetClass: "b3" })),
     ...stocksWatchlist.map((w) => ({ ...w, assetClass: "stocks" })),
     ...criptoWatchlist.map((w) => ({ ...w, assetClass: "cripto" })),
+    ...forexWatchlist.map((w) => ({ ...w, assetClass: "forex" })),
   ];
+  // SMA200 e Monte Carlo entram também com FII — Bazin já cobre valuation por
+  // dividendo, mas tendência/faixa de preço de longo prazo é uma leitura
+  // diferente.
+  const trendAndMonteCarloItems = [...trendItems, ...fiiWatchlist.map((w) => ({ ...w, assetClass: "fii" }))];
+
+  // Horizonte de 3 anos (~756 pregões) pra casar com o perfil de longo prazo
+  // do usuário — em compensação, reduz simulações (1000 em vez de 2000) pra
+  // manter o custo de CPU razoável com o passo bem maior.
+  const MONTE_CARLO_HORIZON_DAYS = 756;
 
   const [graham, bazinB3, bazinFii, sma200, monteCarlo] = await Promise.all([
     getGrahamValuations(b3Watchlist).catch(() => []),
     getBazinValuationsB3(b3Watchlist).catch(() => []),
     getBazinValuationsFii(fiiWatchlist).catch(() => []),
-    getSma200Signals(trendItems).catch(() => []),
-    getMonteCarloRanges(trendItems, 30, 2000).catch(() => []),
+    getSma200Signals(trendAndMonteCarloItems).catch(() => []),
+    getMonteCarloRanges(trendAndMonteCarloItems, MONTE_CARLO_HORIZON_DAYS, 1000).catch(() => []),
   ]);
 
   return (
@@ -91,16 +104,20 @@ export default async function OportunidadesPage() {
         <Sma200Table items={sma200} />
         <p className="mt-3 text-xs text-text-muted">
           Preço atual vs. a média dos últimos 200 fechamentos diários — o cruzamento de tendência de
-          longo prazo mais usado no mercado. Cobre Ações B3, Stocks (EUA) e Cripto da sua watchlist.
+          longo prazo mais usado no mercado. Cobre Ações B3, FII, Stocks (EUA), Cripto e Forex da sua
+          watchlist.
         </p>
       </Panel>
 
-      <Panel title="Monte Carlo — Faixa Provável de Preço (30 dias)" updatedAt={now}>
+      <Panel title="Monte Carlo — Faixa Provável de Preço (3 anos)" updatedAt={now}>
         <MonteCarloTable items={monteCarlo} />
         <p className="mt-3 text-xs text-text-muted">
-          Simulação de 2.000 caminhos de preço a partir da volatilidade histórica (retornos diários)
-          de cada ativo — mostra a faixa entre o 5º e o 95º percentil dos resultados simulados daqui
-          a 30 dias. É uma leitura de dispersão estatística, não uma previsão de preço.
+          Simulação de 1.000 caminhos de preço a partir da volatilidade histórica (retornos diários,
+          ~2 anos de dado) de cada ativo — mostra a faixa entre o 5º e o 95º percentil daqui a 3 anos.
+          Cobre Ações B3, FII, Stocks, Cripto e Forex. Importante: num horizonte assim mais longo essa
+          faixa fica naturalmente MUITO larga — o modelo assume a mesma volatilidade histórica se
+          repetindo linearmente, sem reversão à média nem mudança de regime, então é uma leitura de
+          dispersão estatística (quanto o ativo já balançou no passado), não uma previsão de preço.
         </p>
       </Panel>
     </div>
