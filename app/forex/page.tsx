@@ -3,23 +3,26 @@ import { StatCard } from "@/components/StatCard";
 import { NewsFeed } from "@/components/NewsFeed";
 import { CurrencyStrengthMeter } from "@/components/CurrencyStrengthMeter";
 import { EconomicCalendar } from "@/components/EconomicCalendar";
+import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import { changeColorClass, formatNumber, formatPct } from "@/lib/format";
 import { getForexPairs, getCurrencyStrength, getDXY, getUSYieldCurve } from "@/lib/forexService";
 import { getWeeklyCalendar, filterHighSignal, filterRateDecisions, filterUpcoming, filterForexRelevant } from "@/lib/sources/economicCalendar";
 import { getNews } from "@/lib/sources/rss";
+import { getZScoreHighlights } from "@/lib/zscoreService";
 
 export const dynamic = "force-dynamic";
 
 export default async function ForexPage() {
   const now = new Date().toISOString();
 
-  const [pairsResult, strengthResult, dxyResult, yieldsResult, calendarResult, news] = await Promise.all([
+  const [pairsResult, strengthResult, dxyResult, yieldsResult, calendarResult, news, zScoreResult] = await Promise.all([
     getForexPairs().catch(() => null),
     getCurrencyStrength().catch(() => null),
     getDXY().catch(() => null),
     getUSYieldCurve().catch(() => null),
     getWeeklyCalendar().catch(() => null),
     getNews("forex", 10),
+    getZScoreHighlights("forex").catch(() => null),
   ]);
 
   const rateDecisions = calendarResult ? filterUpcoming(filterRateDecisions(calendarResult)) : null;
@@ -117,6 +120,16 @@ export default async function ForexPage() {
           </p>
         </Panel>
       </div>
+
+      <Panel title="Z-Score — Watchlist Forex" updatedAt={now}>
+        {zScoreResult ? (
+          <ZScoreHighlightList items={zScoreResult} />
+        ) : (
+          <p className="text-sm text-text-muted">
+            Configure <code>DATABASE_URL</code> e rode o backfill para habilitar o z-score.
+          </p>
+        )}
+      </Panel>
 
       <Panel title="Notícias Forex / Macro" updatedAt={now}>
         <NewsFeed items={news} now={now} />

@@ -28,5 +28,10 @@ export async function getCurrentPrice(symbol: string, assetClass: string): Promi
       : null;
   }
 
+  if (assetClass === "forex") {
+    const q = await getYahooQuote(`${symbol}=X`);
+    return q ? { price: q.price, changePct: q.changePct, currency: "USD" } : null;
+  }
+
   return null;
 }

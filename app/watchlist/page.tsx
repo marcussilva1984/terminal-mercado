@@ -3,6 +3,8 @@ import { WatchlistManager } from "@/components/WatchlistManager";
 import { CorrelationTable } from "@/components/CorrelationTable";
 import { BenchmarkCorrelationTable } from "@/components/BenchmarkCorrelationTable";
 import { getWatchlistCorrelations, getBenchmarkCorrelations } from "@/lib/correlationService";
+import { getConvictionRanking } from "@/lib/convictionService";
+import { ConvictionRankingList } from "@/components/ConvictionRankingList";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { hasDatabase } from "@/lib/db/client";
 
@@ -18,6 +20,8 @@ export default async function WatchlistPage() {
         .catch(() => null)
     : null;
 
+  const conviction = hasDatabase() ? await getConvictionRanking().catch(() => null) : null;
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -27,6 +31,16 @@ export default async function WatchlistPage() {
         </p>
       </div>
       <WatchlistManager />
+
+      <Panel title="Ranking de Convicção" updatedAt={now}>
+        {conviction ? (
+          <ConvictionRankingList items={conviction} />
+        ) : (
+          <p className="text-sm text-text-muted">
+            Configure <code>DATABASE_URL</code> e rode o backfill para habilitar este ranking.
+          </p>
+        )}
+      </Panel>
 
       <Panel title="Correlação entre Ativos" updatedAt={now}>
         {correlations ? (

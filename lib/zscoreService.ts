@@ -2,16 +2,17 @@ import { hasDatabase } from "@/lib/db/client";
 import { getCloses } from "@/lib/db/priceSeriesRepo";
 import { getWatchlist, seedWatchlistIfEmpty } from "@/lib/db/watchlistRepo";
 import { computeZScore } from "@/lib/zscore";
-import { B3_WATCHLIST, CRIPTO_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST } from "@/lib/watchlist";
+import { B3_WATCHLIST, CRIPTO_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST, FOREX_WATCHLIST } from "@/lib/watchlist";
 import type { AssetClass, ZScoreHighlight } from "@/lib/types";
 
-const ALL_CLASSES: AssetClass[] = ["b3", "cripto", "fii", "stocks"];
+const ALL_CLASSES: AssetClass[] = ["b3", "cripto", "fii", "stocks", "forex"];
 
 const DEFAULT_WATCHLIST_BY_CLASS: Partial<Record<AssetClass, { symbol: string; label: string }[]>> = {
   b3: B3_WATCHLIST,
   cripto: CRIPTO_WATCHLIST,
   fii: FII_WATCHLIST,
   stocks: STOCKS_WATCHLIST,
+  forex: FOREX_WATCHLIST,
 };
 
 export async function getZScoreHighlights(assetClass?: AssetClass): Promise<ZScoreHighlight[]> {

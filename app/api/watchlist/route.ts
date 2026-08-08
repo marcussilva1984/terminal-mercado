@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { hasDatabase } from "@/lib/db/client";
 import { getWatchlist, addWatchlistItem, removeWatchlistItem, seedWatchlistIfEmpty } from "@/lib/db/watchlistRepo";
-import { B3_WATCHLIST, CRIPTO_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST } from "@/lib/watchlist";
+import { B3_WATCHLIST, CRIPTO_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST, FOREX_WATCHLIST } from "@/lib/watchlist";
 
-const VALID_ASSET_CLASSES = ["b3", "fii", "stocks", "cripto"];
+const VALID_ASSET_CLASSES = ["b3", "fii", "stocks", "cripto", "forex"];
 import { getCurrentPrice } from "@/lib/priceLookup";
 
 export async function GET() {
@@ -17,6 +17,7 @@ export async function GET() {
       ...CRIPTO_WATCHLIST.map((w) => ({ ...w, assetClass: "cripto" })),
       ...FII_WATCHLIST.map((w) => ({ ...w, assetClass: "fii" })),
       ...STOCKS_WATCHLIST.map((w) => ({ ...w, assetClass: "stocks" })),
+      ...FOREX_WATCHLIST.map((w) => ({ ...w, assetClass: "forex" })),
     ]);
     const items = await getWatchlist();
     const withPrices = await Promise.all(

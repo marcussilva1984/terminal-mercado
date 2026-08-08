@@ -4,7 +4,7 @@ import { upsertCloses, type PriceSeriesRow } from "@/lib/db/priceSeriesRepo";
 import { getWatchlist, seedWatchlistIfEmpty } from "@/lib/db/watchlistRepo";
 import { getTopCoinMarkets } from "@/lib/sources/coingecko";
 import { getYahooQuote } from "@/lib/sources/yahoo";
-import { B3_WATCHLIST, CRIPTO_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST } from "@/lib/watchlist";
+import { B3_WATCHLIST, CRIPTO_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST, FOREX_WATCHLIST } from "@/lib/watchlist";
 import { getHoldings } from "@/lib/db/portfolioRepo";
 
 // Benchmarks fixos pra correlação/beta da watchlist e da carteira contra o
@@ -31,6 +31,7 @@ export async function GET(request: Request) {
     ...CRIPTO_WATCHLIST.map((w) => ({ ...w, assetClass: "cripto" })),
     ...FII_WATCHLIST.map((w) => ({ ...w, assetClass: "fii" })),
     ...STOCKS_WATCHLIST.map((w) => ({ ...w, assetClass: "stocks" })),
+    ...FOREX_WATCHLIST.map((w) => ({ ...w, assetClass: "forex" })),
   ]);
 
   const rows: PriceSeriesRow[] = [];
@@ -49,6 +50,7 @@ export async function GET(request: Request) {
   const criptoWatchlist = dedupe(await getWatchlist("cripto"), holdingsByClass("cripto"));
   const fiiWatchlist = dedupe(await getWatchlist("fii"), holdingsByClass("fii"));
   const stocksWatchlist = dedupe(await getWatchlist("stocks"), holdingsByClass("stocks"));
+  const forexWatchlist = dedupe(await getWatchlist("forex"), holdingsByClass("forex"));
   const today = new Date().toISOString().slice(0, 10);
 
   // Yahoo (não brapi) pra B3 aqui de propósito: sem BRAPI_TOKEN, a brapi.dev só
@@ -93,6 +95,15 @@ export async function GET(request: Request) {
       if (q) rows.push({ symbol, assetClass: "stocks", date: today, closePrice: q.price, source: "yahoo" });
     } catch {
       // fonte indisponível para este ativo — segue para os demais
+    }
+  }
+
+  for (const { symbol } of forexWatchlist) {
+    try {
+      const q = await getYahooQuote(`${symbol}=X`);
+      if (q) rows.push({ symbol, assetClass: "forex", date: today, closePrice: q.price, source: "yahoo" });
+    } catch {
+      // fonte indisponível para este par — segue para os demais
     }
   }
 

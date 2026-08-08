@@ -19,6 +19,7 @@ const ASSET_CLASSES = [
   { value: "fii", label: "FII" },
   { value: "stocks", label: "Stock (EUA)" },
   { value: "cripto", label: "Cripto" },
+  { value: "forex", label: "Forex" },
 ];
 
 type SortKey = "symbol" | "price" | "changePct";
@@ -131,7 +132,7 @@ export function WatchlistManager() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {ASSET_CLASSES.map((cls) => {
           const classItems = sortItems(items?.filter((i) => i.assetClass === cls.value) ?? [], sortKey, sortDir);
           return (
@@ -176,7 +177,7 @@ export function WatchlistManager() {
             required
             value={form.symbol}
             onChange={(e) => setForm({ ...form, symbol: e.target.value })}
-            placeholder="WEGE3, MXRF11, AAPL ou ETH"
+            placeholder="WEGE3, MXRF11, AAPL, ETH ou EURUSD"
             className="w-40 rounded border border-border bg-panel-alt px-2 py-1 text-sm text-text"
           />
         </div>

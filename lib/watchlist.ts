@@ -49,6 +49,19 @@ export const STOCKS_WATCHLIST: WatchlistEntry[] = [
   { symbol: "SBET", label: "SharpLink Gaming" },
 ];
 
+// Símbolo limpo (sem "=X") — quem consome adiciona o sufixo do Yahoo, mesmo
+// padrão já usado pra B3 (".SA") e cripto ("-USD").
+export const FOREX_WATCHLIST: WatchlistEntry[] = [
+  { symbol: "EURUSD", label: "Euro" },
+  { symbol: "GBPUSD", label: "Libra Esterlina" },
+  { symbol: "USDJPY", label: "Iene Japonês" },
+  { symbol: "USDCHF", label: "Franco Suíço" },
+  { symbol: "AUDUSD", label: "Dólar Australiano" },
+  { symbol: "NZDUSD", label: "Dólar Neozelandês" },
+  { symbol: "GBPAUD", label: "Libra x Dólar Australiano" },
+  { symbol: "EURJPY", label: "Euro x Iene" },
+];
+
 export const US_INDICES = [
   { symbol: "^GSPC", label: "S&P 500" },
   { symbol: "^IXIC", label: "Nasdaq" },
