@@ -6,7 +6,8 @@ import { hasDatabase } from "../lib/db/client";
 import { upsertCloses, type PriceSeriesRow } from "../lib/db/priceSeriesRepo";
 import { getBrapiHistory } from "../lib/sources/brapi";
 import { getCoinHistory } from "../lib/sources/coingecko";
-import { B3_WATCHLIST, CRIPTO_COINGECKO_IDS, CRIPTO_WATCHLIST } from "../lib/watchlist";
+import { fetchCandles } from "../lib/sources/yahooTickerDetail";
+import { B3_WATCHLIST, CRIPTO_COINGECKO_IDS, CRIPTO_WATCHLIST, FOREX_WATCHLIST } from "../lib/watchlist";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -54,6 +55,25 @@ async function main() {
       console.error(`  ${symbol}: falhou —`, err instanceof Error ? err.message : err);
     }
     await sleep(15_000); // evita rate limit (429) da CoinGecko no plano grátis
+  }
+
+  console.log(`Backfill Forex (${FOREX_WATCHLIST.length} pares)...`);
+  for (const { symbol } of FOREX_WATCHLIST) {
+    try {
+      const candles = await fetchCandles(`${symbol}=X`, "1d");
+      const last90 = candles.slice(-90);
+      const rows: PriceSeriesRow[] = last90.map((c) => ({
+        symbol,
+        assetClass: "forex",
+        date: c.date,
+        closePrice: c.close,
+        source: "yahoo",
+      }));
+      await upsertCloses(rows);
+      console.log(`  ${symbol}: ${rows.length} pregões salvos`);
+    } catch (err) {
+      console.error(`  ${symbol}: falhou —`, err instanceof Error ? err.message : err);
+    }
   }
 
   console.log("Backfill concluído.");

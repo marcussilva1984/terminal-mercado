@@ -68,13 +68,23 @@ export async function markBreakingNewsChecked(): Promise<void> {
 // Chaves de bookkeeping interno (dedup de cron), não são alertas de fato pro usuário.
 const INTERNAL_KEYS = ["news_digest", "breaking_news_check"];
 
-export async function getRecentAlerts(hours = 24, limit = 20): Promise<AlertStatus[]> {
+export async function getRecentAlerts(
+  hours = 24,
+  limit = 20,
+  opts?: { excludeKinds?: string[] }
+): Promise<AlertStatus[]> {
   const db = getDb();
   const since = new Date(Date.now() - hours * 60 * 60 * 1000);
   const rows = await db
     .select()
     .from(alertLog)
-    .where(and(gte(alertLog.triggeredAt, since), notInArray(alertLog.key, INTERNAL_KEYS)))
+    .where(
+      and(
+        gte(alertLog.triggeredAt, since),
+        notInArray(alertLog.key, INTERNAL_KEYS),
+        ...(opts?.excludeKinds ? [notInArray(alertLog.kind, opts.excludeKinds)] : [])
+      )
+    )
     .orderBy(desc(alertLog.triggeredAt))
     .limit(limit);
 
