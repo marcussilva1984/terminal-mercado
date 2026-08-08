@@ -44,7 +44,7 @@ async function getB3PriceTargetHits(): Promise<PriceTargetHit[] | null> {
   try {
     const symbols = B3_WATCHLIST.map((w) => `${w.symbol}.SA`).join(",");
     const res = await fetch(`${getBaseUrl()}/api/analyst-targets?symbols=${encodeURIComponent(symbols)}`, {
-      next: { revalidate: 30 },
+      next: { revalidate: 120 },
     });
     const json = await res.json();
     if (!json.available) return null;
@@ -73,7 +73,7 @@ async function getUpcomingEarnings(): Promise<UpcomingEarnings[]> {
     watchlist.map(async (w) => {
       try {
         const res = await fetch(`${getBaseUrl()}/api/ticker-detail?symbol=${encodeURIComponent(`${w.symbol}.SA`)}`, {
-          next: { revalidate: 30 },
+          next: { revalidate: 120 },
         });
         const json = await res.json();
         if (json.available && json.data.nextEarningsDate) {

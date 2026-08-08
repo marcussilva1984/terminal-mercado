@@ -22,7 +22,7 @@ export async function getConvictionRanking(): Promise<ConvictionEntry[]> {
     (async () => {
       const symbols = [...B3_WATCHLIST.map((w) => `${w.symbol}.SA`), ...STOCKS_WATCHLIST.map((w) => w.symbol)].join(",");
       const res = await fetch(`${getBaseUrl()}/api/analyst-targets?symbols=${encodeURIComponent(symbols)}`, {
-        next: { revalidate: 30 },
+        next: { revalidate: 120 },
       });
       const json = await res.json();
       if (!json.available) return [];

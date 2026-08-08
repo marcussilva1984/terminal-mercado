@@ -35,7 +35,7 @@ async function getUpcomingDividends(): Promise<UpcomingDividend[]> {
     watchlist.map(async (w) => {
       try {
         const res = await fetch(`${getBaseUrl()}/api/ticker-detail?symbol=${encodeURIComponent(`${w.symbol}.SA`)}`, {
-          next: { revalidate: 30 },
+          next: { revalidate: 120 },
         });
         const json = await res.json();
         if (json.available && json.data.exDividendDate) {
