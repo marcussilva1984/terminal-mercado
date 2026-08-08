@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { TickerTape } from "@/components/TickerTape";
 import { TabNav } from "@/components/TabNav";
+import { CommandPalette } from "@/components/CommandPalette";
 import { getRealTickerQuotes } from "@/lib/tickerService";
 
 const geistSans = Geist({
@@ -35,6 +36,7 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col bg-bg text-text">
         <TickerTape quotes={tickerQuotes} />
         <TabNav />
+        <CommandPalette />
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
       </body>
     </html>
