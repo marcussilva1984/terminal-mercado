@@ -7,7 +7,8 @@ import { getZScoreHighlights } from "@/lib/zscoreService";
 import { getYahooQuotes } from "@/lib/sources/yahoo";
 import { getTopCoinMarkets } from "@/lib/sources/coingecko";
 import { sendTelegramMessage, hasTelegramConfig } from "@/lib/sources/telegram";
-import { B3_WATCHLIST, CRIPTO_WATCHLIST, STOCKS_WATCHLIST } from "@/lib/watchlist";
+import { B3_WATCHLIST, CRIPTO_WATCHLIST, STOCKS_WATCHLIST, FII_WATCHLIST } from "@/lib/watchlist";
+import { getCloses } from "@/lib/db/priceSeriesRepo";
 import { getActivePriceAlerts, markPriceAlertTriggered } from "@/lib/db/portfolioRepo";
 import { getCurrentPrice } from "@/lib/priceLookup";
 import { formatPrice } from "@/lib/format";
@@ -181,6 +182,113 @@ export async function GET(request: Request) {
     }
   } catch {
     // fonte de trending indisponível nesta rodada
+  }
+
+  // 7. Oportunidades: queda forte (>=10% no dia, qualquer classe), cripto
+  // capitulando na semana (>=15% em 7 dias) e FII sem próximo dividendo
+  // anunciado que também caiu no dia — sinais de "vale olhar mais de perto",
+  // não recomendação.
+  try {
+    const dbFii = await getWatchlist("fii").catch(() => []);
+    const fiiWatchlist = [...FII_WATCHLIST, ...dbFii.filter((w) => !FII_WATCHLIST.some((f) => f.symbol === w.symbol))];
+    const fiiSymbols = fiiWatchlist.map((w) => `${w.symbol}.SA`);
+    const fiiQuotes = await getYahooQuotes(fiiSymbols);
+
+    const dbB3 = await getWatchlist("b3").catch(() => []);
+    const b3All = [...B3_WATCHLIST, ...dbB3.filter((w) => !B3_WATCHLIST.some((f) => f.symbol === w.symbol))];
+    const b3Quotes = await getYahooQuotes(b3All.map((w) => `${w.symbol}.SA`));
+
+    const dbStocks = await getWatchlist("stocks").catch(() => []);
+    const stocksAll = [...STOCKS_WATCHLIST, ...dbStocks.filter((w) => !STOCKS_WATCHLIST.some((f) => f.symbol === w.symbol))];
+    const stockQuotesOpp = await getYahooQuotes(stocksAll.map((w) => w.symbol));
+
+    const coinMarketsOpp = await getTopCoinMarkets(250).catch(() => []);
+    const dbCripto = await getWatchlist("cripto").catch(() => []);
+    const criptoAll = [...CRIPTO_WATCHLIST, ...dbCripto.filter((w) => !CRIPTO_WATCHLIST.some((f) => f.symbol === w.symbol))];
+
+    const DROP_THRESHOLD = 10; // %
+
+    for (const w of b3All) {
+      const q = b3Quotes[`${w.symbol}.SA`];
+      if (q && q.changePct <= -DROP_THRESHOLD) {
+        const label = `📉 Queda forte: ${w.symbol} caiu ${Math.abs(q.changePct).toFixed(2)}% no dia — pode valer a pena olhar o motivo.`;
+        const ok = await notify(`oportunidade:queda:${w.symbol}`, label, "oportunidade", 20);
+        if (ok) sent.push(label);
+      }
+    }
+
+    for (const w of stocksAll) {
+      const q = stockQuotesOpp[w.symbol];
+      if (q && q.changePct <= -DROP_THRESHOLD) {
+        const label = `📉 Queda forte: ${w.symbol} caiu ${Math.abs(q.changePct).toFixed(2)}% no dia — pode valer a pena olhar o motivo.`;
+        const ok = await notify(`oportunidade:queda:${w.symbol}`, label, "oportunidade", 20);
+        if (ok) sent.push(label);
+      }
+    }
+
+    for (const w of fiiWatchlist) {
+      const q = fiiQuotes[`${w.symbol}.SA`];
+      if (q && q.changePct <= -DROP_THRESHOLD) {
+        const label = `📉 Queda forte: ${w.symbol} caiu ${Math.abs(q.changePct).toFixed(2)}% no dia — pode valer a pena olhar o motivo.`;
+        const ok = await notify(`oportunidade:queda:${w.symbol}`, label, "oportunidade", 20);
+        if (ok) sent.push(label);
+      }
+    }
+
+    for (const w of criptoAll) {
+      const coin = coinMarketsOpp.find((c) => c.symbol.toLowerCase() === w.symbol.toLowerCase());
+      const change = coin?.price_change_percentage_24h;
+      if (typeof change === "number" && change <= -DROP_THRESHOLD) {
+        const label = `📉 Queda forte: ${w.symbol} caiu ${Math.abs(change).toFixed(2)}% em 24h — pode valer a pena olhar o motivo.`;
+        const ok = await notify(`oportunidade:queda:${w.symbol}`, label, "oportunidade", 20);
+        if (ok) sent.push(label);
+      }
+    }
+
+    // Cripto capitulando na semana: usa histórico salvo (price_series), não a
+    // fonte ao vivo — compara o fechamento mais antigo com o mais recente
+    // dentro dos últimos 7 pregões coletados.
+    for (const w of criptoAll) {
+      try {
+        const closes = await getCloses(w.symbol, "cripto", 7);
+        if (closes.length < 5) continue;
+        const first = closes[0].closePrice;
+        const last = closes[closes.length - 1].closePrice;
+        const weekChangePct = ((last - first) / first) * 100;
+        if (weekChangePct <= -15) {
+          const label = `📉 ${w.symbol} caiu ${Math.abs(weekChangePct).toFixed(1)}% nos últimos ${closes.length} pregões — queda persistente, não só um dia ruim.`;
+          const ok = await notify(`oportunidade:semana:${w.symbol}`, label, "oportunidade", 48);
+          if (ok) sent.push(label);
+        }
+      } catch {
+        // histórico insuficiente pra esse ativo ainda
+      }
+    }
+
+    // FII sem próxima data de dividendo anunciada (via Yahoo) + caiu no dia —
+    // sinal de atenção, não confirmação de corte de provento (a fonte não
+    // declara isso diretamente, só a ausência de uma data futura conhecida).
+    for (const w of fiiWatchlist) {
+      const q = fiiQuotes[`${w.symbol}.SA`];
+      if (!q || q.changePct > -3) continue;
+      try {
+        const res = await fetch(`${getBaseUrl()}/api/ticker-detail?symbol=${encodeURIComponent(`${w.symbol}.SA`)}`, {
+          next: { revalidate: 120 },
+        });
+        const json = await res.json();
+        const exDividendDate = json?.data?.exDividendDate as string | null | undefined;
+        const today = new Date().toISOString().slice(0, 10);
+        if (json.available && (!exDividendDate || exDividendDate < today)) {
+          const label = `⚠️ ${w.symbol}: sem próxima data de dividendo anunciada (Yahoo) e caiu ${Math.abs(q.changePct).toFixed(2)}% no dia — vale checar se cortou provento.`;
+          const ok = await notify(`oportunidade:fii_div:${w.symbol}`, label, "oportunidade", 48);
+          if (ok) sent.push(label);
+        }
+      } catch {
+        // fonte de dividendo indisponível pra esse FII nesta rodada
+      }
+    }
+  } catch {
+    // fontes de oportunidades indisponíveis nesta rodada
   }
 
   return NextResponse.json({ checked: true, alertsSent: sent.length, sent });

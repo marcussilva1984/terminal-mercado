@@ -50,7 +50,7 @@ export interface AlertStatus {
   key: string;
   label: string;
   triggeredAt: string;
-  kind: "fluxo" | "watchlist" | "zscore" | "preco" | "noticia" | "fato_relevante";
+  kind: "fluxo" | "watchlist" | "zscore" | "preco" | "noticia" | "fato_relevante" | "oportunidade";
   url?: string | null;
 }
 

@@ -60,9 +60,10 @@ async function main() {
   console.log(`Backfill Forex (${FOREX_WATCHLIST.length} pares)...`);
   for (const { symbol } of FOREX_WATCHLIST) {
     try {
+      // Range "1d" chega a ~2 anos de histórico via Yahoo — precisamos de pelo
+      // menos 200 pregões pra janela de z-score do Forex (SMA200-like).
       const candles = await fetchCandles(`${symbol}=X`, "1d");
-      const last90 = candles.slice(-90);
-      const rows: PriceSeriesRow[] = last90.map((c) => ({
+      const rows: PriceSeriesRow[] = candles.map((c) => ({
         symbol,
         assetClass: "forex",
         date: c.date,

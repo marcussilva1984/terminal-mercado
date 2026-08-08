@@ -8,6 +8,7 @@ const KIND_LABEL: Record<AlertStatus["kind"], string> = {
   preco: "Preço",
   noticia: "Notícia",
   fato_relevante: "Fato Relevante",
+  oportunidade: "Oportunidade",
 };
 
 export function AlertStatusList({ alerts }: { alerts: AlertStatus[] }) {

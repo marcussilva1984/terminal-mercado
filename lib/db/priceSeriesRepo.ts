@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { priceSeries } from "@/lib/db/schema";
 
@@ -9,14 +9,18 @@ export interface ClosePoint {
 
 export async function getCloses(symbol: string, assetClass: string, limit = 60): Promise<ClosePoint[]> {
   const db = getDb();
+  // Pega os N mais recentes (desc + limit) e reordena pra ascendente antes de
+  // devolver — pegar direto em asc + limit cortava nos N mais ANTIGOS assim
+  // que o histórico acumulado passava de N linhas, deixando o z-score cego
+  // pro preço de hoje.
   const rows = await db
     .select({ date: priceSeries.date, closePrice: priceSeries.closePrice })
     .from(priceSeries)
     .where(and(eq(priceSeries.symbol, symbol), eq(priceSeries.assetClass, assetClass)))
-    .orderBy(asc(priceSeries.date))
+    .orderBy(desc(priceSeries.date))
     .limit(limit);
 
-  return rows;
+  return rows.reverse();
 }
 
 export interface PriceSeriesRow {

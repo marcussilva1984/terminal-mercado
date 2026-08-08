@@ -15,6 +15,13 @@ const DEFAULT_WATCHLIST_BY_CLASS: Partial<Record<AssetClass, { symbol: string; l
   forex: FOREX_WATCHLIST,
 };
 
+// Forex usa janela de 200 pregões (convenção de mercado, tipo SMA200) em vez
+// dos ~30 das outras classes — uso de longo prazo, não daytrade.
+const ZSCORE_WINDOW_BY_CLASS: Partial<Record<AssetClass, number>> = {
+  forex: 200,
+};
+const DEFAULT_ZSCORE_WINDOW = 30;
+
 export async function getZScoreHighlights(assetClass?: AssetClass): Promise<ZScoreHighlight[]> {
   if (!hasDatabase()) {
     throw new Error("DATABASE_URL não configurada — z-score precisa do histórico salvo no banco.");
@@ -37,10 +44,11 @@ export async function getZScoreHighlights(assetClass?: AssetClass): Promise<ZSco
   const results: ZScoreHighlight[] = [];
 
   for (const entry of entries) {
-    const closes = await getCloses(entry.symbol, entry.assetClass, 60);
+    const window = ZSCORE_WINDOW_BY_CLASS[entry.assetClass] ?? DEFAULT_ZSCORE_WINDOW;
+    const closes = await getCloses(entry.symbol, entry.assetClass, window + 1);
     if (closes.length < 2) continue;
 
-    const z = computeZScore(closes.map((c) => c.closePrice));
+    const z = computeZScore(closes.map((c) => c.closePrice), window);
     if (!z) continue;
 
     results.push({

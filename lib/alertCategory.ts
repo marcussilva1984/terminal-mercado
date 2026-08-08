@@ -1,7 +1,7 @@
 import type { AlertStatus, AssetClass } from "@/lib/types";
 import { B3_WATCHLIST, CRIPTO_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST } from "@/lib/watchlist";
 
-export type AlertCategory = "Ações" | "Cripto" | "Stocks" | "FII" | "Notícias" | "Outros";
+export type AlertCategory = "Oportunidades" | "Ações" | "Cripto" | "Stocks" | "FII" | "Notícias" | "Outros";
 
 const CATEGORY_BY_ASSET_CLASS: Record<AssetClass, AlertCategory> = {
   b3: "Ações",
@@ -34,6 +34,7 @@ function buildSymbolClassMap(extraSymbols: { symbol: string; assetClass: string 
 export function classifyAlert(alert: Pick<AlertStatus, "key" | "kind" | "label">, extraSymbols: { symbol: string; assetClass: string }[]): AlertCategory {
   const { key, kind } = alert;
 
+  if (kind === "oportunidade") return "Oportunidades";
   if (kind === "noticia") return "Notícias";
   if (kind === "fluxo" || kind === "fato_relevante") return "Ações";
 

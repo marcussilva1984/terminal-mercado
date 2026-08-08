@@ -7,7 +7,7 @@ import { classifyAlert, type AlertCategory } from "@/lib/alertCategory";
 
 export const dynamic = "force-dynamic";
 
-const CATEGORY_ORDER: AlertCategory[] = ["Ações", "Cripto", "Stocks", "FII", "Outros"];
+const CATEGORY_ORDER: AlertCategory[] = ["Oportunidades", "Ações", "Cripto", "Stocks", "FII", "Outros"];
 
 export default async function AlertasPage() {
   const now = new Date().toISOString();
@@ -26,7 +26,7 @@ export default async function AlertasPage() {
   }
 
   const [alerts, watchlist] = await Promise.all([
-    getRecentAlerts(24 * 30, 500, { excludeKinds: ["noticia"] }).catch(() => []),
+    getRecentAlerts(24 * 30, 500, { excludeKinds: ["noticia", "fato_relevante"] }).catch(() => []),
     getWatchlist().catch(() => []),
   ]);
 
@@ -44,9 +44,10 @@ export default async function AlertasPage() {
         <h1 className="text-xl font-semibold text-text">Alertas</h1>
         <p className="mt-1 text-sm text-text-muted">
           Espelho de tudo que já foi (ou seria) enviado pro Telegram, agrupado por categoria — útil
-          pra conferir aqui quando você não está com o celular por perto. Últimos 30 dias. Notícias
-          ficam de fora daqui (redundante com a aba Notícias) — aqui só fluxo, z-score, preço-alvo,
-          watchlist e fato relevante.
+          pra conferir aqui quando você não está com o celular por perto. Últimos 30 dias. Notícias e
+          Fatos Relevantes ficam de fora daqui (já têm aba própria) — aqui é fluxo, z-score,
+          preço-alvo, watchlist e o painel de Oportunidades (quedas fortes, cripto capitulando na
+          semana, FII sem próximo dividendo anunciado).
         </p>
       </div>
 
