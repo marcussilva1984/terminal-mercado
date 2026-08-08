@@ -9,13 +9,14 @@ import { getTopCoinMarkets } from "@/lib/sources/coingecko";
 import { sendTelegramMessage, hasTelegramConfig } from "@/lib/sources/telegram";
 import { B3_WATCHLIST, CRIPTO_WATCHLIST, STOCKS_WATCHLIST, FII_WATCHLIST } from "@/lib/watchlist";
 import { getCloses } from "@/lib/db/priceSeriesRepo";
-import { getActivePriceAlerts, markPriceAlertTriggered } from "@/lib/db/portfolioRepo";
+import { getActivePriceAlerts, markPriceAlertTriggered, getHoldings } from "@/lib/db/portfolioRepo";
 import { getCurrentPrice } from "@/lib/priceLookup";
 import { formatPrice } from "@/lib/format";
 import { getBaseUrl } from "@/lib/baseUrl";
 import { getTrendingCoins } from "@/lib/sources/coingecko";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import type { AnalystTarget } from "@/lib/sources/yahooAnalyst";
+import { getNegativeSectorSignals } from "@/lib/sectorSentiment";
 
 const WATCHLIST_MOVE_THRESHOLD = 5; // %
 
@@ -67,7 +68,9 @@ export async function GET(request: Request) {
     // z-score indisponível (sem backfill suficiente, por exemplo)
   }
 
-  // 3. Watchlist: variação diária >= 5% (B3, Stocks, Cripto)
+  // 3. Watchlist: alta forte >= 5% (B3, Stocks, Cripto). Só o lado de alta —
+  // quedas fortes já são cobertas pela seção 7 (Oportunidades, limiar 10%);
+  // manter os dois lados aqui duplicava o mesmo movimento em dois painéis.
   try {
     const b3Symbols = B3_WATCHLIST.map((w) => `${w.symbol}.SA`);
     const stockSymbols = STOCKS_WATCHLIST.map((w) => w.symbol);
@@ -79,8 +82,8 @@ export async function GET(request: Request) {
 
     for (const w of B3_WATCHLIST) {
       const q = b3Quotes[`${w.symbol}.SA`];
-      if (q && Math.abs(q.changePct) >= WATCHLIST_MOVE_THRESHOLD) {
-        const label = `Watchlist B3: ${w.symbol} ${q.changePct >= 0 ? "subiu" : "caiu"} ${Math.abs(q.changePct).toFixed(2)}% no dia.`;
+      if (q && q.changePct >= WATCHLIST_MOVE_THRESHOLD) {
+        const label = `Watchlist B3: ${w.symbol} subiu ${q.changePct.toFixed(2)}% no dia.`;
         const ok = await notify(`watchlist:${w.symbol}`, label, "watchlist", 20);
         if (ok) sent.push(label);
       }
@@ -88,8 +91,8 @@ export async function GET(request: Request) {
 
     for (const w of STOCKS_WATCHLIST) {
       const q = stockQuotes[w.symbol];
-      if (q && Math.abs(q.changePct) >= WATCHLIST_MOVE_THRESHOLD) {
-        const label = `Watchlist Stocks: ${w.symbol} ${q.changePct >= 0 ? "subiu" : "caiu"} ${Math.abs(q.changePct).toFixed(2)}% no dia.`;
+      if (q && q.changePct >= WATCHLIST_MOVE_THRESHOLD) {
+        const label = `Watchlist Stocks: ${w.symbol} subiu ${q.changePct.toFixed(2)}% no dia.`;
         const ok = await notify(`watchlist:${w.symbol}`, label, "watchlist", 20);
         if (ok) sent.push(label);
       }
@@ -98,8 +101,8 @@ export async function GET(request: Request) {
     for (const w of CRIPTO_WATCHLIST) {
       const coin = coinMarkets.find((c) => c.symbol.toLowerCase() === w.symbol.toLowerCase());
       const change = coin?.price_change_percentage_24h;
-      if (typeof change === "number" && Math.abs(change) >= WATCHLIST_MOVE_THRESHOLD) {
-        const label = `Watchlist Cripto: ${w.symbol} ${change >= 0 ? "subiu" : "caiu"} ${Math.abs(change).toFixed(2)}% em 24h.`;
+      if (typeof change === "number" && change >= WATCHLIST_MOVE_THRESHOLD) {
+        const label = `Watchlist Cripto: ${w.symbol} subiu ${change.toFixed(2)}% em 24h.`;
         const ok = await notify(`watchlist:${w.symbol}`, label, "watchlist", 20);
         if (ok) sent.push(label);
       }
@@ -131,6 +134,26 @@ export async function GET(request: Request) {
     }
   } catch {
     // fontes de preço indisponíveis nesta rodada
+  }
+
+  // 4.5. Posição da carteira voltou a bater o preço médio de compra (dentro de
+  // ~1.5%) — sinal de possível ponto de entrada/saída, não recomendação.
+  try {
+    const holdings = await getHoldings();
+    for (const h of holdings) {
+      if (!h.avgPrice) continue;
+      const current = await getCurrentPrice(h.symbol, h.assetClass).catch(() => null);
+      if (!current) continue;
+
+      const diffPct = ((current.price - h.avgPrice) / h.avgPrice) * 100;
+      if (Math.abs(diffPct) <= 1.5) {
+        const label = `🎯 ${h.symbol}: preço atual (${formatPrice(current.price, current.currency)}) voltou a bater seu preço médio de compra (${formatPrice(h.avgPrice, current.currency)}).`;
+        const ok = await notify(`oportunidade:preco_medio:${h.symbol}:${h.assetClass}`, label, "oportunidade", 72);
+        if (ok) sent.push(label);
+      }
+    }
+  } catch {
+    // fontes de carteira indisponíveis nesta rodada
   }
 
   // 5. Preço-alvo dos analistas atingido/ultrapassado (watchlist Stocks + B3)
@@ -289,6 +312,20 @@ export async function GET(request: Request) {
     }
   } catch {
     // fontes de oportunidades indisponíveis nesta rodada
+  }
+
+  // 8. Sentimento setorial (heurística por palavra-chave, não é IA de verdade):
+  // setor com 3+ manchetes de tom negativo na semana — sinal de "vale olhar
+  // exposição do setor", não confirmação de nada.
+  try {
+    const signals = await getNegativeSectorSignals(7);
+    for (const s of signals.filter((x) => x.count >= 3)) {
+      const label = `📊 Setor ${s.sector}: ${s.count} notícias com tom negativo nos últimos 7 dias (ex.: "${s.sampleTitles[0]}") — heurística por palavra-chave, vale conferir exposição do setor na carteira.`;
+      const ok = await notify(`oportunidade:setor:${s.sector}`, label, "oportunidade", 168);
+      if (ok) sent.push(label);
+    }
+  } catch {
+    // fonte de notícias indisponível nesta rodada
   }
 
   return NextResponse.json({ checked: true, alertsSent: sent.length, sent });

@@ -1,5 +1,5 @@
 import { Panel } from "@/components/Panel";
-import { AlertStatusList } from "@/components/AlertStatusList";
+import { AlertCategoryPanels } from "@/components/AlertCategoryPanels";
 import { getRecentAlerts } from "@/lib/db/alertRepo";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { hasDatabase } from "@/lib/db/client";
@@ -56,11 +56,13 @@ export default async function AlertasPage() {
           <p className="text-sm text-text-muted">Nenhum alerta disparado no período.</p>
         </Panel>
       ) : (
-        CATEGORY_ORDER.filter((cat) => grouped.has(cat)).map((cat) => (
-          <Panel key={cat} title={cat} updatedAt={now}>
-            <AlertStatusList alerts={grouped.get(cat)!} />
-          </Panel>
-        ))
+        <AlertCategoryPanels
+          now={now}
+          groups={CATEGORY_ORDER.filter((cat) => grouped.has(cat)).map((cat) => ({
+            category: cat,
+            alerts: grouped.get(cat)!,
+          }))}
+        />
       )}
     </div>
   );
