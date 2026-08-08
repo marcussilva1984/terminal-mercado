@@ -32,6 +32,25 @@ interface SharpeResult {
   points: number;
 }
 
+interface DividendReceived {
+  symbol: string;
+  totalReceived: number;
+  paymentsCount: number;
+}
+
+interface ClosedPosition {
+  id: number;
+  symbol: string;
+  assetClass: string;
+  label: string;
+  quantity: number;
+  avgPrice: number;
+  sellPrice: number;
+  notes: string | null;
+  openedAt: string;
+  closedAt: string;
+}
+
 interface PriceAlert {
   id: number;
   symbol: string;
@@ -53,29 +72,53 @@ export function PortfolioManager() {
   const [alerts, setAlerts] = useState<PriceAlert[] | null>(null);
   const [drawdowns, setDrawdowns] = useState<DrawdownEntry[] | null>(null);
   const [sharpe, setSharpe] = useState<SharpeResult | null>(null);
+  const [dividends, setDividends] = useState<DividendReceived[] | null>(null);
+  const [closedPositions, setClosedPositions] = useState<ClosedPosition[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ symbol: "", assetClass: "b3", quantity: "", avgPrice: "", notes: "" });
   const [alertForm, setAlertForm] = useState({ symbol: "", assetClass: "b3", direction: "above", targetPrice: "" });
   const [submitting, setSubmitting] = useState(false);
   const [notesDraft, setNotesDraft] = useState<Record<number, string>>({});
+  const [targets, setTargets] = useState({ b3: "40", fii: "20", stocks: "30", cripto: "10" });
+
+  useEffect(() => {
+    const saved = localStorage.getItem("portfolio-targets");
+    if (saved) {
+      try {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- lê preferência salva localmente, sem outra fonte
+        setTargets(JSON.parse(saved));
+      } catch {
+        // ignora preferência corrompida
+      }
+    }
+  }, []);
+
+  function handleSaveTargets(next: typeof targets) {
+    setTargets(next);
+    localStorage.setItem("portfolio-targets", JSON.stringify(next));
+  }
 
   const load = useCallback(async () => {
     try {
-      const [hRes, aRes, mRes] = await Promise.all([
+      const [hRes, aRes, mRes, cRes] = await Promise.all([
         fetch("/api/portfolio"),
         fetch("/api/portfolio/alerts"),
         fetch("/api/portfolio/metrics"),
+        fetch("/api/portfolio/close"),
       ]);
       const hJson = await hRes.json();
       const aJson = await aRes.json();
       const mJson = await mRes.json();
+      const cJson = await cRes.json();
       if (hJson.available) setHoldings(hJson.data);
       else setError(hJson.error ?? "Falha ao carregar carteira");
       if (aJson.available) setAlerts(aJson.data);
       if (mJson.available) {
         setDrawdowns(mJson.drawdowns);
         setSharpe(mJson.sharpe);
+        setDividends(mJson.dividends ?? []);
       }
+      if (cJson.available) setClosedPositions(cJson.data);
     } catch {
       setError("Falha ao carregar carteira");
     }
@@ -109,6 +152,45 @@ export function PortfolioManager() {
   async function handleRemoveHolding(id: number) {
     await fetch(`/api/portfolio?id=${id}`, { method: "DELETE" });
     load();
+  }
+
+  async function handleClosePosition(h: Holding) {
+    const input = window.prompt(`Preço de venda de ${h.symbol} (por unidade):`, h.currentPrice ? String(h.currentPrice) : "");
+    if (!input) return;
+    const sellPrice = parseFloat(input.replace(",", "."));
+    if (!sellPrice || sellPrice <= 0) return;
+    await fetch("/api/portfolio/close", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: h.id, sellPrice }),
+    });
+    load();
+  }
+
+  function handleExportCsv() {
+    if (!holdings || holdings.length === 0) return;
+    const header = "Ativo,Classe,Quantidade,Preço Médio,Preço Atual,Valor Atual,P&L %,Tese\n";
+    const rows = holdings
+      .map((h) =>
+        [
+          h.symbol,
+          ASSET_CLASS_LABEL[h.assetClass] ?? h.assetClass,
+          h.quantity,
+          h.avgPrice,
+          h.currentPrice ?? "",
+          h.currentValue ?? "",
+          h.pnlPct !== null ? h.pnlPct.toFixed(2) : "",
+          `"${(h.notes ?? "").replace(/"/g, '""')}"`,
+        ].join(",")
+      )
+      .join("\n");
+    const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `carteira-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function handleSaveNotes(id: number) {
@@ -179,7 +261,48 @@ export function PortfolioManager() {
         </Panel>
       </div>
 
-      <Panel title="Posições">
+      <Panel title="Rebalanceamento — Alocação Alvo">
+        <div className="mb-3 flex flex-wrap gap-3">
+          {(Object.keys(targets) as (keyof typeof targets)[]).map((cls) => (
+            <div key={cls} className="flex flex-col gap-1">
+              <label className="text-xs text-text-muted">{ASSET_CLASS_LABEL[cls] ?? cls} (%)</label>
+              <input
+                type="number"
+                value={targets[cls]}
+                onChange={(e) => handleSaveTargets({ ...targets, [cls]: e.target.value })}
+                className="w-20 rounded border border-border bg-panel-alt px-2 py-1 text-sm text-text"
+              />
+            </div>
+          ))}
+        </div>
+        <ul className="flex flex-col divide-y divide-border/50">
+          {(Object.keys(targets) as (keyof typeof targets)[]).map((cls) => {
+            const totalValue = byClass.reduce((s, c) => s + c.value, 0);
+            const currentValue = byClassMap.get(cls) ?? 0;
+            const currentPct = totalValue > 0 ? (currentValue / totalValue) * 100 : 0;
+            const targetPct = parseFloat(targets[cls]) || 0;
+            const delta = currentPct - targetPct;
+            return (
+              <li key={cls} className="flex items-center justify-between py-1.5 text-sm">
+                <span className="text-text">{ASSET_CLASS_LABEL[cls] ?? cls}</span>
+                <span className="text-text-muted">
+                  {currentPct.toFixed(1)}% atual vs {targetPct.toFixed(0)}% alvo —{" "}
+                  <span className={Math.abs(delta) >= 10 ? "text-amber" : "text-text-muted"}>
+                    {delta >= 0 ? "+" : ""}
+                    {delta.toFixed(1)}pp
+                  </span>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="mt-3 text-xs text-text-muted">
+          Defina sua alocação-alvo por classe (fica salva só no seu navegador) — desvios grandes
+          (≥10pp) ficam destacados em âmbar.
+        </p>
+      </Panel>
+
+      <Panel title="Posições" action={<button onClick={handleExportCsv} className="text-xs text-gold-bright hover:underline">exportar CSV</button>}>
         {holdings && holdings.length > 0 ? (
           <table className="w-full text-sm">
             <thead>
@@ -207,7 +330,10 @@ export function PortfolioManager() {
                   <td className={`py-2 text-right ${h.pnlPct !== null ? changeColorClass(h.pnlPct) : "text-text-muted"}`}>
                     {h.pnlPct !== null ? formatPct(h.pnlPct) : "—"}
                   </td>
-                  <td className="py-2 text-right">
+                  <td className="py-2 text-right whitespace-nowrap">
+                    <button onClick={() => handleClosePosition(h)} className="mr-2 text-xs text-gold-bright hover:underline">
+                      fechar
+                    </button>
                     <button onClick={() => handleRemoveHolding(h.id)} className="text-xs text-down hover:underline">
                       remover
                     </button>
@@ -353,6 +479,61 @@ export function PortfolioManager() {
         ) : (
           <p className="text-sm text-text-muted">Cadastre uma posição pra anotar sua tese.</p>
         )}
+      </Panel>
+
+      <Panel title="Dividendos Recebidos (B3 / FII)">
+        {dividends && dividends.length > 0 ? (
+          <>
+            <ul className="flex flex-col divide-y divide-border/50">
+              {dividends.map((d) => (
+                <li key={d.symbol} className="flex items-center justify-between py-1.5 text-sm">
+                  <span className="text-text">
+                    {d.symbol} <span className="text-text-muted">({d.paymentsCount}x)</span>
+                  </span>
+                  <span className="text-up">R$ {formatNumber(d.totalReceived)}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs text-text-muted">
+              Via Fundamentus, contado desde a data em que você cadastrou a posição aqui (não a data
+              real de compra, que não coletamos) — pode divergir um pouco do que você recebeu de fato
+              se cadastrou a posição depois de já ter comprado.
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-text-muted">Nenhum provento encontrado ainda pras posições B3/FII cadastradas.</p>
+        )}
+      </Panel>
+
+      <Panel title="Posições Fechadas — Tese vs. Resultado Real">
+        {closedPositions && closedPositions.length > 0 ? (
+          <ul className="flex flex-col divide-y divide-border/50">
+            {closedPositions.map((p) => {
+              const returnPct = ((p.sellPrice - p.avgPrice) / p.avgPrice) * 100;
+              return (
+                <li key={p.id} className="flex flex-col gap-1 py-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-text">
+                      {p.symbol} <span className="text-text-muted">({ASSET_CLASS_LABEL[p.assetClass] ?? p.assetClass})</span>
+                    </span>
+                    <span className={changeColorClass(returnPct)}>{formatPct(returnPct)}</span>
+                  </div>
+                  {p.notes && <p className="text-xs text-text-muted">Tese: {p.notes}</p>}
+                  <p className="text-xs text-text-muted">
+                    {formatNumber(p.avgPrice)} → {formatNumber(p.sellPrice)} · fechado em{" "}
+                    {new Date(p.closedAt).toLocaleDateString("pt-BR")}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="text-sm text-text-muted">Nenhuma posição fechada ainda.</p>
+        )}
+        <p className="mt-3 text-xs text-text-muted">
+          Use o botão &quot;fechar&quot; numa posição ativa pra registrar aqui — compara sua tese
+          original com o resultado real.
+        </p>
       </Panel>
 
       <Panel title="Alertas de Preço (via Telegram)">

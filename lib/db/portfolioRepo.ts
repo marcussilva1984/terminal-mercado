@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
-import { portfolioHoldings, priceAlerts } from "@/lib/db/schema";
+import { portfolioHoldings, priceAlerts, portfolioClosedPositions } from "@/lib/db/schema";
 
 export interface HoldingInput {
   symbol: string;
@@ -29,6 +29,32 @@ export async function removeHolding(id: number) {
 export async function updateHoldingNotes(id: number, notes: string) {
   const db = getDb();
   await db.update(portfolioHoldings).set({ notes }).where(eq(portfolioHoldings.id, id));
+}
+
+// Fecha a posição: copia pra portfolio_closed_positions com o preço de venda
+// informado, e remove de portfolio_holdings — assim a tese original e o
+// resultado real ficam registrados juntos pra revisar depois.
+export async function closeHolding(id: number, sellPrice: number) {
+  const db = getDb();
+  const [holding] = await db.select().from(portfolioHoldings).where(eq(portfolioHoldings.id, id));
+  if (!holding) return;
+
+  await db.insert(portfolioClosedPositions).values({
+    symbol: holding.symbol,
+    assetClass: holding.assetClass,
+    label: holding.label,
+    quantity: holding.quantity,
+    avgPrice: holding.avgPrice,
+    sellPrice,
+    notes: holding.notes,
+    openedAt: holding.createdAt,
+  });
+  await db.delete(portfolioHoldings).where(eq(portfolioHoldings.id, id));
+}
+
+export async function getClosedPositions() {
+  const db = getDb();
+  return db.select().from(portfolioClosedPositions).orderBy(desc(portfolioClosedPositions.closedAt));
 }
 
 export interface PriceAlertInput {

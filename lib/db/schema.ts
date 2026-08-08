@@ -71,6 +71,22 @@ export const derivativesCache = pgTable("derivatives_cache", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Posições fechadas — guarda a tese original (copiada de portfolio_holdings
+// no momento do fechamento) junto do resultado real, pra comparar depois se
+// a tese bateu ou não.
+export const portfolioClosedPositions = pgTable("portfolio_closed_positions", {
+  id: serial("id").primaryKey(),
+  symbol: text("symbol").notNull(),
+  assetClass: text("asset_class").notNull(),
+  label: text("label").notNull(),
+  quantity: real("quantity").notNull(),
+  avgPrice: real("avg_price").notNull(),
+  sellPrice: real("sell_price").notNull(),
+  notes: text("notes"),
+  openedAt: timestamp("opened_at").notNull(),
+  closedAt: timestamp("closed_at").notNull().defaultNow(),
+});
+
 export const portfolioHoldings = pgTable("portfolio_holdings", {
   id: serial("id").primaryKey(),
   symbol: text("symbol").notNull(),

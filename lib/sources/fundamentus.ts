@@ -74,6 +74,37 @@ export async function getInsiderFlow(symbol: string, limit = 12): Promise<Inside
   return rows.slice(0, limit);
 }
 
+export interface DividendPayment {
+  date: string; // ISO — data-base (com direito)
+  valuePerShare: number;
+  type: string; // "Dividendo" | "JSCP" | "Rendimento" etc.
+  paymentDate: string | null; // ISO — data de pagamento, quando disponível
+}
+
+// Histórico de proventos (dividendos/JCP/rendimentos) pago por ação — usado
+// pra calcular quanto a carteira já recebeu, não só o yield do mercado.
+export async function getDividendHistory(symbol: string): Promise<DividendPayment[]> {
+  const html = await fetchLatin1(`${BASE}/proventos.php?papel=${encodeURIComponent(symbol)}&tipo=2`);
+  const $ = cheerio.load(html);
+  const payments: DividendPayment[] = [];
+
+  $("table#resultado tr, table.resultado tr").each((i, el) => {
+    if (i === 0) return; // cabeçalho
+    const cells = $(el).find("td").map((_, c) => $(c).text().trim()).get();
+    if (cells.length < 3 || !cells[0].includes("/")) return;
+    const value = parseBRNumber(cells[1]);
+    if (!value) return;
+    payments.push({
+      date: parseBRDate(cells[0]),
+      valuePerShare: value,
+      type: cells[2] ?? "Provento",
+      paymentDate: cells[3]?.includes("/") ? parseBRDate(cells[3]) : null,
+    });
+  });
+
+  return payments;
+}
+
 export interface FundamentusSection {
   title: string;
   items: { label: string; value: string }[];

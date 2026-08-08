@@ -1,4 +1,5 @@
 import { getCloses } from "@/lib/db/priceSeriesRepo";
+import { getDividendHistory } from "@/lib/sources/fundamentus";
 
 export interface DrawdownResult {
   maxDrawdownPct: number; // negativo, ex: -18.5 = caiu 18.5% do topo
@@ -32,6 +33,41 @@ export async function getMaxDrawdown(symbol: string, assetClass: string): Promis
   }
 
   return { maxDrawdownPct, peakDate, troughDate, points: closes.length };
+}
+
+export interface DividendsReceivedInput {
+  symbol: string;
+  assetClass: string;
+  quantity: number;
+  sinceDate: string; // ISO — usamos a data de cadastro da posição como proxy de "desde quando";
+  // não é a data de compra real (não coletamos isso), então o total pode
+  // divergir do que você recebeu de fato se cadastrou a posição depois de
+  // já ter comprado.
+}
+
+export interface DividendsReceivedResult {
+  symbol: string;
+  totalReceived: number;
+  paymentsCount: number;
+}
+
+// Fundamentus só cobre B3/FII (não tem proventos de stocks EUA/cripto de
+// graça numa fonte só) — chamado apenas pra esses dois.
+export async function getDividendsReceived(holdings: DividendsReceivedInput[]): Promise<DividendsReceivedResult[]> {
+  const results: DividendsReceivedResult[] = [];
+  for (const h of holdings) {
+    if (h.assetClass !== "b3" && h.assetClass !== "fii") continue;
+    try {
+      const history = await getDividendHistory(h.symbol);
+      const relevant = history.filter((p) => p.date >= h.sinceDate);
+      if (relevant.length === 0) continue;
+      const totalReceived = relevant.reduce((sum, p) => sum + p.valuePerShare * h.quantity, 0);
+      results.push({ symbol: h.symbol, totalReceived, paymentsCount: relevant.length });
+    } catch {
+      // fonte indisponível pra esse papel — segue pros demais
+    }
+  }
+  return results;
 }
 
 export interface PortfolioSharpeInput {
