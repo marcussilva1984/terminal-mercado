@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { hasDatabase } from "@/lib/db/client";
 import { getCloses } from "@/lib/db/priceSeriesRepo";
 import { getWatchlist, seedWatchlistIfEmpty } from "@/lib/db/watchlistRepo";
@@ -22,15 +23,7 @@ const ZSCORE_WINDOW_BY_CLASS: Partial<Record<AssetClass, number>> = {
 };
 const DEFAULT_ZSCORE_WINDOW = 30;
 
-export async function getZScoreHighlights(assetClass?: AssetClass): Promise<ZScoreHighlight[]> {
-  if (!hasDatabase()) {
-    throw new Error("DATABASE_URL não configurada — z-score precisa do histórico salvo no banco.");
-  }
-
-  await seedWatchlistIfEmpty(
-    ALL_CLASSES.flatMap((cls) => (DEFAULT_WATCHLIST_BY_CLASS[cls] ?? []).map((w) => ({ ...w, assetClass: cls })))
-  );
-
+async function computeZScoreHighlights(assetClass?: AssetClass): Promise<ZScoreHighlight[]> {
   const classesToLoad = assetClass ? [assetClass] : ALL_CLASSES;
   const entries = (
     await Promise.all(
@@ -41,11 +34,19 @@ export async function getZScoreHighlights(assetClass?: AssetClass): Promise<ZSco
     )
   ).flat();
 
-  const results: ZScoreHighlight[] = [];
+  // Antes buscava o histórico de cada ativo um de cada vez (await dentro de
+  // for) — com a watchlist grande (100+ itens) isso virava dezenas de idas
+  // sequenciais ao banco. Promise.all dispara todas de uma vez.
+  const fetched = await Promise.all(
+    entries.map(async (entry) => {
+      const window = ZSCORE_WINDOW_BY_CLASS[entry.assetClass] ?? DEFAULT_ZSCORE_WINDOW;
+      const closes = await getCloses(entry.symbol, entry.assetClass, window + 1);
+      return { entry, window, closes };
+    })
+  );
 
-  for (const entry of entries) {
-    const window = ZSCORE_WINDOW_BY_CLASS[entry.assetClass] ?? DEFAULT_ZSCORE_WINDOW;
-    const closes = await getCloses(entry.symbol, entry.assetClass, window + 1);
+  const results: ZScoreHighlight[] = [];
+  for (const { entry, window, closes } of fetched) {
     if (closes.length < 2) continue;
 
     const z = computeZScore(closes.map((c) => c.closePrice), window);
@@ -62,4 +63,22 @@ export async function getZScoreHighlights(assetClass?: AssetClass): Promise<ZSco
 
   results.sort((a, b) => Math.abs(b.zScore) - Math.abs(a.zScore));
   return results;
+}
+
+// Z-score não muda minuto a minuto (depende do fechamento diário) — cacheia
+// por 5min pra não recalcular do zero a cada navegação entre abas.
+const cachedZScoreHighlights = unstable_cache(computeZScoreHighlights, ["zscore-highlights"], {
+  revalidate: 300,
+});
+
+export async function getZScoreHighlights(assetClass?: AssetClass): Promise<ZScoreHighlight[]> {
+  if (!hasDatabase()) {
+    throw new Error("DATABASE_URL não configurada — z-score precisa do histórico salvo no banco.");
+  }
+
+  await seedWatchlistIfEmpty(
+    ALL_CLASSES.flatMap((cls) => (DEFAULT_WATCHLIST_BY_CLASS[cls] ?? []).map((w) => ({ ...w, assetClass: cls })))
+  );
+
+  return cachedZScoreHighlights(assetClass);
 }

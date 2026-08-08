@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { hasDatabase } from "@/lib/db/client";
 import { getCloses } from "@/lib/db/priceSeriesRepo";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
@@ -35,16 +36,17 @@ function pearson(a: number[], b: number[]): number | null {
 // retornos diários já coletados pelo cron (price_series). Útil pra enxergar
 // concentração de risco: ativos com correlação muito alta se movem juntos,
 // então não diversificam tanto quanto parece.
-export async function getWatchlistCorrelations(maxPairs = 15): Promise<CorrelationPair[]> {
-  if (!hasDatabase()) {
-    throw new Error("DATABASE_URL não configurada — correlação precisa do histórico salvo no banco.");
-  }
-
+async function computeWatchlistCorrelations(maxPairs: number): Promise<CorrelationPair[]> {
   const items = await getWatchlist();
-  const returnsBySymbol: { symbol: string; label: string; assetClass: string; returnsByDate: Map<string, number> }[] = [];
+  // Antes buscava o histórico de cada ativo um de cada vez (await dentro de
+  // for) — com a watchlist grande isso virava dezenas de idas sequenciais ao
+  // banco. Promise.all dispara todas de uma vez.
+  const fetched = await Promise.all(
+    items.map(async (item) => ({ item, closes: await getCloses(item.symbol, item.assetClass, 60) }))
+  );
 
-  for (const item of items) {
-    const closes = await getCloses(item.symbol, item.assetClass, 60);
+  const returnsBySymbol: { symbol: string; label: string; assetClass: string; returnsByDate: Map<string, number> }[] = [];
+  for (const { item, closes } of fetched) {
     if (closes.length < 6) continue;
     const returnsByDate = new Map<string, number>();
     for (let i = 1; i < closes.length; i++) {
@@ -83,6 +85,19 @@ export async function getWatchlistCorrelations(maxPairs = 15): Promise<Correlati
   return pairs.slice(0, maxPairs);
 }
 
+// Correlação não muda minuto a minuto — cacheia por 5min pra não recalcular
+// do zero (watchlist grande = bem mais caro) a cada clique na aba.
+const cachedWatchlistCorrelations = unstable_cache(computeWatchlistCorrelations, ["watchlist-correlations"], {
+  revalidate: 300,
+});
+
+export async function getWatchlistCorrelations(maxPairs = 15): Promise<CorrelationPair[]> {
+  if (!hasDatabase()) {
+    throw new Error("DATABASE_URL não configurada — correlação precisa do histórico salvo no banco.");
+  }
+  return cachedWatchlistCorrelations(maxPairs);
+}
+
 export interface BenchmarkCorrelation {
   symbol: string;
   label: string;
@@ -108,25 +123,23 @@ function returnsByDateFor(closes: { date: string; closePrice: number }[]): Map<s
   return map;
 }
 
-// Beta e correlação de cada item (watchlist ou item avulso, ex.: posição da
-// carteira) contra os 3 benchmarks fixos (IBOV, S&P 500, DXY) — "seu ativo X
-// se move quanto em relação ao mercado", não só entre si.
-export async function getBenchmarkCorrelations(
+async function computeBenchmarkCorrelations(
   items: { symbol: string; label: string; assetClass: string }[]
 ): Promise<BenchmarkCorrelation[]> {
-  if (!hasDatabase()) {
-    throw new Error("DATABASE_URL não configurada — correlação precisa do histórico salvo no banco.");
+  const benchmarkEntries = await Promise.all(
+    BENCHMARKS.map(async (b) => ({ symbol: b.symbol, closes: await getCloses(b.symbol, "indice", 60) }))
+  );
+  const benchmarkReturns = new Map<string, Map<string, number>>();
+  for (const { symbol, closes } of benchmarkEntries) {
+    if (closes.length >= 6) benchmarkReturns.set(symbol, returnsByDateFor(closes));
   }
 
-  const benchmarkReturns = new Map<string, Map<string, number>>();
-  for (const b of BENCHMARKS) {
-    const closes = await getCloses(b.symbol, "indice", 60);
-    if (closes.length >= 6) benchmarkReturns.set(b.symbol, returnsByDateFor(closes));
-  }
+  const itemEntries = await Promise.all(
+    items.map(async (item) => ({ item, closes: await getCloses(item.symbol, item.assetClass, 60) }))
+  );
 
   const results: BenchmarkCorrelation[] = [];
-  for (const item of items) {
-    const closes = await getCloses(item.symbol, item.assetClass, 60);
+  for (const { item, closes } of itemEntries) {
     if (closes.length < 6) continue;
     const itemReturns = returnsByDateFor(closes);
 
@@ -153,4 +166,22 @@ export async function getBenchmarkCorrelations(
   }
 
   return results;
+}
+
+// Mesmo motivo do cache de correlação da watchlist — beta contra benchmark
+// também não muda minuto a minuto.
+const cachedBenchmarkCorrelations = unstable_cache(computeBenchmarkCorrelations, ["benchmark-correlations"], {
+  revalidate: 300,
+});
+
+// Beta e correlação de cada item (watchlist ou item avulso, ex.: posição da
+// carteira) contra os 3 benchmarks fixos (IBOV, S&P 500, DXY) — "seu ativo X
+// se move quanto em relação ao mercado", não só entre si.
+export async function getBenchmarkCorrelations(
+  items: { symbol: string; label: string; assetClass: string }[]
+): Promise<BenchmarkCorrelation[]> {
+  if (!hasDatabase()) {
+    throw new Error("DATABASE_URL não configurada — correlação precisa do histórico salvo no banco.");
+  }
+  return cachedBenchmarkCorrelations(items);
 }
