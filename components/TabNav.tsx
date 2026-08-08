@@ -16,6 +16,7 @@ const TABS = [
   { href: "/carteira", label: "Minha Carteira" },
   { href: "/watchlist", label: "Watchlist" },
   { href: "/alertas", label: "Alertas" },
+  { href: "/oportunidades", label: "Oportunidades" },
 ];
 
 export function TabNav() {

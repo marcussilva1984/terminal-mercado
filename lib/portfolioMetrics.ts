@@ -1,5 +1,5 @@
 import { getCloses } from "@/lib/db/priceSeriesRepo";
-import { getDividendHistory } from "@/lib/sources/fundamentus";
+import { getDividendHistory, getFiiDividendHistory } from "@/lib/sources/fundamentus";
 
 export interface DrawdownResult {
   maxDrawdownPct: number; // negativo, ex: -18.5 = caiu 18.5% do topo
@@ -58,7 +58,7 @@ export async function getDividendsReceived(holdings: DividendsReceivedInput[]): 
   for (const h of holdings) {
     if (h.assetClass !== "b3" && h.assetClass !== "fii") continue;
     try {
-      const history = await getDividendHistory(h.symbol);
+      const history = h.assetClass === "fii" ? await getFiiDividendHistory(h.symbol) : await getDividendHistory(h.symbol);
       const relevant = history.filter((p) => p.date >= h.sinceDate);
       if (relevant.length === 0) continue;
       const totalReceived = relevant.reduce((sum, p) => sum + p.valuePerShare * h.quantity, 0);

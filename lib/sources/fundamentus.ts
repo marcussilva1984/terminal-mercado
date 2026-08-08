@@ -105,6 +105,31 @@ export async function getDividendHistory(symbol: string): Promise<DividendPaymen
   return payments;
 }
 
+// FII usa uma página e ordem de colunas DIFERENTE de ações (proventos.php
+// devolve "Nenhum provento encontrado" pra qualquer papel de FII) — achado
+// testando ao vivo: fii_proventos.php tem Data Com, Tipo, Data Pagamento,
+// Valor, nessa ordem (ações são Data Com, Valor, Tipo, Data Pagamento).
+export async function getFiiDividendHistory(symbol: string): Promise<DividendPayment[]> {
+  const html = await fetchLatin1(`${BASE}/fii_proventos.php?papel=${encodeURIComponent(symbol)}`);
+  const $ = cheerio.load(html);
+  const payments: DividendPayment[] = [];
+
+  $("table#resultado tbody tr").each((_, el) => {
+    const cells = $(el).find("td").map((_, c) => $(c).text().trim()).get();
+    if (cells.length < 4 || !cells[0].includes("/")) return;
+    const value = parseBRNumber(cells[3]);
+    if (!value) return;
+    payments.push({
+      date: parseBRDate(cells[0]),
+      valuePerShare: value,
+      type: cells[1] ?? "Rendimento",
+      paymentDate: cells[2]?.includes("/") ? parseBRDate(cells[2]) : null,
+    });
+  });
+
+  return payments;
+}
+
 export interface FundamentusSection {
   title: string;
   items: { label: string; value: string }[];
