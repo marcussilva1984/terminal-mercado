@@ -1,6 +1,7 @@
 import { getFullIndicators, getFiiDividendHistory } from "@/lib/sources/fundamentus";
 import { getYahooQuote } from "@/lib/sources/yahoo";
 import { fetchCandles } from "@/lib/sources/yahooTickerDetail";
+import { getAnnualCashFlow } from "@/lib/sources/cvmFinancials";
 
 function parseBRNumber(raw: string): number | null {
   const cleaned = raw.replace(/\./g, "").replace(",", ".").replace("%", "").trim();
@@ -277,4 +278,79 @@ export function matchFatosRelevantes(
     }
   }
   return matches;
+}
+
+export interface DcfResult {
+  symbol: string;
+  label: string;
+  price: number;
+  freeCashFlow: number; // R$ absoluto, ano fiscal mais recente (CVM)
+  fiscalYear: string;
+  fairValue: number;
+  marginOfSafetyPct: number;
+}
+
+// Premissas fixas e genéricas — NÃO são específicas de cada empresa, é o
+// maior limitador honesto desse modelo. Mudar essas duas linhas muda o
+// resultado bastante; tratar como ponto de partida pra sensibilidade, não
+// como verdade.
+const DCF_GROWTH_RATE = 0.03; // crescimento do FCF projetado, 5 anos
+const DCF_TERMINAL_GROWTH = 0.03; // crescimento perpétuo (valor terminal)
+const DCF_WACC = 0.12; // taxa de desconto
+const DCF_PROJECTION_YEARS = 5;
+
+// DCF simplificado: FCF = Caixa Operacional + Caixa de Investimento (DFC
+// oficial da CVM, ano fiscal mais recente) projetado a uma taxa de
+// crescimento fixa por 5 anos, descontado a uma WACC fixa, mais valor
+// terminal (Gordon Growth) — menos Dívida Líquida, dividido pelo número de
+// ações (Fundamentus). Funciona mal pra bancos/financeiras (fluxo de caixa
+// de investimento tem outra natureza lá — carteira de crédito, não capex) e
+// pra empresas com FCF negativo no último ano fiscal (não dá pra projetar a
+// partir de uma base negativa de forma confiável).
+export async function getDcfValuations(symbols: { symbol: string; label: string }[]): Promise<DcfResult[]> {
+  const results = await Promise.allSettled(
+    symbols.map(async ({ symbol, label }) => {
+      const [cf, sections] = await Promise.all([getAnnualCashFlow(symbol), getFullIndicators(symbol)]);
+      if (!cf || cf.freeCashFlow <= 0) return null;
+
+      const priceRaw = findValue(sections, "Cotação");
+      const netDebtRaw = findValue(sections, "Dív. Líquida");
+      const sharesRaw = findValue(sections, "Nro. Ações");
+      const price = priceRaw ? parseBRNumber(priceRaw) : null;
+      const netDebt = netDebtRaw ? parseBRNumber(netDebtRaw) : null;
+      const shares = sharesRaw ? parseBRNumber(sharesRaw) : null;
+      if (!price || netDebt === null || !shares || shares <= 0) return null;
+
+      const fcf0 = cf.freeCashFlow * 1000; // CVM vem em milhares de R$
+
+      let enterpriseValue = 0;
+      let fcfT = fcf0;
+      for (let t = 1; t <= DCF_PROJECTION_YEARS; t++) {
+        fcfT *= 1 + DCF_GROWTH_RATE;
+        enterpriseValue += fcfT / (1 + DCF_WACC) ** t;
+      }
+      const terminalValue = (fcfT * (1 + DCF_TERMINAL_GROWTH)) / (DCF_WACC - DCF_TERMINAL_GROWTH);
+      enterpriseValue += terminalValue / (1 + DCF_WACC) ** DCF_PROJECTION_YEARS;
+
+      const equityValue = enterpriseValue - netDebt;
+      const fairValue = equityValue / shares;
+      const marginOfSafetyPct = ((fairValue - price) / price) * 100;
+
+      return {
+        symbol,
+        label,
+        price,
+        freeCashFlow: fcf0,
+        fiscalYear: cf.fiscalYear,
+        fairValue,
+        marginOfSafetyPct,
+      };
+    })
+  );
+
+  return results
+    .filter((r): r is PromiseFulfilledResult<DcfResult | null> => r.status === "fulfilled")
+    .map((r) => r.value)
+    .filter((v): v is DcfResult => v !== null)
+    .sort((a, b) => b.marginOfSafetyPct - a.marginOfSafetyPct);
 }

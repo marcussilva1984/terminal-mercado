@@ -1,5 +1,5 @@
 import { Panel } from "@/components/Panel";
-import { GrahamTable, BazinTable } from "@/components/ValuationTable";
+import { GrahamTable, BazinTable, DcfTable } from "@/components/ValuationTable";
 import { Sma200Table, MonteCarloTable } from "@/components/Sma200Table";
 import {
   getGrahamValuations,
@@ -8,6 +8,7 @@ import {
   getSma200Signals,
   getMonteCarloRanges,
   matchFatosRelevantes,
+  getDcfValuations,
 } from "@/lib/valuation";
 import { B3_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST, CRIPTO_WATCHLIST, FOREX_WATCHLIST } from "@/lib/watchlist";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
@@ -57,13 +58,14 @@ export default async function OportunidadesPage() {
   // manter o custo de CPU razoável com o passo bem maior.
   const MONTE_CARLO_HORIZON_DAYS = 756;
 
-  const [graham, bazinB3, bazinFii, sma200, monteCarlo, fatos] = await Promise.all([
+  const [graham, bazinB3, bazinFii, sma200, monteCarlo, fatos, dcf] = await Promise.all([
     getGrahamValuations(b3Watchlist).catch(() => []),
     getBazinValuationsB3(b3Watchlist).catch(() => []),
     getBazinValuationsFii(fiiWatchlist).catch(() => []),
     getSma200Signals(trendAndMonteCarloItems).catch(() => []),
     getMonteCarloRanges(trendAndMonteCarloItems, MONTE_CARLO_HORIZON_DAYS, 1000).catch(() => []),
     getFatosRelevantes(60).catch(() => []),
+    getDcfValuations(b3Watchlist).catch(() => []),
   ]);
 
   const fatosMatches = matchFatosRelevantes(b3Watchlist, fatos);
@@ -122,6 +124,24 @@ export default async function OportunidadesPage() {
           num cenário de Selic mais alta que a de quando a fórmula foi criada, o "preço justo" tende
           a vir sistematicamente acima do preço de mercado pra qualquer bom pagador. Use como
           referência histórica, não como alvo absoluto.
+        </p>
+      </Panel>
+
+      <Panel title="Fluxo de Caixa Descontado (DCF) — Ações B3" updatedAt={now}>
+        <DcfTable items={dcf} />
+        <p className="mt-3 text-xs text-text-muted">
+          Valor Justo = fluxo de caixa livre (Caixa Operacional + Caixa de Investimento, do
+          demonstrativo oficial da CVM, último ano fiscal completo) projetado 5 anos a 3% a.a.,
+          descontado a 12% a.a., mais valor terminal (crescimento perpétuo de 3%), menos dívida
+          líquida, dividido pelo número de ações. As taxas de crescimento e desconto são premissas
+          fixas e genéricas, não específicas de cada empresa — mudar essas duas taxas muda bastante
+          o resultado, então trate como ponto de partida, não como número definitivo. Funciona mal
+          pra bancos/financeiras (o fluxo de investimento delas é carteira de crédito, não capex) e
+          pra empresas com fluxo de caixa livre negativo no último ano fiscal, que ficam de fora.
+          Atenção: é o fluxo de caixa de UM ano só (o mais recente reportado) — variação de capital
+          de giro ou eventos não recorrentes num único ano podem inflar o número e distorcer bastante
+          o valor justo pra cima ou pra baixo. Vale conferir o histórico de anos anteriores da empresa
+          antes de confiar num resultado que pareça exagerado.
         </p>
       </Panel>
 
