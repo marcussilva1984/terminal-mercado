@@ -72,13 +72,21 @@ export default async function OportunidadesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold text-text">Oportunidades</h1>
-        <p className="mt-1 text-sm text-text-muted">
-          Fórmulas e estatísticas clássicas aplicadas à sua watchlist — tudo calculado a partir de
-          dado real (Fundamentus, Yahoo Finance), sem opinião ou recomendação embutida. Nenhuma
-          tabela aqui é sugestão de compra/venda: são pontos de partida pra você investigar mais.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-text">Oportunidades</h1>
+          <p className="mt-1 text-sm text-text-muted">
+            Fórmulas e estatísticas clássicas aplicadas à sua watchlist — tudo calculado a partir de
+            dado real (Fundamentus, Yahoo Finance), sem opinião ou recomendação embutida. Nenhuma
+            tabela aqui é sugestão de compra/venda: são pontos de partida pra você investigar mais.
+          </p>
+        </div>
+        <a
+          href="/relatorio-oportunidades"
+          className="shrink-0 rounded border border-gold/40 bg-panel-alt px-3 py-1.5 text-sm text-gold-bright hover:bg-panel"
+        >
+          Relatório PDF
+        </a>
       </div>
 
       {fatosMatches.length > 0 && (
