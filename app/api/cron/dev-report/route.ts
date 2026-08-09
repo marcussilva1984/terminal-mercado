@@ -8,8 +8,12 @@ import { sendTelegramMessage, hasTelegramConfig } from "@/lib/sources/telegram";
 const TELEGRAM_CHUNK_SIZE = 3800;
 
 export async function POST(request: Request) {
+  // Segredo dedicado (não o CRON_SECRET geral) — esse endpoint é chamado por
+  // um agente na nuvem (rotina semanal do claude.ai), então usa uma
+  // credencial própria e mais restrita em vez de reaproveitar a que já é
+  // compartilhada com o GitHub Actions.
   const auth = request.headers.get("authorization");
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (process.env.DEV_REPORT_SECRET && auth !== `Bearer ${process.env.DEV_REPORT_SECRET}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
