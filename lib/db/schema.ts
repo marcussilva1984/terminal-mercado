@@ -1,13 +1,17 @@
-import { pgTable, serial, text, real, date, timestamp, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, real, date, timestamp, uniqueIndex, unique, jsonb } from "drizzle-orm/pg-core";
 
-export const watchlistItems = pgTable("watchlist_items", {
-  id: serial("id").primaryKey(),
-  symbol: text("symbol").notNull(),
-  assetClass: text("asset_class").notNull(), // 'b3' | 'cripto'
-  label: text("label").notNull(),
-  active: text("active").notNull().default("true"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const watchlistItems = pgTable(
+  "watchlist_items",
+  {
+    id: serial("id").primaryKey(),
+    symbol: text("symbol").notNull(),
+    assetClass: text("asset_class").notNull(), // 'b3' | 'cripto'
+    label: text("label").notNull(),
+    active: text("active").notNull().default("true"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [unique("watchlist_items_symbol_asset_class_key").on(table.symbol, table.assetClass)]
+);
 
 export const priceSeries = pgTable(
   "price_series",

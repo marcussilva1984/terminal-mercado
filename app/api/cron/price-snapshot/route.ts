@@ -16,6 +16,25 @@ const BENCHMARKS = [
   { symbol: "DXY", yahoo: "DX-Y.NYB" },
 ] as const;
 
+async function fetchClass(
+  items: { symbol: string; label: string }[],
+  assetClass: string,
+  toYahooSymbol: (symbol: string) => string
+): Promise<PriceSeriesRow[]> {
+  const today = new Date().toISOString().slice(0, 10);
+  const settled = await Promise.allSettled(
+    items.map(async ({ symbol }) => {
+      const q = await getYahooQuote(toYahooSymbol(symbol));
+      if (!q) return null;
+      return { symbol, assetClass, date: today, closePrice: q.price, source: "yahoo" } satisfies PriceSeriesRow;
+    })
+  );
+  return settled
+    .filter((r): r is PromiseFulfilledResult<PriceSeriesRow | null> => r.status === "fulfilled")
+    .map((r) => r.value)
+    .filter((v): v is PriceSeriesRow => v !== null);
+}
+
 export async function GET(request: Request) {
   const auth = request.headers.get("authorization");
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -34,7 +53,6 @@ export async function GET(request: Request) {
     ...FOREX_WATCHLIST.map((w) => ({ ...w, assetClass: "forex" })),
   ]);
 
-  const rows: PriceSeriesRow[] = [];
   const holdings = await getHoldings().catch(() => []);
   const holdingsByClass = (cls: string) =>
     holdings.filter((h) => h.assetClass === cls).map((h) => ({ symbol: h.symbol, label: h.label }));
@@ -46,77 +64,69 @@ export async function GET(request: Request) {
     return [...a, ...b.filter((x) => !seen.has(x.symbol))];
   };
 
-  const b3Watchlist = dedupe(await getWatchlist("b3"), holdingsByClass("b3"));
-  const criptoWatchlist = dedupe(await getWatchlist("cripto"), holdingsByClass("cripto"));
-  const fiiWatchlist = dedupe(await getWatchlist("fii"), holdingsByClass("fii"));
-  const stocksWatchlist = dedupe(await getWatchlist("stocks"), holdingsByClass("stocks"));
-  const forexWatchlist = dedupe(await getWatchlist("forex"), holdingsByClass("forex"));
+  const [dbB3, dbCripto, dbFii, dbStocks, dbForex] = await Promise.all([
+    getWatchlist("b3"),
+    getWatchlist("cripto"),
+    getWatchlist("fii"),
+    getWatchlist("stocks"),
+    getWatchlist("forex"),
+  ]);
+
+  const b3Watchlist = dedupe(dbB3, holdingsByClass("b3"));
+  const criptoWatchlist = dedupe(dbCripto, holdingsByClass("cripto"));
+  const fiiWatchlist = dedupe(dbFii, holdingsByClass("fii"));
+  const stocksWatchlist = dedupe(dbStocks, holdingsByClass("stocks"));
+  const forexWatchlist = dedupe(dbForex, holdingsByClass("forex"));
   const today = new Date().toISOString().slice(0, 10);
 
-  // Yahoo (não brapi) pra B3 aqui de propósito: sem BRAPI_TOKEN, a brapi.dev só
-  // libera histórico pra 4 tickers fixos, o que travava o z-score em qualquer
-  // papel novo adicionado na watchlist. Yahoo não tem esse limite.
-  for (const { symbol } of b3Watchlist) {
+  // Antes cada classe rodava um for...await sequencial, uma cotação de cada
+  // vez — com a watchlist grande (100+ ativos somados) isso passava fácil de
+  // 30-45s de chamadas encadeadas, estourando o timeout da função serverless
+  // (plano Hobby da Vercel) bem antes de chegar nas últimas classes da fila
+  // (FII e Stocks nunca eram alcançados). Promise.all roda as 5 classes em
+  // paralelo, e dentro de cada uma todas as cotações também em paralelo —
+  // o total cai pra ~1-2s em vez de dezenas de segundos.
+  const criptoPromise = (async () => {
     try {
-      const q = await getYahooQuote(`${symbol}.SA`);
-      if (q) rows.push({ symbol, assetClass: "b3", date: today, closePrice: q.price, source: "yahoo" });
-    } catch {
-      // fonte indisponível para este ativo — segue para os demais
-    }
-  }
-
-  try {
-    const markets = await getTopCoinMarkets(250);
-    for (const { symbol } of criptoWatchlist) {
-      const coin = markets.find((c) => c.symbol.toLowerCase() === symbol.toLowerCase());
-      if (coin) {
-        rows.push({ symbol, assetClass: "cripto", date: today, closePrice: coin.current_price, source: "coingecko" });
+      const markets = await getTopCoinMarkets(250);
+      const rows: PriceSeriesRow[] = [];
+      for (const { symbol } of criptoWatchlist) {
+        const coin = markets.find((c) => c.symbol.toLowerCase() === symbol.toLowerCase());
+        if (coin) rows.push({ symbol, assetClass: "cripto", date: today, closePrice: coin.current_price, source: "coingecko" });
       }
-    }
-  } catch {
-    // CoinGecko indisponível — segue apenas com o que já foi coletado
-  }
-
-  // FII e Stocks não têm um provedor gratuito com histórico batch como o
-  // brapi/CoinGecko — usa cotação atual via Yahoo (mesma fonte já usada em
-  // toda a página de detalhe) como fechamento do dia, ativo por ativo.
-  for (const { symbol } of fiiWatchlist) {
-    try {
-      const q = await getYahooQuote(`${symbol}.SA`);
-      if (q) rows.push({ symbol, assetClass: "fii", date: today, closePrice: q.price, source: "yahoo" });
+      return rows;
     } catch {
-      // fonte indisponível para este ativo — segue para os demais
+      return [];
     }
-  }
+  })();
 
-  for (const { symbol } of stocksWatchlist) {
-    try {
-      const q = await getYahooQuote(symbol);
-      if (q) rows.push({ symbol, assetClass: "stocks", date: today, closePrice: q.price, source: "yahoo" });
-    } catch {
-      // fonte indisponível para este ativo — segue para os demais
-    }
-  }
+  const [b3Rows, fiiRows, stocksRows, forexRows, benchmarkRows, criptoRows] = await Promise.all([
+    fetchClass(b3Watchlist, "b3", (s) => `${s}.SA`),
+    fetchClass(fiiWatchlist, "fii", (s) => `${s}.SA`),
+    fetchClass(stocksWatchlist, "stocks", (s) => s),
+    fetchClass(forexWatchlist, "forex", (s) => `${s}=X`),
+    fetchClass(
+      BENCHMARKS.map((b) => ({ symbol: b.symbol, label: b.symbol })),
+      "indice",
+      (s) => BENCHMARKS.find((b) => b.symbol === s)!.yahoo
+    ),
+    criptoPromise,
+  ]);
 
-  for (const { symbol } of forexWatchlist) {
-    try {
-      const q = await getYahooQuote(`${symbol}=X`);
-      if (q) rows.push({ symbol, assetClass: "forex", date: today, closePrice: q.price, source: "yahoo" });
-    } catch {
-      // fonte indisponível para este par — segue para os demais
-    }
-  }
-
-  for (const b of BENCHMARKS) {
-    try {
-      const q = await getYahooQuote(b.yahoo);
-      if (q) rows.push({ symbol: b.symbol, assetClass: "indice", date: today, closePrice: q.price, source: "yahoo" });
-    } catch {
-      // fonte indisponível pra esse benchmark — segue pros demais
-    }
-  }
+  const rows = [...b3Rows, ...criptoRows, ...fiiRows, ...stocksRows, ...forexRows, ...benchmarkRows];
 
   await upsertCloses(rows);
 
-  return NextResponse.json({ persisted: true, rows: rows.length });
+  return NextResponse.json({
+    persisted: true,
+    rows: rows.length,
+    byClass: {
+      b3: b3Rows.length,
+      cripto: criptoRows.length,
+      fii: fiiRows.length,
+      stocks: stocksRows.length,
+      forex: forexRows.length,
+      indice: benchmarkRows.length,
+    },
+  });
 }

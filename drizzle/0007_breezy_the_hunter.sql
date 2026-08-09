@@ -1,0 +1,1 @@
+ALTER TABLE "watchlist_items" ADD CONSTRAINT "watchlist_items_symbol_asset_class_key" UNIQUE("symbol","asset_class");

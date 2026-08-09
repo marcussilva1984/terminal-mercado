@@ -66,7 +66,10 @@ async function computeZScoreHighlights(assetClass?: AssetClass): Promise<ZScoreH
 }
 
 // Z-score não muda minuto a minuto (depende do fechamento diário) — cacheia
-// por 5min pra não recalcular do zero a cada navegação entre abas.
+// por 5min pra não recalcular do zero a cada navegação entre abas. O
+// unstable_cache do Next já inclui os argumentos da chamada na cache key
+// (além do array de keyParts abaixo), então cada assetClass tem sua própria
+// entrada de cache.
 const cachedZScoreHighlights = unstable_cache(computeZScoreHighlights, ["zscore-highlights"], {
   revalidate: 300,
 });
