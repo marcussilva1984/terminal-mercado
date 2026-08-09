@@ -36,8 +36,12 @@ function pearson(a: number[], b: number[]): number | null {
 // retornos diários já coletados pelo cron (price_series). Útil pra enxergar
 // concentração de risco: ativos com correlação muito alta se movem juntos,
 // então não diversificam tanto quanto parece.
-async function computeWatchlistCorrelations(maxPairs: number): Promise<CorrelationPair[]> {
-  const items = await getWatchlist();
+async function computeWatchlistCorrelations(maxPairs: number, maxItems?: number): Promise<CorrelationPair[]> {
+  const allItems = await getWatchlist();
+  // Correlação é O(n²) em pares — com watchlist grande (100+ itens) isso é
+  // MUITO mais caro que os outros painéis. maxItems limita quantos ativos
+  // entram no cálculo (modo "resumido" da aba Watchlist).
+  const items = maxItems ? allItems.slice(0, maxItems) : allItems;
   // Antes buscava o histórico de cada ativo um de cada vez (await dentro de
   // for) — com a watchlist grande isso virava dezenas de idas sequenciais ao
   // banco. Promise.all dispara todas de uma vez.
@@ -91,11 +95,11 @@ const cachedWatchlistCorrelations = unstable_cache(computeWatchlistCorrelations,
   revalidate: 300,
 });
 
-export async function getWatchlistCorrelations(maxPairs = 15): Promise<CorrelationPair[]> {
+export async function getWatchlistCorrelations(maxPairs = 15, maxItems?: number): Promise<CorrelationPair[]> {
   if (!hasDatabase()) {
     throw new Error("DATABASE_URL não configurada — correlação precisa do histórico salvo no banco.");
   }
-  return cachedWatchlistCorrelations(maxPairs);
+  return cachedWatchlistCorrelations(maxPairs, maxItems);
 }
 
 export interface BenchmarkCorrelation {
