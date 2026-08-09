@@ -10,6 +10,7 @@ import { addPriceAlert } from "@/lib/db/portfolioRepo";
 import { formatPrice } from "@/lib/format";
 import { getBaseUrl } from "@/lib/baseUrl";
 import { getZScoreHighlights } from "@/lib/zscoreService";
+import { getGrahamValuations, getBazinValuationsB3, getDcfValuations } from "@/lib/valuation";
 
 const MODEL = "claude-haiku-4-5-20251001";
 
@@ -79,6 +80,18 @@ const TOOLS = [
     },
   },
   {
+    name: "get_valuation",
+    description:
+      "Consulta valor justo de uma AÇÃO B3 por 3 métodos: Graham, Décio Bazin e DCF (fluxo de caixa descontado). Só funciona pra ações B3 (não FII, não stocks EUA, não cripto).",
+    input_schema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", description: "Ticker B3, ex: PETR4, VALE3" },
+      },
+      required: ["symbol"],
+    },
+  },
+  {
     name: "price_alert_create",
     description: "Cria um alerta pra avisar quando um ativo bater um preço-alvo (acima ou abaixo).",
     input_schema: {
@@ -108,12 +121,14 @@ Regras pra inferir a classe do ativo (assetClass) quando o usuário não disser 
   dólar/euro/libra/iene etc. sempre que o usuário falar de câmbio/moeda.
 
 O que você SABE fazer hoje (só isso — não invente outras capacidades): preço atual de um ativo,
-fluxo de ETF spot de cripto (só BTC/ETH/SOL), resumo do dia, z-score da watchlist, adicionar/
-remover ativo da watchlist, criar alerta de preço. Você NÃO tem acesso a: fórmulas de valuation
-(Graham/Bazin), SMA200, Monte Carlo, correlação/beta, fatos relevantes, dividendos recebidos,
+fluxo de ETF spot de cripto (só BTC/ETH/SOL), resumo do dia, z-score da watchlist, valor justo de
+ações B3 (Graham/Bazin/DCF), adicionar/remover ativo da watchlist, criar alerta de preço. Você NÃO
+tem acesso a: SMA200, Monte Carlo, correlação/beta, fatos relevantes, dividendos recebidos,
 carteira — essas ferramentas ainda só existem no site. Se o usuário pedir uma dessas, diga
 claramente que ainda não está disponível por aqui e que dá pra ver no dashboard, em vez de tentar
-responder sem dado ou de forma vaga.
+responder sem dado ou de forma vaga. get_valuation SÓ funciona pra ações B3 — se o usuário pedir
+valor justo de FII, stock EUA ou cripto, NÃO chame get_valuation, responda em texto explicando que
+esse cálculo hoje só existe pra ações B3.
 
 Se a mensagem não corresponder a nenhuma ação clara (ex: só um "oi", pergunta genérica sem
 relação com o dashboard), NÃO chame nenhuma ferramenta — responda só com texto curto explicando
@@ -209,6 +224,33 @@ async function executeTool(toolCall: ToolUseBlock): Promise<string> {
         (h) => `<b>${h.symbol}</b> (${h.assetClass}) — z=${h.zScore.toFixed(1)}, ${h.changePct >= 0 ? "+" : ""}${h.changePct.toFixed(2)}%`
       );
       return `📈 <b>Z-Score — Destaques</b>\n\n${lines.join("\n")}`;
+    }
+
+    case "get_valuation": {
+      const symbol = String(input.symbol).toUpperCase();
+      const target = [{ symbol, label: symbol }];
+      const [graham, bazin, dcf] = await Promise.all([
+        getGrahamValuations(target).catch(() => []),
+        getBazinValuationsB3(target).catch(() => []),
+        getDcfValuations(target).catch(() => []),
+      ]);
+
+      if (graham.length === 0 && bazin.length === 0 && dcf.length === 0) {
+        return `Não consegui calcular valor justo pra ${symbol} agora (fonte indisponível ou dado insuficiente — ex.: LPA/VPA negativo, sem histórico de dividendo, ou fluxo de caixa negativo).`;
+      }
+
+      const lines: string[] = [];
+      if (graham[0]) {
+        lines.push(`<b>Graham:</b> R$ ${graham[0].fairValue.toFixed(2)} (${graham[0].marginOfSafetyPct >= 0 ? "+" : ""}${graham[0].marginOfSafetyPct.toFixed(1)}%)`);
+      }
+      if (bazin[0]) {
+        lines.push(`<b>Bazin:</b> R$ ${bazin[0].fairPrice.toFixed(2)} (${bazin[0].marginOfSafetyPct >= 0 ? "+" : ""}${bazin[0].marginOfSafetyPct.toFixed(1)}%)`);
+      }
+      if (dcf[0]) {
+        lines.push(`<b>DCF:</b> R$ ${dcf[0].fairValue.toFixed(2)} (${dcf[0].marginOfSafetyPct >= 0 ? "+" : ""}${dcf[0].marginOfSafetyPct.toFixed(1)}%)`);
+      }
+      const price = graham[0]?.price ?? bazin[0]?.price ?? dcf[0]?.price;
+      return `📐 <b>${symbol}</b> — Preço atual: R$ ${price?.toFixed(2)}\n\n${lines.join("\n")}\n\n(%) = margem entre o valor justo de cada método e o preço atual. Detalhes/premissas de cada fórmula estão na aba Oportunidades do site.`;
     }
 
     case "watchlist_add": {
