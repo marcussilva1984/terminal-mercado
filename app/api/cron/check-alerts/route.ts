@@ -17,6 +17,7 @@ import { getTrendingCoins } from "@/lib/sources/coingecko";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import type { AnalystTarget } from "@/lib/sources/yahooAnalyst";
 import { getNegativeSectorSignals } from "@/lib/sectorSentiment";
+import { getGrahamValuations } from "@/lib/valuation";
 
 const WATCHLIST_MOVE_THRESHOLD = 5; // %
 
@@ -326,6 +327,23 @@ export async function GET(request: Request) {
     }
   } catch {
     // fonte de notícias indisponível nesta rodada
+  }
+
+  // 9. Valor justo de Graham cruzado (margem >= 20%, ações B3 da watchlist) —
+  // mesmo cálculo já usado na aba Oportunidades. Cooldown de 30 dias: é
+  // fundamento (LPA/VPA), não muda todo dia, não faz sentido repetir com
+  // frequência.
+  try {
+    const dbB3ForGraham = await getWatchlist("b3").catch(() => []);
+    const b3ForGraham = [...B3_WATCHLIST, ...dbB3ForGraham.filter((w) => !B3_WATCHLIST.some((f) => f.symbol === w.symbol))];
+    const graham = await getGrahamValuations(b3ForGraham);
+    for (const g of graham.filter((x) => x.marginOfSafetyPct >= 20)) {
+      const label = `📐 ${g.symbol}: preço (R$ ${g.price.toFixed(2)}) está ${g.marginOfSafetyPct.toFixed(0)}% abaixo do valor justo de Graham (R$ ${g.fairValue.toFixed(2)}) — vale olhar na aba Oportunidades (fórmula tem limitações conhecidas, não é recomendação).`;
+      const ok = await notify(`oportunidade:graham:${g.symbol}`, label, "oportunidade", 24 * 30);
+      if (ok) sent.push(label);
+    }
+  } catch {
+    // fonte de fundamentos indisponível nesta rodada
   }
 
   return NextResponse.json({ checked: true, alertsSent: sent.length, sent });

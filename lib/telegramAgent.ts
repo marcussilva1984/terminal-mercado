@@ -11,6 +11,8 @@ import { formatPrice } from "@/lib/format";
 import { getBaseUrl } from "@/lib/baseUrl";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 import { getGrahamValuations, getBazinValuationsB3, getDcfValuations } from "@/lib/valuation";
+import { getProtocolTvl } from "@/lib/sources/defillama";
+import { getNegativeCryptoSignals } from "@/lib/cryptoNewsSentiment";
 
 const MODEL = "claude-haiku-4-5-20251001";
 
@@ -92,6 +94,30 @@ const TOOLS = [
     },
   },
   {
+    name: "get_tvl",
+    description:
+      "Consulta o TVL (Total Value Locked) de um token de protocolo DeFi (ex.: AAVE, UNI, JTO, ONDO). Só funciona pra tokens de protocolo DeFi de verdade — não funciona pra blockchains base como BTC/ETH/SOL, que não têm TVL próprio.",
+    input_schema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", description: "Símbolo do token, ex: AAVE, UNI, JTO" },
+      },
+      required: ["symbol"],
+    },
+  },
+  {
+    name: "get_crypto_sentiment",
+    description:
+      "Consulta se um ativo cripto teve notícias recentes (7 dias) com tom de crise (hack, fraude, processo, colapso etc.) — heurística por palavra-chave, não é análise de sentimento de verdade.",
+    input_schema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", description: "Símbolo do ativo, ex: BTC, ETH, SOL" },
+      },
+      required: ["symbol"],
+    },
+  },
+  {
     name: "price_alert_create",
     description: "Cria um alerta pra avisar quando um ativo bater um preço-alvo (acima ou abaixo).",
     input_schema: {
@@ -122,13 +148,15 @@ Regras pra inferir a classe do ativo (assetClass) quando o usuário não disser 
 
 O que você SABE fazer hoje (só isso — não invente outras capacidades): preço atual de um ativo,
 fluxo de ETF spot de cripto (só BTC/ETH/SOL), resumo do dia, z-score da watchlist, valor justo de
-ações B3 (Graham/Bazin/DCF), adicionar/remover ativo da watchlist, criar alerta de preço. Você NÃO
-tem acesso a: SMA200, Monte Carlo, correlação/beta, fatos relevantes, dividendos recebidos,
-carteira — essas ferramentas ainda só existem no site. Se o usuário pedir uma dessas, diga
-claramente que ainda não está disponível por aqui e que dá pra ver no dashboard, em vez de tentar
-responder sem dado ou de forma vaga. get_valuation SÓ funciona pra ações B3 — se o usuário pedir
-valor justo de FII, stock EUA ou cripto, NÃO chame get_valuation, responda em texto explicando que
-esse cálculo hoje só existe pra ações B3.
+ações B3 (Graham/Bazin/DCF), TVL de token de protocolo DeFi, sentimento de notícias de um ativo
+cripto (heurística), adicionar/remover ativo da watchlist, criar alerta de preço. Você NÃO tem
+acesso a: SMA200, Monte Carlo, correlação/beta, fatos relevantes, dividendos recebidos, carteira —
+essas ferramentas ainda só existem no site. Se o usuário pedir uma dessas, diga claramente que
+ainda não está disponível por aqui e que dá pra ver no dashboard, em vez de tentar responder sem
+dado ou de forma vaga. get_valuation SÓ funciona pra ações B3 — se o usuário pedir valor justo de
+FII, stock EUA ou cripto, NÃO chame get_valuation, responda em texto explicando que esse cálculo
+hoje só existe pra ações B3. get_tvl SÓ funciona pra tokens de protocolo DeFi — pra BTC/ETH/SOL
+(blockchains base, não têm TVL próprio) responda em texto explicando isso, sem chamar a ferramenta.
 
 Se a mensagem não corresponder a nenhuma ação clara (ex: só um "oi", pergunta genérica sem
 relação com o dashboard), NÃO chame nenhuma ferramenta — responda só com texto curto explicando
@@ -251,6 +279,27 @@ async function executeTool(toolCall: ToolUseBlock): Promise<string> {
       }
       const price = graham[0]?.price ?? bazin[0]?.price ?? dcf[0]?.price;
       return `📐 <b>${symbol}</b> — Preço atual: R$ ${price?.toFixed(2)}\n\n${lines.join("\n")}\n\n(%) = margem entre o valor justo de cada método e o preço atual. Detalhes/premissas de cada fórmula estão na aba Oportunidades do site.`;
+    }
+
+    case "get_tvl": {
+      const symbol = String(input.symbol).toUpperCase();
+      const results = await getProtocolTvl([symbol]).catch(() => []);
+      if (results.length === 0) {
+        return `Não achei TVL relevante pra ${symbol} — ou não é um token de protocolo DeFi, ou o TVL é baixo demais pra ser confiável (risco de bater com protocolo homônimo irrelevante).`;
+      }
+      const r = results[0];
+      const change7d = r.change7dPct !== null ? `${r.change7dPct >= 0 ? "+" : ""}${r.change7dPct.toFixed(1)}% (7d)` : "sem variação 7d";
+      return `🏦 <b>${symbol}</b> — ${r.protocolName} (${r.category})\n\nTVL: ${formatCompact(r.tvlUsd, "US$")}\n${change7d}`;
+    }
+
+    case "get_crypto_sentiment": {
+      const symbol = String(input.symbol).toUpperCase();
+      const signals = await getNegativeCryptoSignals([{ symbol, label: symbol }]).catch(() => []);
+      if (signals.length === 0) {
+        return `Nenhuma notícia com tom de crise pra ${symbol} nos últimos 7 dias (heurística por palavra-chave — ausência de sinal não é garantia de que está tudo bem, só que não achei manchete negativa).`;
+      }
+      const s = signals[0];
+      return `⚠️ <b>${symbol}</b>\n\n${s.count} notícia${s.count > 1 ? "s" : ""} com tom de crise nos últimos 7 dias.\nEx.: "${s.sampleTitles[0]}"\n\nHeurística por palavra-chave — pode dar falso positivo (ex.: notícia boa que cita um evento ruim do passado). Vale ler a notícia inteira.`;
     }
 
     case "watchlist_add": {
