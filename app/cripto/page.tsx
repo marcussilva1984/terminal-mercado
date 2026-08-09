@@ -19,6 +19,8 @@ import { OnChainPanel } from "@/components/OnChainPanel";
 import { buildGenericInsights, fillMinimumInsights } from "@/lib/insights";
 import { getProtocolTvl } from "@/lib/sources/defillama";
 import { TvlPanel } from "@/components/TvlPanel";
+import { getNegativeCryptoSignals } from "@/lib/cryptoNewsSentiment";
+import { CryptoSentimentPanel } from "@/components/CryptoSentimentPanel";
 import { CRIPTO_WATCHLIST } from "@/lib/watchlist";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import type { RankingItem } from "@/lib/types";
@@ -68,7 +70,7 @@ export default async function CriptoPage() {
       })()
     : Promise.resolve(CRIPTO_WATCHLIST);
 
-  const [coinsResult, newsResult, zScoreResult, categoriesResult, derivativesResult, onChainResult, fearGreedResult, etfFlowResult, trendingResult, tvlResult] =
+  const [coinsResult, newsResult, zScoreResult, categoriesResult, derivativesResult, onChainResult, fearGreedResult, etfFlowResult, trendingResult, tvlResult, sentimentResult] =
     await Promise.allSettled([
       getTopCoinMarkets(100),
       getNews("cripto", 10),
@@ -80,6 +82,7 @@ export default async function CriptoPage() {
       getEtfFlows(),
       getTrendingCoins(),
       criptoWatchlist.then((w) => getProtocolTvl(w.map((x) => x.symbol))),
+      criptoWatchlist.then((w) => getNegativeCryptoSignals(w)),
     ]);
 
   if (coinsResult.status === "fulfilled") {
@@ -99,6 +102,7 @@ export default async function CriptoPage() {
   const etfFlows = etfFlowResult.status === "fulfilled" ? etfFlowResult.value : null;
   const trending = trendingResult.status === "fulfilled" ? trendingResult.value : null;
   const tvl = tvlResult.status === "fulfilled" ? tvlResult.value : null;
+  const cryptoSentiment = sentimentResult.status === "fulfilled" ? sentimentResult.value : null;
   const topSectors = categories
     ? [...categories].filter((c) => c.marketCapChange24h !== null).sort((a, b) => (b.marketCapChange24h ?? 0) - (a.marketCapChange24h ?? 0))
     : null;
@@ -380,6 +384,14 @@ export default async function CriptoPage() {
 
       <Panel title="TVL por Protocolo — Watchlist" updatedAt={now}>
         {tvl ? <TvlPanel items={tvl} /> : <p className="text-sm text-down">Fonte indisponível no momento.</p>}
+      </Panel>
+
+      <Panel title="Sentimento de Notícias — Watchlist (7 dias)" updatedAt={now}>
+        {cryptoSentiment ? (
+          <CryptoSentimentPanel items={cryptoSentiment} />
+        ) : (
+          <p className="text-sm text-down">Fonte indisponível no momento.</p>
+        )}
       </Panel>
 
       <Panel title="Notícias Cripto" updatedAt={now}>
