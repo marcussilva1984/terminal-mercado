@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { getFullIndicators, getFiiDividendHistory } from "@/lib/sources/fundamentus";
 import { getYahooQuote } from "@/lib/sources/yahoo";
 import { fetchCandles } from "@/lib/sources/yahooTickerDetail";
@@ -47,7 +48,7 @@ export interface BazinResult {
 // pra empresas industriais estáveis — em papéis cíclicos/commodities (ex.:
 // petróleo, mineração) o resultado tende a ficar bem acima do preço de
 // mercado; não é erro do cálculo, é limitação conhecida da fórmula.
-export async function getGrahamValuations(symbols: { symbol: string; label: string }[]): Promise<GrahamResult[]> {
+async function computeGrahamValuations(symbols: { symbol: string; label: string }[]): Promise<GrahamResult[]> {
   const results = await Promise.allSettled(
     symbols.map(async ({ symbol, label }) => {
       const sections = await getFullIndicators(symbol);
@@ -72,10 +73,17 @@ export async function getGrahamValuations(symbols: { symbol: string; label: stri
     .sort((a, b) => b.marginOfSafetyPct - a.marginOfSafetyPct);
 }
 
+// Fundamentus é lento pra ~70 ativos (scraping HTML um por um) — cacheia por
+// 6h, já que LPA/VPA/dividendo/preço não mudam intraday de um jeito que
+// justifique recalcular a cada clique na aba Oportunidades.
+export const getGrahamValuations = unstable_cache(computeGrahamValuations, ["graham-valuations"], {
+  revalidate: 6 * 60 * 60,
+});
+
 // Método Décio Bazin: preço justo = dividendo médio anual por ação / 6%.
 // Usa o Div. Yield já calculado pelo Fundamentus (últimos 12 meses) pra achar
 // o dividendo/ação implícito, em vez de somar pagamento por pagamento.
-export async function getBazinValuationsB3(symbols: { symbol: string; label: string }[]): Promise<BazinResult[]> {
+async function computeBazinValuationsB3(symbols: { symbol: string; label: string }[]): Promise<BazinResult[]> {
   const results = await Promise.allSettled(
     symbols.map(async ({ symbol, label }) => {
       const sections = await getFullIndicators(symbol);
@@ -99,10 +107,14 @@ export async function getBazinValuationsB3(symbols: { symbol: string; label: str
     .sort((a, b) => b.marginOfSafetyPct - a.marginOfSafetyPct);
 }
 
+export const getBazinValuationsB3 = unstable_cache(computeBazinValuationsB3, ["bazin-valuations-b3"], {
+  revalidate: 6 * 60 * 60,
+});
+
 // Mesma lógica do Bazin, mas pra FII: soma os proventos pagos nos últimos 12
 // meses (Fundamentus não tem Div. Yield estruturado pra FII do mesmo jeito),
 // contra o preço atual via Yahoo.
-export async function getBazinValuationsFii(symbols: { symbol: string; label: string }[]): Promise<BazinResult[]> {
+async function computeBazinValuationsFii(symbols: { symbol: string; label: string }[]): Promise<BazinResult[]> {
   const oneYearAgo = new Date();
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
   const sinceIso = oneYearAgo.toISOString().slice(0, 10);
@@ -133,6 +145,10 @@ export async function getBazinValuationsFii(symbols: { symbol: string; label: st
     .sort((a, b) => b.marginOfSafetyPct - a.marginOfSafetyPct);
 }
 
+export const getBazinValuationsFii = unstable_cache(computeBazinValuationsFii, ["bazin-valuations-fii"], {
+  revalidate: 6 * 60 * 60,
+});
+
 export interface Sma200Result {
   symbol: string;
   label: string;
@@ -147,7 +163,7 @@ export interface Sma200Result {
 // clássico de tendência de longo prazo (mesma convenção já usada no z-score
 // de Forex). Precisa de pelo menos 200 candles pra ser confiável; se o ativo
 // tiver histórico mais curto (IPO recente), pula.
-export async function getSma200Signals(
+async function computeSma200Signals(
   items: { symbol: string; label: string; assetClass: string }[]
 ): Promise<Sma200Result[]> {
   const results = await Promise.allSettled(
@@ -172,6 +188,13 @@ export async function getSma200Signals(
     .sort((a, b) => Math.abs(a.distancePct) - Math.abs(b.distancePct));
 }
 
+// Candles do Yahoo já são cacheados por 15min na fonte, mas com a watchlist
+// grande recalcular SMA200 pra tudo em todo request ainda pesa — cacheia o
+// resultado já pronto.
+export const getSma200Signals = unstable_cache(computeSma200Signals, ["sma200-signals"], {
+  revalidate: 15 * 60,
+});
+
 export interface MonteCarloResult {
   symbol: string;
   label: string;
@@ -187,7 +210,7 @@ export interface MonteCarloResult {
 // média/desvio dos retornos diários históricos — devolve uma FAIXA provável
 // de preço daqui a `horizonDays`, não uma previsão. É estatística de
 // distribuição: quanto mais volátil o ativo, mais larga a faixa.
-export async function getMonteCarloRanges(
+async function computeMonteCarloRanges(
   items: { symbol: string; label: string; assetClass: string }[],
   horizonDays = 30,
   simulations = 2000
@@ -233,6 +256,14 @@ export async function getMonteCarloRanges(
     .map((r) => r.value)
     .filter((v): v is MonteCarloResult => v !== null);
 }
+
+// Monte Carlo é uma simulação de milhares de caminhos por ativo — bem mais
+// caro que os outros cálculos. Cacheia por 15min, o que também tem o efeito
+// colateral bom de manter o resultado estável entre navegações rápidas em
+// vez de re-sortear tudo a cada clique.
+export const getMonteCarloRanges = unstable_cache(computeMonteCarloRanges, ["monte-carlo-ranges"], {
+  revalidate: 15 * 60,
+});
 
 export interface FatoRelevanteMatch {
   symbol: string;
@@ -307,7 +338,7 @@ const DCF_PROJECTION_YEARS = 5;
 // de investimento tem outra natureza lá — carteira de crédito, não capex) e
 // pra empresas com FCF negativo no último ano fiscal (não dá pra projetar a
 // partir de uma base negativa de forma confiável).
-export async function getDcfValuations(symbols: { symbol: string; label: string }[]): Promise<DcfResult[]> {
+async function computeDcfValuations(symbols: { symbol: string; label: string }[]): Promise<DcfResult[]> {
   const results = await Promise.allSettled(
     symbols.map(async ({ symbol, label }) => {
       const [cf, sections] = await Promise.all([getAnnualCashFlow(symbol), getFullIndicators(symbol)]);
@@ -354,3 +385,7 @@ export async function getDcfValuations(symbols: { symbol: string; label: string 
     .filter((v): v is DcfResult => v !== null)
     .sort((a, b) => b.marginOfSafetyPct - a.marginOfSafetyPct);
 }
+
+export const getDcfValuations = unstable_cache(computeDcfValuations, ["dcf-valuations"], {
+  revalidate: 6 * 60 * 60,
+});

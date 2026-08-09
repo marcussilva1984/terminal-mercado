@@ -18,9 +18,11 @@ export async function getB3VolatilityRanking(): Promise<VolatilityResult[]> {
   ]);
 
   const watchlist = await getWatchlist("b3");
+  const fetched = await Promise.all(
+    watchlist.map(async (entry) => ({ entry, closes: await getCloses(entry.symbol, "b3", 30) }))
+  );
   const results: VolatilityResult[] = [];
-  for (const entry of watchlist) {
-    const closes = await getCloses(entry.symbol, "b3", 30);
+  for (const { entry, closes } of fetched) {
     if (closes.length < 2) continue;
     const vol = computeVolatility(entry.symbol, entry.label, closes.map((c) => c.closePrice));
     if (vol) results.push(vol);

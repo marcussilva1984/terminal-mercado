@@ -54,20 +54,21 @@ export interface DividendsReceivedResult {
 // Fundamentus só cobre B3/FII (não tem proventos de stocks EUA/cripto de
 // graça numa fonte só) — chamado apenas pra esses dois.
 export async function getDividendsReceived(holdings: DividendsReceivedInput[]): Promise<DividendsReceivedResult[]> {
-  const results: DividendsReceivedResult[] = [];
-  for (const h of holdings) {
-    if (h.assetClass !== "b3" && h.assetClass !== "fii") continue;
-    try {
+  const eligible = holdings.filter((h) => h.assetClass === "b3" || h.assetClass === "fii");
+  const settled = await Promise.allSettled(
+    eligible.map(async (h) => {
       const history = h.assetClass === "fii" ? await getFiiDividendHistory(h.symbol) : await getDividendHistory(h.symbol);
       const relevant = history.filter((p) => p.date >= h.sinceDate);
-      if (relevant.length === 0) continue;
+      if (relevant.length === 0) return null;
       const totalReceived = relevant.reduce((sum, p) => sum + p.valuePerShare * h.quantity, 0);
-      results.push({ symbol: h.symbol, totalReceived, paymentsCount: relevant.length });
-    } catch {
-      // fonte indisponível pra esse papel — segue pros demais
-    }
-  }
-  return results;
+      return { symbol: h.symbol, totalReceived, paymentsCount: relevant.length };
+    })
+  );
+
+  return settled
+    .filter((r): r is PromiseFulfilledResult<DividendsReceivedResult | null> => r.status === "fulfilled")
+    .map((r) => r.value)
+    .filter((v): v is DividendsReceivedResult => v !== null);
 }
 
 export interface PortfolioSharpeInput {
@@ -91,8 +92,10 @@ export interface SharpeResult {
 export async function getPortfolioSharpe(holdings: PortfolioSharpeInput[]): Promise<SharpeResult | null> {
   const returnsBySymbol = new Map<string, Map<string, number>>();
 
-  for (const h of holdings) {
-    const closes = await getCloses(h.symbol, h.assetClass, 60);
+  const closesByHolding = await Promise.all(
+    holdings.map(async (h) => ({ h, closes: await getCloses(h.symbol, h.assetClass, 60) }))
+  );
+  for (const { h, closes } of closesByHolding) {
     if (closes.length < 6) continue;
     const returns = new Map<string, number>();
     for (let i = 1; i < closes.length; i++) {
