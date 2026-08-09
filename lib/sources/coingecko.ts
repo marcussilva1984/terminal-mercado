@@ -65,6 +65,7 @@ export interface TrendingCoin {
   name: string;
   marketCapRank: number | null;
   priceChangePct24h: number | null;
+  priceUsd: number | null;
 }
 
 // "Onde a atenção do mercado cripto está agora" — ranking de busca da própria
@@ -87,7 +88,7 @@ export async function getTrendingCoins(): Promise<TrendingCoin[]> {
       symbol: string;
       name: string;
       market_cap_rank: number | null;
-      data?: { price_change_percentage_24h?: { usd?: number } };
+      data?: { price?: number; price_change_percentage_24h?: { usd?: number } };
     };
   }[] = json.coins ?? [];
 
@@ -97,6 +98,7 @@ export async function getTrendingCoins(): Promise<TrendingCoin[]> {
     name: item.name,
     marketCapRank: item.market_cap_rank,
     priceChangePct24h: item.data?.price_change_percentage_24h?.usd ?? null,
+    priceUsd: item.data?.price ?? null,
   }));
 }
 

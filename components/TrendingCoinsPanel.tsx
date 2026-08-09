@@ -1,5 +1,5 @@
 import type { TrendingCoin } from "@/lib/sources/coingecko";
-import { changeColorClass, formatPct } from "@/lib/format";
+import { changeColorClass, formatPct, formatPrice } from "@/lib/format";
 
 export function TrendingCoinsPanel({ items }: { items: TrendingCoin[] }) {
   if (items.length === 0) {
@@ -15,9 +15,12 @@ export function TrendingCoinsPanel({ items }: { items: TrendingCoin[] }) {
               <span className="text-text-muted">#{i + 1}</span> {c.symbol} <span className="text-text-muted">— {c.name}</span>
               {c.marketCapRank && <span className="ml-1 text-xs text-text-muted">(rank #{c.marketCapRank})</span>}
             </span>
-            {c.priceChangePct24h !== null && (
-              <span className={changeColorClass(c.priceChangePct24h)}>{formatPct(c.priceChangePct24h)}</span>
-            )}
+            <span className="flex items-center gap-2">
+              {c.priceUsd !== null && <span className="text-text-muted">{formatPrice(c.priceUsd, "USD")}</span>}
+              {c.priceChangePct24h !== null && (
+                <span className={changeColorClass(c.priceChangePct24h)}>{formatPct(c.priceChangePct24h)}</span>
+              )}
+            </span>
           </li>
         ))}
       </ul>
