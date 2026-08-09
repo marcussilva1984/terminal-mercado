@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { hasDatabase } from "@/lib/db/client";
 import { upsertCloses, type PriceSeriesRow } from "@/lib/db/priceSeriesRepo";
 import { getWatchlist, seedWatchlistIfEmpty } from "@/lib/db/watchlistRepo";
-import { getTopCoinMarkets } from "@/lib/sources/coingecko";
+import { getTopCoinMarkets, getCoinMarketBySymbolFallback } from "@/lib/sources/coingecko";
 import { getYahooQuote } from "@/lib/sources/yahoo";
 import { B3_WATCHLIST, CRIPTO_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST, FOREX_WATCHLIST } from "@/lib/watchlist";
 import { getHoldings } from "@/lib/db/portfolioRepo";
@@ -90,9 +90,23 @@ export async function GET(request: Request) {
     try {
       const markets = await getTopCoinMarkets(250);
       const rows: PriceSeriesRow[] = [];
+      const unmatched: string[] = [];
       for (const { symbol } of criptoWatchlist) {
         const coin = markets.find((c) => c.symbol.toLowerCase() === symbol.toLowerCase());
         if (coin) rows.push({ symbol, assetClass: "cripto", date: today, closePrice: coin.current_price, source: "coingecko" });
+        else unmatched.push(symbol);
+      }
+      // Moedas fora do top-250 (usuário pode ter adicionado manualmente na
+      // watchlist) — busca individual só pras que sobraram, não pra todas.
+      const fallbackRows = await Promise.allSettled(
+        unmatched.map(async (symbol) => {
+          const coin = await getCoinMarketBySymbolFallback(symbol);
+          if (!coin) return null;
+          return { symbol, assetClass: "cripto", date: today, closePrice: coin.current_price, source: "coingecko" } satisfies PriceSeriesRow;
+        })
+      );
+      for (const r of fallbackRows) {
+        if (r.status === "fulfilled" && r.value) rows.push(r.value);
       }
       return rows;
     } catch {

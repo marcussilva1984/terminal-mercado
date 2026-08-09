@@ -26,6 +26,37 @@ export async function getTopCoinMarkets(perPage = 100): Promise<CoinMarket[]> {
   return res.json();
 }
 
+// Fallback pra moedas fora do top-250 por market cap (ex.: BP/Backpack rank
+// ~260, KMNO/Kamino rank ~277) — o usuário pode adicionar qualquer símbolo na
+// watchlist manualmente, e o /coins/markets em lote só cobre o topo. Busca o
+// id via /search (pega o resultado de símbolo exato com melhor rank, já que
+// símbolos curtos tipo "BP" batem em várias moedas) e então o preço via
+// /coins/markets?ids= (mesmo shape do CoinMarket, uma chamada leve).
+export async function getCoinMarketBySymbolFallback(symbol: string): Promise<CoinMarket | null> {
+  const searchRes = await fetch(`${COINGECKO_BASE}/search?query=${encodeURIComponent(symbol)}`, {
+    next: { revalidate: 6 * 60 * 60 },
+    headers: { accept: "application/json" },
+  });
+  if (!searchRes.ok) return null;
+
+  const searchJson = await searchRes.json();
+  const candidates: { id: string; symbol: string; market_cap_rank: number | null }[] = searchJson.coins ?? [];
+  const exactMatches = candidates.filter((c) => c.symbol.toLowerCase() === symbol.toLowerCase());
+  if (exactMatches.length === 0) return null;
+
+  exactMatches.sort((a, b) => (a.market_cap_rank ?? Infinity) - (b.market_cap_rank ?? Infinity));
+  const coinId = exactMatches[0].id;
+
+  const marketRes = await fetch(
+    `${COINGECKO_BASE}/coins/markets?vs_currency=usd&ids=${coinId}&price_change_percentage=24h`,
+    { next: { revalidate: 60 }, headers: { accept: "application/json" } }
+  );
+  if (!marketRes.ok) return null;
+
+  const markets: CoinMarket[] = await marketRes.json();
+  return markets[0] ?? null;
+}
+
 export interface CoinHistoryPoint {
   date: string; // YYYY-MM-DD
   close: number;

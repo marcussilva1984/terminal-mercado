@@ -1,5 +1,5 @@
 import { getYahooQuote } from "@/lib/sources/yahoo";
-import { getTopCoinMarkets } from "@/lib/sources/coingecko";
+import { getTopCoinMarkets, getCoinMarketBySymbolFallback } from "@/lib/sources/coingecko";
 
 export interface CurrentPrice {
   price: number;
@@ -23,8 +23,14 @@ export async function getCurrentPrice(symbol: string, assetClass: string): Promi
   if (assetClass === "cripto") {
     const markets = await getTopCoinMarkets(250);
     const coin = markets.find((c) => c.symbol.toLowerCase() === symbol.toLowerCase());
-    return coin
-      ? { price: coin.current_price, changePct: coin.price_change_percentage_24h ?? 0, currency: "USD" }
+    if (coin) {
+      return { price: coin.current_price, changePct: coin.price_change_percentage_24h ?? 0, currency: "USD" };
+    }
+    // Moeda fora do top-250 por market cap (usuário pode adicionar qualquer
+    // símbolo na watchlist manualmente) — tenta achar via busca por símbolo.
+    const fallback = await getCoinMarketBySymbolFallback(symbol).catch(() => null);
+    return fallback
+      ? { price: fallback.current_price, changePct: fallback.price_change_percentage_24h ?? 0, currency: "USD" }
       : null;
   }
 
