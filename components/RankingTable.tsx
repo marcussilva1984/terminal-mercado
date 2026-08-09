@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { RankingItem } from "@/lib/types";
-import { changeColorClass, formatNumber, formatPct, formatPrice } from "@/lib/format";
+import { changeColorClass, formatNumber, formatPct, formatPrice, formatUSDCompact } from "@/lib/format";
 
 type SortKey = "symbol" | "price" | "value" | "changePct" | "volume";
 type SortDirection = "asc" | "desc";
@@ -32,15 +32,35 @@ function SortHeader({
   );
 }
 
+// "format" é serializável (string) de propósito — uma função não pode
+// atravessar a fronteira Server -> Client Component (React derruba a página
+// inteira com "Functions cannot be passed directly to Client Components").
+export type ValueFormat = "number" | "percent-of-1" | "price-usd" | "price-brl" | "compact-usd";
+
+function applyFormat(value: number, format: ValueFormat): string {
+  switch (format) {
+    case "percent-of-1":
+      return `${(value * 100).toFixed(1)}%`;
+    case "price-usd":
+      return formatPrice(value, "USD");
+    case "price-brl":
+      return formatPrice(value, "BRL");
+    case "compact-usd":
+      return formatUSDCompact(value);
+    default:
+      return formatNumber(value);
+  }
+}
+
 export function RankingTable({
   items,
   valueLabel = "Preço",
-  formatValue = (v: number) => formatNumber(v),
+  format = "number",
   assetClass,
 }: {
   items: RankingItem[];
   valueLabel?: string;
-  formatValue?: (value: number) => string;
+  format?: ValueFormat;
   assetClass?: "b3" | "cripto" | "stocks" | "fii";
 }) {
   const [sortKey, setSortKey] = useState<SortKey>("changePct");
@@ -108,7 +128,7 @@ export function RankingTable({
               )}
             </td>
             {item.price !== undefined && <td className="py-2 text-right text-text-muted">{formatPrice(item.price, "USD")}</td>}
-            <td className="py-2 text-right text-text">{formatValue(item.value)}</td>
+            <td className="py-2 text-right text-text">{applyFormat(item.value, format)}</td>
             <td className={`py-2 text-right ${changeColorClass(item.changePct)}`}>
               {formatPct(item.changePct)}
             </td>

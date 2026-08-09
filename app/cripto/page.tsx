@@ -17,6 +17,10 @@ import { formatPrice } from "@/lib/format";
 import { LongShortPanel, FundingRateTable, OpenInterestPanel } from "@/components/DerivativesPanel";
 import { OnChainPanel } from "@/components/OnChainPanel";
 import { buildGenericInsights, fillMinimumInsights } from "@/lib/insights";
+import { getProtocolTvl } from "@/lib/sources/defillama";
+import { TvlPanel } from "@/components/TvlPanel";
+import { CRIPTO_WATCHLIST } from "@/lib/watchlist";
+import { getWatchlist } from "@/lib/db/watchlistRepo";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -53,7 +57,18 @@ export default async function CriptoPage() {
     return cache;
   };
 
-  const [coinsResult, newsResult, zScoreResult, categoriesResult, derivativesResult, onChainResult, fearGreedResult, etfFlowResult, trendingResult] =
+  const criptoWatchlist = hasDatabase()
+    ? (() => {
+        const merged = [...CRIPTO_WATCHLIST];
+        const seen = new Set(merged.map((w) => w.symbol));
+        return getWatchlist("cripto").then((db) => {
+          for (const w of db) if (!seen.has(w.symbol)) merged.push(w);
+          return merged;
+        });
+      })()
+    : Promise.resolve(CRIPTO_WATCHLIST);
+
+  const [coinsResult, newsResult, zScoreResult, categoriesResult, derivativesResult, onChainResult, fearGreedResult, etfFlowResult, trendingResult, tvlResult] =
     await Promise.allSettled([
       getTopCoinMarkets(100),
       getNews("cripto", 10),
@@ -64,6 +79,7 @@ export default async function CriptoPage() {
       getFearGreedIndex(),
       getEtfFlows(),
       getTrendingCoins(),
+      criptoWatchlist.then((w) => getProtocolTvl(w.map((x) => x.symbol))),
     ]);
 
   if (coinsResult.status === "fulfilled") {
@@ -82,6 +98,7 @@ export default async function CriptoPage() {
   const fearGreed = fearGreedResult.status === "fulfilled" ? fearGreedResult.value : null;
   const etfFlows = etfFlowResult.status === "fulfilled" ? etfFlowResult.value : null;
   const trending = trendingResult.status === "fulfilled" ? trendingResult.value : null;
+  const tvl = tvlResult.status === "fulfilled" ? tvlResult.value : null;
   const topSectors = categories
     ? [...categories].filter((c) => c.marketCapChange24h !== null).sort((a, b) => (b.marketCapChange24h ?? 0) - (a.marketCapChange24h ?? 0))
     : null;
@@ -351,7 +368,7 @@ export default async function CriptoPage() {
           <RankingTable
             items={byVolumeRatio}
             valueLabel="Volume/Market Cap"
-            formatValue={(v) => `${(v * 100).toFixed(1)}%`}
+            format="percent-of-1"
           />
           <p className="mt-3 text-xs text-text-muted">
             Proxy simples: volume 24h dividido pelo market cap. Quanto maior, mais desproporcional o
@@ -360,6 +377,10 @@ export default async function CriptoPage() {
           </p>
         </Panel>
       </div>
+
+      <Panel title="TVL por Protocolo — Watchlist" updatedAt={now}>
+        {tvl ? <TvlPanel items={tvl} /> : <p className="text-sm text-down">Fonte indisponível no momento.</p>}
+      </Panel>
 
       <Panel title="Notícias Cripto" updatedAt={now}>
         <NewsFeed items={news} now={now} />

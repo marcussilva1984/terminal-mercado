@@ -2,20 +2,12 @@
 
 import { useState } from "react";
 import { Panel } from "@/components/Panel";
-import { RankingTable } from "@/components/RankingTable";
-import { formatNumber, formatPrice, formatUSDCompact } from "@/lib/format";
+import { RankingTable, type ValueFormat } from "@/components/RankingTable";
 import type { RankingItem } from "@/lib/types";
 
 const COUNT_OPTIONS = [5, 10, 20] as const;
 
-export type ValueFormat = "number" | "price-usd" | "price-brl" | "compact-usd";
-
-const FORMATTERS: Record<ValueFormat, (value: number) => string> = {
-  number: (v) => formatNumber(v),
-  "price-usd": (v) => formatPrice(v, "USD"),
-  "price-brl": (v) => formatPrice(v, "BRL"),
-  "compact-usd": formatUSDCompact,
-};
+export type { ValueFormat };
 
 export function RankingPanel({
   title,
@@ -54,7 +46,7 @@ export function RankingPanel({
         </select>
       }
     >
-      <RankingTable items={items.slice(0, count)} valueLabel={valueLabel} formatValue={FORMATTERS[format]} assetClass={assetClass} />
+      <RankingTable items={items.slice(0, count)} valueLabel={valueLabel} format={format} assetClass={assetClass} />
     </Panel>
   );
 }
