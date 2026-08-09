@@ -36,10 +36,19 @@ export function formatCompact(value: number, currencySymbol: string): string {
   return `${currencySymbol} ${formatNumber(abs)}`;
 }
 
+// timeZone fixo é obrigatório aqui: sem isso, o mesmo horário ISO aparece
+// diferente dependendo de onde é formatado — painéis renderizados no
+// servidor (Vercel, UTC) mostravam um horário, e os mesmos painéis quando
+// envolvidos por um componente client (formatados no navegador do usuário,
+// America/Sao_Paulo) mostravam outro, um "Atualizado" 3h diferente do outro
+// na mesma tela.
+const BRASILIA_TZ = "America/Sao_Paulo";
+
 export function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("pt-BR", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: BRASILIA_TZ,
   });
 }
 
@@ -49,6 +58,7 @@ export function formatDateTime(iso: string): string {
     month: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: BRASILIA_TZ,
   });
 }
 

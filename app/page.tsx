@@ -45,7 +45,8 @@ export default async function HomePage() {
         <div>
           <h1 className="text-xl font-semibold text-text">Resumo do Dia</h1>
           <p className="mt-1 text-sm text-text-muted">
-            Fluxo B3 e z-score já usam dados reais (precisam de <code>DATABASE_URL</code> configurada).
+            Fluxo B3, z-score e demais painéis usam dado real das fontes públicas — sem opinião ou
+            recomendação embutida.
           </p>
         </div>
         <div className="flex items-center gap-2">
