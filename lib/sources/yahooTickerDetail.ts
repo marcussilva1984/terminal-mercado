@@ -140,8 +140,14 @@ export async function getTickerDetail(symbol: string): Promise<TickerDetail | nu
     const exDividendRaw = calendarEvents.exDividendDate?.raw;
     const floatShares: number | null = keyStats.floatShares?.raw ?? null;
     const sharesOutstanding: number | null = keyStats.sharesOutstanding?.raw ?? null;
-    const freeFloatPct =
+    // Em empresas com mais de uma classe de ação (ex.: PETR3 ON + PETR4 PN), o
+    // Yahoo às vezes reporta floatShares somando as duas classes enquanto
+    // sharesOutstanding reflete só uma — dá float > outstanding, matematicamente
+    // impossível (float é subconjunto de outstanding por definição). Melhor
+    // não mostrar do que mostrar um número que não pode existir.
+    const rawFreeFloatPct =
       floatShares !== null && sharesOutstanding ? (floatShares / sharesOutstanding) * 100 : null;
+    const freeFloatPct = rawFreeFloatPct !== null && rawFreeFloatPct <= 100 ? rawFreeFloatPct : null;
     const upgradeHistory: UpgradeDowngrade[] = (result.upgradeDowngradeHistory?.history ?? [])
       .slice(0, 15)
       .map((h: Record<string, number | string>) => ({

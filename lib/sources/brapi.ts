@@ -49,6 +49,11 @@ const MIN_VOLUME_FOR_RANKING: Record<"stock" | "fund", number> = {
   fund: 1_000, // FIIs negociam em cotas, volume naturalmente bem menor que ações
 };
 
+// Cota abaixo de R$1 faz qualquer variação de centavos virar % de dois dígitos
+// (ex.: FSRF11 a R$0,08 subindo R$0,01 = +14%) — distorce "maiores altas/baixas"
+// sem refletir movimento real de mercado. Só se aplica a fundos.
+const MIN_PRICE_FOR_FUND_RANKING = 1;
+
 // Ranking de mercado inteiro (sem token, ~780 papéis / ~450 fundos). Pede uma página
 // maior e filtra por liquidez mínima porque os maiores % de variação do dia costumam
 // ser papéis sem negociação relevante (frações, BDRs ilíquidos, cotas paradas).
@@ -83,6 +88,7 @@ export async function getBrapiRanking(
 
   return stocks
     .filter((s) => s.volume >= MIN_VOLUME_FOR_RANKING[type])
+    .filter((s) => type !== "fund" || s.close >= MIN_PRICE_FOR_FUND_RANKING)
     .slice(0, limit)
     .map((s) => ({
       symbol: s.stock,
