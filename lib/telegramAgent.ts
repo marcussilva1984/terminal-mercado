@@ -6,13 +6,15 @@ import { getCurrentPrice } from "@/lib/priceLookup";
 import { getEtfFlows } from "@/lib/sources/etfFlow";
 import { formatCompact } from "@/lib/format";
 import { addWatchlistItem, removeWatchlistItem, getWatchlist } from "@/lib/db/watchlistRepo";
-import { addPriceAlert } from "@/lib/db/portfolioRepo";
+import { addPriceAlert, getHoldings } from "@/lib/db/portfolioRepo";
 import { formatPrice } from "@/lib/format";
 import { getBaseUrl } from "@/lib/baseUrl";
 import { getZScoreHighlights } from "@/lib/zscoreService";
-import { getGrahamValuations, getBazinValuationsB3, getDcfValuations } from "@/lib/valuation";
+import { getGrahamValuations, getBazinValuationsB3, getDcfValuations, getSma200Signals, matchFatosRelevantes } from "@/lib/valuation";
 import { getProtocolTvl } from "@/lib/sources/defillama";
 import { getNegativeCryptoSignals } from "@/lib/cryptoNewsSentiment";
+import { getFatosRelevantes } from "@/lib/sources/cvmFatosRelevantes";
+import { getDividendsReceived } from "@/lib/portfolioMetrics";
 
 const MODEL = "claude-haiku-4-5-20251001";
 
@@ -118,6 +120,32 @@ const TOOLS = [
     },
   },
   {
+    name: "get_sma200",
+    description: "Consulta se um ativo está acima ou abaixo da média móvel de 200 pregões (tendência de longo prazo). Funciona pra B3, FII, Stocks, Cripto e Forex.",
+    input_schema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string" },
+        assetClass: { type: "string", enum: ["b3", "stocks", "cripto", "fii", "forex"] },
+      },
+      required: ["symbol", "assetClass"],
+    },
+  },
+  {
+    name: "get_fatos_relevantes",
+    description: "Consulta se uma ação B3 teve fato relevante recente publicado na CVM.",
+    input_schema: {
+      type: "object",
+      properties: { symbol: { type: "string", description: "Ticker B3, ex: PETR4" } },
+      required: ["symbol"],
+    },
+  },
+  {
+    name: "get_dividends_received",
+    description: "Soma quanto a carteira (posições B3/FII) já recebeu de dividendos desde que cada posição foi cadastrada.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
     name: "price_alert_create",
     description: "Cria um alerta pra avisar quando um ativo bater um preço-alvo (acima ou abaixo).",
     input_schema: {
@@ -148,15 +176,16 @@ Regras pra inferir a classe do ativo (assetClass) quando o usuário não disser 
 
 O que você SABE fazer hoje (só isso — não invente outras capacidades): preço atual de um ativo,
 fluxo de ETF spot de cripto (só BTC/ETH/SOL), resumo do dia, z-score da watchlist, valor justo de
-ações B3 (Graham/Bazin/DCF), TVL de token de protocolo DeFi, sentimento de notícias de um ativo
-cripto (heurística), adicionar/remover ativo da watchlist, criar alerta de preço. Você NÃO tem
-acesso a: SMA200, Monte Carlo, correlação/beta, fatos relevantes, dividendos recebidos, carteira —
-essas ferramentas ainda só existem no site. Se o usuário pedir uma dessas, diga claramente que
-ainda não está disponível por aqui e que dá pra ver no dashboard, em vez de tentar responder sem
-dado ou de forma vaga. get_valuation SÓ funciona pra ações B3 — se o usuário pedir valor justo de
-FII, stock EUA ou cripto, NÃO chame get_valuation, responda em texto explicando que esse cálculo
-hoje só existe pra ações B3. get_tvl SÓ funciona pra tokens de protocolo DeFi — pra BTC/ETH/SOL
-(blockchains base, não têm TVL próprio) responda em texto explicando isso, sem chamar a ferramenta.
+ações B3 (Graham/Bazin/DCF), SMA200, fato relevante recente de ação B3, dividendos recebidos na
+carteira, TVL de token de protocolo DeFi, sentimento de notícias de um ativo cripto (heurística),
+adicionar/remover ativo da watchlist, criar alerta de preço. Você NÃO tem acesso a: Monte Carlo,
+correlação/beta, posições da carteira em si (só o total de dividendos) — essas ainda só existem no
+site. Se o usuário pedir uma dessas, diga claramente que ainda não está disponível por aqui, em vez
+de tentar responder sem dado ou de forma vaga. get_valuation SÓ funciona pra ações B3 — se o
+usuário pedir valor justo de FII, stock EUA ou cripto, NÃO chame get_valuation, responda em texto
+explicando que esse cálculo hoje só existe pra ações B3. get_tvl SÓ funciona pra tokens de
+protocolo DeFi — pra BTC/ETH/SOL (blockchains base, não têm TVL próprio) responda em texto
+explicando isso, sem chamar a ferramenta.
 
 Se a mensagem não corresponder a nenhuma ação clara (ex: só um "oi", pergunta genérica sem
 relação com o dashboard), NÃO chame nenhuma ferramenta — responda só com texto curto explicando
@@ -300,6 +329,40 @@ async function executeTool(toolCall: ToolUseBlock): Promise<string> {
       }
       const s = signals[0];
       return `⚠️ <b>${symbol}</b>\n\n${s.count} notícia${s.count > 1 ? "s" : ""} com tom de crise nos últimos 7 dias.\nEx.: "${s.sampleTitles[0]}"\n\nHeurística por palavra-chave — pode dar falso positivo (ex.: notícia boa que cita um evento ruim do passado). Vale ler a notícia inteira.`;
+    }
+
+    case "get_sma200": {
+      const symbol = String(input.symbol).toUpperCase();
+      const assetClass = String(input.assetClass);
+      const results = await getSma200Signals([{ symbol, label: symbol, assetClass }]).catch(() => []);
+      if (results.length === 0) {
+        return `Sem SMA200 disponível pra ${symbol} agora (precisa de pelo menos 200 pregões de histórico).`;
+      }
+      const r = results[0];
+      const arrow = r.trend === "acima" ? "▲" : "▼";
+      return `📊 <b>${symbol}</b>\n\nPreço: ${formatPrice(r.price, "BRL")}\nSMA200: ${formatPrice(r.sma200, "BRL")}\n${arrow} ${r.distancePct >= 0 ? "+" : ""}${r.distancePct.toFixed(1)}% da média de 200 pregões.`;
+    }
+
+    case "get_fatos_relevantes": {
+      const symbol = String(input.symbol).toUpperCase();
+      const fatos = await getFatosRelevantes(60).catch(() => []);
+      const matches = matchFatosRelevantes([{ symbol, label: symbol }], fatos);
+      if (matches.length === 0) {
+        return `Nenhum fato relevante recente encontrado pra ${symbol} (cruzamento por nome — se o ativo não tiver um nome real cadastrado na watchlist, pode não achar mesmo que exista).`;
+      }
+      const m = matches[0];
+      return `📄 <b>${symbol}</b>\n\n${m.subject}\n${m.date}\n${m.documentUrl}`;
+    }
+
+    case "get_dividends_received": {
+      const holdings = await getHoldings().catch(() => []);
+      const dividends = await getDividendsReceived(
+        holdings.map((h) => ({ symbol: h.symbol, assetClass: h.assetClass, quantity: h.quantity, sinceDate: h.createdAt.toISOString().slice(0, 10) }))
+      ).catch(() => []);
+      if (dividends.length === 0) return "Nenhum dividendo encontrado pras posições B3/FII da carteira (desde que foram cadastradas).";
+      const total = dividends.reduce((s, d) => s + d.totalReceived, 0);
+      const lines = dividends.map((d) => `<b>${d.symbol}</b>: ${formatPrice(d.totalReceived, "BRL")} (${d.paymentsCount}x)`);
+      return `💵 <b>Dividendos Recebidos</b>\n\nTotal: ${formatPrice(total, "BRL")}\n\n${lines.join("\n")}\n\nBaseado na data de cadastro da posição, não na data de compra real.`;
     }
 
     case "watchlist_add": {
