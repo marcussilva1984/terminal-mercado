@@ -157,6 +157,12 @@ export function AssetComparator() {
               ))}
             </tbody>
           </table>
+          <p className="mt-3 text-xs text-text-muted">
+            Indicadores vêm direto do Yahoo Finance, sem cálculo nosso em cima — inclusive Beta e
+            Free Float, que o Yahoo às vezes reporta de forma inconsistente pra empresas com mais
+            de uma classe de ação (ex.: PETR3/PETR4) ou usando janelas de tempo não documentadas.
+            Valor discrepante do esperado pro ativo? Vale conferir direto na fonte antes de usar.
+          </p>
         </div>
       )}
     </div>
