@@ -14,6 +14,8 @@ import { getZScoreHighlights } from "@/lib/zscoreService";
 import { getRealHighlightCards } from "@/lib/tickerService";
 import { getWeeklyCalendar, filterHighSignal, filterUpcoming } from "@/lib/sources/economicCalendar";
 import { buildDailyHighlights } from "@/lib/dailyHighlights";
+import { getFatosRelevantes } from "@/lib/sources/cvmFatosRelevantes";
+import { matchFatosRelevantes } from "@/lib/valuation";
 
 // Pouco tráfego = ISR fica "presa" em cache velho até alguém disparar a
 // revalidação em segundo plano. Renderizar sempre fresco garante que o F5
@@ -22,12 +24,13 @@ import { buildDailyHighlights } from "@/lib/dailyHighlights";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [news, flowResult, zScoreHighlights, highlightCards, calendarResult] = await Promise.all([
+  const [news, flowResult, zScoreHighlights, highlightCards, calendarResult, fatos] = await Promise.all([
     getNews(undefined, 15),
     getFlowHistory().catch(() => null),
     getZScoreHighlights().catch(() => null),
     getRealHighlightCards().catch(() => []),
     getWeeklyCalendar().catch(() => null),
+    getFatosRelevantes(60).catch(() => []),
   ]);
 
   const radarEvents = calendarResult ? filterUpcoming(filterHighSignal(calendarResult)).slice(0, 20) : null;
@@ -37,7 +40,12 @@ export default async function HomePage() {
   const todayISO = now.slice(0, 10);
   const calendarToday = calendarResult ? filterHighSignal(calendarResult).filter((e) => e.date.slice(0, 10) === todayISO) : [];
   const flowSegments = flowResult ? buildFlowSegments(flowResult) : null;
-  const dailyHighlights = buildDailyHighlights(calendarToday, flowSegments, zScoreHighlights);
+  // Cruza os maiores movimentos do dia (z-score) com Fatos Relevantes (CVM,
+  // só B3) e manchetes de notícia que citam o símbolo — só aponta "motivo"
+  // quando existe uma correspondência real, nunca inventa causa a partir da
+  // variação de preço isolada.
+  const fatosMatches = zScoreHighlights ? matchFatosRelevantes(zScoreHighlights, fatos) : [];
+  const dailyHighlights = buildDailyHighlights(calendarToday, flowSegments, zScoreHighlights, fatosMatches, news);
 
   return (
     <div className="flex flex-col gap-6">
@@ -74,8 +82,11 @@ export default async function HomePage() {
         <Panel title="Destaques do Dia" updatedAt={now}>
           <DailyHighlightsList items={dailyHighlights} />
           <p className="mt-3 text-xs text-text-muted">
-            Gerado só a partir de dados já coletados (calendário econômico, fluxo B3, z-score da
-            watchlist) — não interpreta conteúdo de notícia, pra não arriscar inventar detalhe.
+            Baseado só na sua Watchlist, não no mercado inteiro — os "maiores movimentos" aqui são
+            os maiores dentro dos ativos que você cadastrou, não o ranking geral de Ações/FII/Cripto
+            (esses ficam nas abas dedicadas). "Possível motivo" só aparece quando bate um Fato
+            Relevante real da CVM ou uma notícia que cita o ticker no título — sem isso, não
+            arrisca inventar causa a partir da variação de preço sozinha.
           </p>
         </Panel>
       )}

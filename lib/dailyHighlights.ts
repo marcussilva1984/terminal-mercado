@@ -1,10 +1,29 @@
 import type { ZScoreHighlight, FlowSegment } from "@/lib/types";
 import type { CalendarEvent } from "@/lib/sources/economicCalendar";
+import type { FatoRelevanteMatch } from "@/lib/valuation";
 import { formatPct } from "@/lib/format";
 
 export interface DailyHighlight {
   category: string;
   text: string;
+}
+
+interface NewsHeadline {
+  title: string;
+}
+
+// Só aponta "motivo" quando existe um match real e verificável (Fato
+// Relevante da CVM ou notícia que cita o símbolo/ticker no título) — nunca
+// infere causa a partir da variação de preço em si, que seria inventar
+// justificativa sem base.
+function findReason(symbol: string, fatosMatches: FatoRelevanteMatch[], news: NewsHeadline[]): string | null {
+  const fato = fatosMatches.find((f) => f.symbol === symbol);
+  if (fato) return `possível motivo: ${fato.subject}`;
+
+  const headline = news.find((n) => n.title.toUpperCase().includes(symbol.toUpperCase()));
+  if (headline) return `possível motivo: "${headline.title}"`;
+
+  return null;
 }
 
 const CLASS_LABEL: Record<string, string> = {
@@ -27,7 +46,9 @@ const TOP_MOVERS_PER_CLASS = 3;
 export function buildDailyHighlights(
   calendarToday: CalendarEvent[],
   flowSegments: FlowSegment[] | null,
-  zScoreHighlights: ZScoreHighlight[] | null
+  zScoreHighlights: ZScoreHighlight[] | null,
+  fatosMatches: FatoRelevanteMatch[] = [],
+  news: NewsHeadline[] = []
 ): DailyHighlight[] {
   const highlights: DailyHighlight[] = [];
   const usedSymbols = new Set<string>();
@@ -55,9 +76,10 @@ export function buildDailyHighlights(
       if (Math.abs(top.changePct) < QUIET_THRESHOLD) {
         highlights.push({ category: label, text: `Dia parado — maior variação da watchlist foi ${top.symbol} (${formatPct(top.changePct)}).` });
       } else {
+        const reason = findReason(top.symbol, fatosMatches, news);
         highlights.push({
           category: label,
-          text: `${top.symbol} ${top.changePct >= 0 ? "lidera as altas" : "lidera as baixas"} da watchlist (${formatPct(top.changePct)}).`,
+          text: `${top.symbol} ${top.changePct >= 0 ? "lidera as altas" : "lidera as baixas"} da watchlist (${formatPct(top.changePct)})${reason ? ` — ${reason}` : ""}.`,
         });
       }
 
