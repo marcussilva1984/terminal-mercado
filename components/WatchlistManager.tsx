@@ -139,7 +139,10 @@ export function WatchlistManager() {
             <div key={cls.value}>
               <h3 className="mb-2 text-xs font-medium uppercase text-text-muted">{cls.label}</h3>
               <ul className="flex flex-col divide-y divide-border/50">
-                {classItems.map((i) => (
+                {items === null && (
+                  <li className="py-2 text-sm text-text-muted">Carregando...</li>
+                )}
+                {items !== null && classItems.map((i) => (
                   <li key={i.id} className="flex items-center justify-between py-2 text-sm">
                     <span className="text-text">
                       {i.symbol} <span className="text-text-muted">— {i.label}</span>
@@ -161,7 +164,7 @@ export function WatchlistManager() {
                     </div>
                   </li>
                 ))}
-                {classItems.length === 0 && (
+                {items !== null && classItems.length === 0 && (
                   <li className="py-2 text-sm text-text-muted">Nenhum ativo na watchlist.</li>
                 )}
               </ul>
