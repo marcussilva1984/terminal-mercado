@@ -3,6 +3,7 @@ import { getFullIndicators, getFiiDividendHistory } from "@/lib/sources/fundamen
 import { getYahooQuote } from "@/lib/sources/yahoo";
 import { fetchCandles } from "@/lib/sources/yahooTickerDetail";
 import { getAnnualCashFlow } from "@/lib/sources/cvmFinancials";
+import { computeRsi, computeBollingerBands } from "@/lib/technicalIndicators";
 
 function parseBRNumber(raw: string): number | null {
   const cleaned = raw.replace(/\./g, "").replace(",", ".").replace("%", "").trim();
@@ -192,6 +193,77 @@ async function computeSma200Signals(
 // grande recalcular SMA200 pra tudo em todo request ainda pesa — cacheia o
 // resultado já pronto.
 export const getSma200Signals = unstable_cache(computeSma200Signals, ["sma200-signals"], {
+  revalidate: 15 * 60,
+});
+
+export interface RsiSignal {
+  symbol: string;
+  label: string;
+  assetClass: string;
+  value: number;
+  period: number;
+  reading: "sobrecomprado" | "sobrevendido" | "neutro";
+}
+
+const RSI_OVERBOUGHT = 70;
+const RSI_OVERSOLD = 30;
+
+async function computeRsiSignals(
+  items: { symbol: string; label: string; assetClass: string }[]
+): Promise<RsiSignal[]> {
+  const results = await Promise.allSettled(
+    items.map(async ({ symbol, label, assetClass }) => {
+      const candles = await fetchCandles(toYahooSymbol(symbol, assetClass), "1d");
+      const rsi = computeRsi(candles.map((c) => c.close));
+      if (!rsi) return null;
+      const reading = rsi.value >= RSI_OVERBOUGHT ? "sobrecomprado" : rsi.value <= RSI_OVERSOLD ? "sobrevendido" : "neutro";
+      return { symbol, label, assetClass, value: rsi.value, period: rsi.period, reading } satisfies RsiSignal;
+    })
+  );
+
+  return results
+    .filter((r): r is PromiseFulfilledResult<RsiSignal | null> => r.status === "fulfilled")
+    .map((r) => r.value)
+    .filter((v): v is RsiSignal => v !== null)
+    .sort((a, b) => Math.abs(b.value - 50) - Math.abs(a.value - 50));
+}
+
+export const getRsiSignals = unstable_cache(computeRsiSignals, ["rsi-signals"], {
+  revalidate: 15 * 60,
+});
+
+export interface BollingerSignal {
+  symbol: string;
+  label: string;
+  assetClass: string;
+  price: number;
+  middle: number;
+  upper: number;
+  lower: number;
+  percentB: number;
+  period: number;
+}
+
+async function computeBollingerSignals(
+  items: { symbol: string; label: string; assetClass: string }[]
+): Promise<BollingerSignal[]> {
+  const results = await Promise.allSettled(
+    items.map(async ({ symbol, label, assetClass }) => {
+      const candles = await fetchCandles(toYahooSymbol(symbol, assetClass), "1d");
+      const bb = computeBollingerBands(candles.map((c) => c.close));
+      if (!bb) return null;
+      return { symbol, label, assetClass, ...bb } satisfies BollingerSignal;
+    })
+  );
+
+  return results
+    .filter((r): r is PromiseFulfilledResult<BollingerSignal | null> => r.status === "fulfilled")
+    .map((r) => r.value)
+    .filter((v): v is BollingerSignal => v !== null)
+    .sort((a, b) => Math.abs(b.percentB - 0.5) - Math.abs(a.percentB - 0.5));
+}
+
+export const getBollingerSignals = unstable_cache(computeBollingerSignals, ["bollinger-signals"], {
   revalidate: 15 * 60,
 });
 

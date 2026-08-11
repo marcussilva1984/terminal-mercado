@@ -1,6 +1,6 @@
 import { Panel } from "@/components/Panel";
 import { GrahamTable, BazinTable, DcfTable } from "@/components/ValuationTable";
-import { Sma200Table, MonteCarloTable } from "@/components/Sma200Table";
+import { Sma200Table, MonteCarloTable, RsiTable, BollingerTable } from "@/components/Sma200Table";
 import { OportunidadesSearchForm } from "@/components/OportunidadesSearchForm";
 import {
   getGrahamValuations,
@@ -8,6 +8,8 @@ import {
   getBazinValuationsFii,
   getSma200Signals,
   getMonteCarloRanges,
+  getRsiSignals,
+  getBollingerSignals,
   matchFatosRelevantes,
   getDcfValuations,
 } from "@/lib/valuation";
@@ -54,18 +56,26 @@ export default async function OportunidadesPage({
   const isB3 = assetClass === "b3";
   const isFii = assetClass === "fii";
 
-  const [graham, bazinB3, bazinFii, sma200, monteCarlo, fatos] = await Promise.all([
+  const [graham, bazinB3, bazinFii, sma200, monteCarlo, rsi, bollinger, fatos] = await Promise.all([
     isB3 ? getGrahamValuations(target).catch(() => []) : Promise.resolve([]),
     isB3 ? getBazinValuationsB3(target).catch(() => []) : Promise.resolve([]),
     isFii ? getBazinValuationsFii(target).catch(() => []) : Promise.resolve([]),
     getSma200Signals(targetWithClass).catch(() => []),
     getMonteCarloRanges(targetWithClass, 756, 1000).catch(() => []),
+    getRsiSignals(targetWithClass).catch(() => []),
+    getBollingerSignals(targetWithClass).catch(() => []),
     isB3 ? getFatosRelevantes(60).catch(() => []) : Promise.resolve([]),
   ]);
 
   const fatosMatches = isB3 ? matchFatosRelevantes(target, fatos) : [];
   const nothingFound =
-    graham.length === 0 && bazinB3.length === 0 && bazinFii.length === 0 && sma200.length === 0 && monteCarlo.length === 0;
+    graham.length === 0 &&
+    bazinB3.length === 0 &&
+    bazinFii.length === 0 &&
+    sma200.length === 0 &&
+    monteCarlo.length === 0 &&
+    rsi.length === 0 &&
+    bollinger.length === 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -140,6 +150,29 @@ export default async function OportunidadesPage({
           <p className="mt-3 text-xs text-text-muted">
             Preço atual vs. a média dos últimos 200 fechamentos diários — cruzamento de tendência
             de longo prazo.
+          </p>
+        </Panel>
+      )}
+
+      {rsi.length > 0 && (
+        <Panel title="RSI — Índice de Força Relativa" updatedAt={now}>
+          <RsiTable items={rsi} />
+          <p className="mt-3 text-xs text-text-muted">
+            Janela de 21 pregões (~1 mês), mais longa que o padrão de manual técnico (14) — leitura
+            de médio/longo prazo, não de swing trade. Acima de 70 = historicamente sobrecomprado;
+            abaixo de 30 = sobrevendido. Não é sinal de compra/venda isolado, é um dado a mais.
+          </p>
+        </Panel>
+      )}
+
+      {bollinger.length > 0 && (
+        <Panel title="Bandas de Bollinger" updatedAt={now}>
+          <BollingerTable items={bollinger} />
+          <p className="mt-3 text-xs text-text-muted">
+            Janela de 50 pregões (~2 meses e meio), mais longa que o padrão (20) pelo mesmo motivo
+            do RSI acima. Posição mostra onde o preço está dentro da banda (±2 desvios-padrão da
+            média): 0% = na banda inferior, 100% = na banda superior — pode passar desses limites
+            em movimento forte.
           </p>
         </Panel>
       )}
