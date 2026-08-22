@@ -3,6 +3,10 @@ import { hasDatabase } from "@/lib/db/client";
 import { getLastDigestTime, markDigestSent } from "@/lib/db/alertRepo";
 import { getAllNewsWithCategory } from "@/lib/sources/rss";
 import { sendTelegramMessage, hasTelegramConfig } from "@/lib/sources/telegram";
+
+// Mesmo motivo do breaking-news/fatos-relevantes: varredura de feeds RSS
+// pode passar do timeout padrão da Vercel (10s) com cache frio.
+export const maxDuration = 60;
 import { getNewsPriority } from "@/lib/sentiment";
 
 // Telegram não suporta cor de texto (só HTML básico: negrito, itálico, link) —

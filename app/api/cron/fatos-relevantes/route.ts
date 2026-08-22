@@ -4,6 +4,11 @@ import { hasRecentAlert, logAlert, hasAnyAlertWithKeyPrefix } from "@/lib/db/ale
 import { getFatosRelevantes } from "@/lib/sources/cvmFatosRelevantes";
 import { sendTelegramMessage, hasTelegramConfig } from "@/lib/sources/telegram";
 
+// O CSV anual da CVM às vezes vem lento pra baixar/parsear (sem cache
+// quente) — o timeout padrão da Vercel (10s) cortava a função no meio,
+// derrubando o GitHub Actions que chama esse endpoint a cada 20min.
+export const maxDuration = 60;
+
 // Roda a cada 15-30min via GitHub Actions. Fatos relevantes não têm timestamp
 // fino no CSV da CVM (só a data), então o dedup é por documento individual
 // (URL única por protocolo) via alert_log, não por corte de tempo como o

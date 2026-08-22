@@ -4,6 +4,11 @@ import { getLastBreakingNewsCheck, markBreakingNewsChecked, logAlert } from "@/l
 import { getAllNewsWithCategory } from "@/lib/sources/rss";
 import { getNewsPriority } from "@/lib/sentiment";
 
+// Varre todos os feeds RSS configurados — com cache frio isso passa fácil de
+// 10s (timeout padrão da Vercel), derrubando o GitHub Actions que chama esse
+// endpoint a cada 10min.
+export const maxDuration = 60;
+
 const PRIORITY_EMOJI: Record<"alta" | "media", string> = { alta: "🔴", media: "🟡" };
 import { sendTelegramMessage, hasTelegramConfig } from "@/lib/sources/telegram";
 

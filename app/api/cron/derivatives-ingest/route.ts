@@ -3,6 +3,10 @@ import { hasDatabase } from "@/lib/db/client";
 import { setDerivativesCache } from "@/lib/db/derivativesCacheRepo";
 import type { DerivativeSnapshot } from "@/lib/sources/binanceFutures";
 
+// Endpoint é rápido normalmente, mas a escrita no banco pode enfileirar sob
+// carga — mesma margem de segurança dos outros crons.
+export const maxDuration = 60;
+
 // Recebe o snapshot de derivativos já buscado por um agente EXTERNO (GitHub
 // Actions) e só grava no banco — não faz nenhuma chamada à Binance aqui.
 // Existe porque chamadas server-to-server dentro da própria Vercel para a
