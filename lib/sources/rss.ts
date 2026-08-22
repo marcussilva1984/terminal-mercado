@@ -1,3 +1,4 @@
+import { BROWSER_USER_AGENT } from "@/lib/sources/httpHeaders";
 import Parser from "rss-parser";
 import iconv from "iconv-lite";
 import type { NewsItem } from "@/lib/types";
@@ -109,7 +110,7 @@ async function fetchFeedXml(url: string): Promise<string> {
   // Sem isso, cada navegação buscava as ~29 fontes RSS do zero (sem cache
   // nenhum) — de longe o maior contribuinte pro delay ao trocar de aba.
   const res = await fetch(url, {
-    headers: { "user-agent": "Mozilla/5.0" },
+    headers: { "user-agent": BROWSER_USER_AGENT },
     next: { revalidate: 5 * 60 },
     signal: AbortSignal.timeout(8000),
   });

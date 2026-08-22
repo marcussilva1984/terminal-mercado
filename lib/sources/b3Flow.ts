@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { BROWSER_USER_AGENT } from "@/lib/sources/httpHeaders";
 
 export interface FlowDayRaw {
   date: string; // YYYY-MM-DD
@@ -35,7 +36,7 @@ export async function getFlowHistory(): Promise<FlowDayRaw[]> {
   // fetch com no-store aqui forçaria a página inteira a voltar a ser 100%
   // dinâmica (Next trata qualquer no-store dentro da rota como opt-out do ISR).
   const res = await fetch(SOURCE_URL, {
-    headers: { "user-agent": "Mozilla/5.0" },
+    headers: { "user-agent": BROWSER_USER_AGENT },
     next: { revalidate: 60 },
   });
 

@@ -1,3 +1,4 @@
+import { BROWSER_USER_AGENT } from "@/lib/sources/httpHeaders";
 import * as cheerio from "cheerio";
 import iconv from "iconv-lite";
 
@@ -8,7 +9,7 @@ import iconv from "iconv-lite";
 const BASE = "https://www.fundamentus.com.br";
 
 async function fetchLatin1(url: string): Promise<string> {
-  const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0" }, next: { revalidate: 24 * 60 * 60 } });
+  const res = await fetch(url, { headers: { "user-agent": BROWSER_USER_AGENT }, next: { revalidate: 24 * 60 * 60 } });
   if (!res.ok) throw new Error(`Fundamentus respondeu ${res.status}`);
   const buffer = Buffer.from(await res.arrayBuffer());
   return iconv.decode(buffer, "iso-8859-1");

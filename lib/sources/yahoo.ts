@@ -1,3 +1,4 @@
+import { BROWSER_USER_AGENT } from "@/lib/sources/httpHeaders";
 export interface YahooQuote {
   symbol: string;
   price: number;
@@ -13,7 +14,7 @@ export async function getYahooQuote(symbol: string, revalidateSeconds = 300): Pr
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d`;
 
   const res = await fetch(url, {
-    headers: { "user-agent": "Mozilla/5.0" },
+    headers: { "user-agent": BROWSER_USER_AGENT },
     next: { revalidate: revalidateSeconds },
   });
 
@@ -55,7 +56,7 @@ export async function getYahooScreener(scrId: YahooScreenerId, count = 25): Prom
   const url = `https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?lang=en-US&region=US&scrIds=${scrId}&count=${count}`;
 
   const res = await fetch(url, {
-    headers: { "user-agent": "Mozilla/5.0" },
+    headers: { "user-agent": BROWSER_USER_AGENT },
     next: { revalidate: 5 * 60 },
   });
 

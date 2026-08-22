@@ -1,3 +1,4 @@
+import { BROWSER_USER_AGENT } from "@/lib/sources/httpHeaders";
 import { unzipSync, strFromU8 } from "fflate";
 
 // Fatos Relevantes via dados abertos oficiais da CVM (gratuito, sem chave) —
@@ -20,7 +21,7 @@ function parseBRDate(raw: string): string {
 
 async function fetchYearCsv(year: number): Promise<string | null> {
   const res = await fetch(`${BASE_URL}/ipe_cia_aberta_${year}.zip`, {
-    headers: { "user-agent": "Mozilla/5.0" },
+    headers: { "user-agent": BROWSER_USER_AGENT },
     next: { revalidate: 6 * 60 * 60 },
   });
   if (!res.ok) return null;

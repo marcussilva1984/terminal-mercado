@@ -1,3 +1,4 @@
+import { BROWSER_USER_AGENT } from "@/lib/sources/httpHeaders";
 // Preço-alvo de analistas via Yahoo Finance quoteSummary (financialData) —
 // requer um "crumb" de sessão (cookie + token), mas não viola ToS como o
 // Finviz: é a mesma API pública que o próprio site do Yahoo usa, sem
@@ -7,11 +8,11 @@ let cachedCrumb: { crumb: string; cookie: string } | null = null;
 async function getCrumb(): Promise<{ crumb: string; cookie: string }> {
   if (cachedCrumb) return cachedCrumb;
 
-  const cookieRes = await fetch("https://fc.yahoo.com", { headers: { "user-agent": "Mozilla/5.0" } });
+  const cookieRes = await fetch("https://fc.yahoo.com", { headers: { "user-agent": BROWSER_USER_AGENT } });
   const cookie = cookieRes.headers.get("set-cookie") ?? "";
 
   const crumbRes = await fetch("https://query1.finance.yahoo.com/v1/test/getcrumb", {
-    headers: { "user-agent": "Mozilla/5.0", cookie },
+    headers: { "user-agent": BROWSER_USER_AGENT, cookie },
   });
   const crumb = await crumbRes.text();
 
@@ -33,7 +34,7 @@ export async function getAnalystTarget(symbol: string): Promise<AnalystTarget | 
   try {
     const { crumb, cookie } = await getCrumb();
     const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=financialData&crumb=${encodeURIComponent(crumb)}`;
-    const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0", cookie }, next: { revalidate: 60 * 60 } });
+    const res = await fetch(url, { headers: { "user-agent": BROWSER_USER_AGENT, cookie }, next: { revalidate: 60 * 60 } });
     if (!res.ok) return null;
 
     const json = await res.json();

@@ -1,3 +1,4 @@
+import { BROWSER_USER_AGENT } from "@/lib/sources/httpHeaders";
 import * as cheerio from "cheerio";
 
 export interface FiiDividendYield {
@@ -12,7 +13,7 @@ const URL = "https://investidor10.com.br/fiis/rankings/maior-dividend-yield/";
 // yield dos últimos 12 meses, ordenado desc pela própria página.
 export async function getFiiDividendYieldRanking(limit = 20): Promise<FiiDividendYield[]> {
   const res = await fetch(URL, {
-    headers: { "user-agent": "Mozilla/5.0" },
+    headers: { "user-agent": BROWSER_USER_AGENT },
     next: { revalidate: 6 * 60 * 60 },
   });
 

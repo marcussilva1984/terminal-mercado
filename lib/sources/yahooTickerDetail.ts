@@ -1,3 +1,4 @@
+import { BROWSER_USER_AGENT } from "@/lib/sources/httpHeaders";
 // Página de detalhe de ativo (B3/Stocks/FII/Cripto) — usa o mesmo fluxo de
 // crumb já validado em yahooAnalyst.ts. Cobertura de analistas existe pra B3
 // (papéis líquidos) e Stocks; FII e Cripto não têm cobertura de analistas
@@ -7,10 +8,10 @@ let cachedCrumb: { crumb: string; cookie: string } | null = null;
 
 async function getCrumb(): Promise<{ crumb: string; cookie: string }> {
   if (cachedCrumb) return cachedCrumb;
-  const cookieRes = await fetch("https://fc.yahoo.com", { headers: { "user-agent": "Mozilla/5.0" } });
+  const cookieRes = await fetch("https://fc.yahoo.com", { headers: { "user-agent": BROWSER_USER_AGENT } });
   const cookie = cookieRes.headers.get("set-cookie") ?? "";
   const crumbRes = await fetch("https://query1.finance.yahoo.com/v1/test/getcrumb", {
-    headers: { "user-agent": "Mozilla/5.0", cookie },
+    headers: { "user-agent": BROWSER_USER_AGENT, cookie },
   });
   const crumb = await crumbRes.text();
   cachedCrumb = { crumb, cookie };
@@ -80,7 +81,7 @@ const RANGE_BY_INTERVAL: Record<ChartInterval, string> = {
 export async function fetchCandles(symbol: string, interval: ChartInterval = "1d"): Promise<CandlePoint[]> {
   const range = RANGE_BY_INTERVAL[interval];
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
-  const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0" }, next: { revalidate: 15 * 60 } });
+  const res = await fetch(url, { headers: { "user-agent": BROWSER_USER_AGENT }, next: { revalidate: 15 * 60 } });
   if (!res.ok) return [];
   const json = await res.json();
   const result = json?.chart?.result?.[0];
@@ -124,7 +125,7 @@ export async function getTickerDetail(symbol: string): Promise<TickerDetail | nu
     const modules = "summaryDetail,defaultKeyStatistics,financialData,upgradeDowngradeHistory,price,calendarEvents";
     const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${modules}&crumb=${encodeURIComponent(crumb)}`;
 
-    const summaryRes = await fetch(url, { headers: { "user-agent": "Mozilla/5.0", cookie }, next: { revalidate: 30 * 60 } });
+    const summaryRes = await fetch(url, { headers: { "user-agent": BROWSER_USER_AGENT, cookie }, next: { revalidate: 30 * 60 } });
 
     if (!summaryRes.ok) return null;
     const json = await summaryRes.json();

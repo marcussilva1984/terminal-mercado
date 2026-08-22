@@ -1,3 +1,4 @@
+import { BROWSER_USER_AGENT } from "@/lib/sources/httpHeaders";
 export type CalendarImpact = "High" | "Medium" | "Low" | "Holiday";
 
 export interface CalendarEvent {
@@ -16,7 +17,7 @@ const CALENDAR_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
 // principais países — o que de fato move preço em ações, forex e cripto.
 export async function getWeeklyCalendar(): Promise<CalendarEvent[]> {
   const res = await fetch(CALENDAR_URL, {
-    headers: { "user-agent": "Mozilla/5.0" },
+    headers: { "user-agent": BROWSER_USER_AGENT },
     next: { revalidate: 6 * 60 * 60 },
   });
 
