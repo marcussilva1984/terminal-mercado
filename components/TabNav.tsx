@@ -36,7 +36,11 @@ export function TabNav() {
 
   return (
     <nav className="relative w-full border-b border-border bg-panel-alt">
-      <div ref={scrollerRef} className="mx-auto flex max-w-7xl items-center gap-1 overflow-x-auto px-4">
+      <div
+        ref={scrollerRef}
+        className="mx-auto flex max-w-7xl items-center gap-1 overflow-x-auto px-4"
+        style={{ WebkitOverflowScrolling: "touch", scrollSnapType: "x proximity" }}
+      >
         {TABS.map((tab) => {
           const matchAgainst = tab.matchPrefix ?? tab.href;
           const active = tab.href === "/" ? pathname === "/" : pathname.startsWith(matchAgainst);
@@ -50,6 +54,7 @@ export function TabNav() {
                   ? "border-gold text-gold-bright"
                   : "border-transparent text-text-muted hover:text-text"
               }`}
+              style={{ scrollSnapAlign: "start" }}
             >
               {tab.label}
             </Link>
