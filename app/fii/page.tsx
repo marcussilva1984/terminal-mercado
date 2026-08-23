@@ -15,6 +15,8 @@ import { hasDatabase } from "@/lib/db/client";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { getBaseUrl } from "@/lib/baseUrl";
 import { FII_WATCHLIST } from "@/lib/watchlist";
+import { getFiiMoneyFlowIdeas } from "@/lib/moneyFlowIdeas";
+import { MoneyFlowIdeasList } from "@/components/MoneyFlowIdeasList";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -56,7 +58,7 @@ async function getUpcomingDividends(): Promise<UpcomingDividend[]> {
 export default async function FiiPage() {
   const now = new Date().toISOString();
 
-  const [ifixResult, gainersResult, losersResult, dyResult, sectorResult, news, zScoreResult, upcomingDividends] = await Promise.all([
+  const [ifixResult, gainersResult, losersResult, dyResult, sectorResult, news, zScoreResult, upcomingDividends, moneyFlowIdeas] = await Promise.all([
     getYahooQuote("IFIX.SA").catch(() => null),
     getBrapiRanking("change", "desc", 20, "fund").catch(() => null),
     getBrapiRanking("change", "asc", 20, "fund").catch(() => null),
@@ -65,6 +67,7 @@ export default async function FiiPage() {
     getNews("fii", 10),
     getZScoreHighlights("fii").catch(() => null),
     getUpcomingDividends().catch(() => null),
+    getFiiMoneyFlowIdeas().catch(() => null),
   ]);
 
   const gainers = gainersResult?.map(toRankingItem) ?? null;
@@ -140,6 +143,14 @@ export default async function FiiPage() {
           </ul>
         </Panel>
       )}
+
+      <Panel title="Onde o Dinheiro Está Indo" updatedAt={now}>
+        {moneyFlowIdeas ? (
+          <MoneyFlowIdeasList items={moneyFlowIdeas} />
+        ) : (
+          <p className="text-sm text-down">Fonte indisponível no momento.</p>
+        )}
+      </Panel>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {gainers ? (

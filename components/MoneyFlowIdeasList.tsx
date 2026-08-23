@@ -1,9 +1,16 @@
-import type { MoneyFlowIdea, ConvictionLevel } from "@/lib/moneyFlowIdeas";
+import type { MoneyFlowIdea, ConvictionLevel, Rationale } from "@/lib/moneyFlowIdeas";
 
 const CONVICTION_BADGE: Record<ConvictionLevel, { emoji: string; label: string; className: string }> = {
   forte: { emoji: "🔴", label: "Convicção forte", className: "border-down/50 bg-down/10 text-down" },
   medio: { emoji: "🟡", label: "Convicção média", className: "border-amber/50 bg-amber/10 text-amber" },
   fraco: { emoji: "🔵", label: "Convicção fraca", className: "border-border bg-panel-alt text-text-muted" },
+};
+
+const RATIONALE_LABEL: Record<Rationale, string> = {
+  smart_money: "Smart money — sinal técnico/fluxo, sem evento confirmado",
+  fundamento: "Fundamento — evento real (notícia, Fato Relevante, dividendo)",
+  misto: "Misto — técnico + evento real juntos",
+  sem_sinal: "Sem sinal adicional — só maior variação do dia",
 };
 
 export function MoneyFlowIdeasList({ items }: { items: MoneyFlowIdea[] }) {
@@ -27,16 +34,20 @@ export function MoneyFlowIdeasList({ items }: { items: MoneyFlowIdea[] }) {
                   {badge.emoji} {badge.label}
                 </span>
               </div>
-              <p className="mt-2 text-xs text-text-muted">{idea.explanation}</p>
+              <p className="mt-1 text-xs font-medium text-gold-bright">{RATIONALE_LABEL[idea.rationale]}</p>
+              <p className="mt-1 text-xs text-text-muted">{idea.explanation}</p>
             </div>
           );
         })}
       </div>
       <p className="mt-3 text-xs text-text-muted">
         Não é fluxo real de investidor — isso não existe de graça pra B3 nem pra cripto. Convicção =
-        quantos sinais que já calculamos em outros painéis (z-score, volume/TVL fora do padrão,
-        atenção do mercado, Fato Relevante, notícia, preço-alvo) bateram juntos no mesmo ativo ao
-        mesmo tempo: 🔴 3+ sinais, 🟡 2 sinais, 🔵 1 sinal. Não é recomendação de compra/venda.
+        quantos sinais que já calculamos em outros painéis bateram juntos no mesmo ativo ao mesmo
+        tempo: 🔴 3+ sinais, 🟡 2 sinais, 🔵 1 sinal (ou nenhum, só maior variação do dia).
+        &quot;Smart money&quot; aqui é sinal técnico/de fluxo (z-score, volume/TVL fora do padrão,
+        atenção do mercado) sem confirmação de evento real; &quot;Fundamento&quot; é evento
+        verificável (notícia, Fato Relevante da CVM, dividend yield, preço-alvo de analista). Não é
+        recomendação de compra/venda.
       </p>
     </div>
   );
