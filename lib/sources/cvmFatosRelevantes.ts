@@ -36,17 +36,11 @@ async function fetchYearCsv(year: number): Promise<string | null> {
   return strFromU8(files[filename], true);
 }
 
-export async function getFatosRelevantes(limit = 30): Promise<FatoRelevante[]> {
-  const now = new Date();
-  const csv = await fetchYearCsv(now.getUTCFullYear());
-  if (!csv) throw new Error("CSV de fatos relevantes indisponível na CVM");
-
+function parseCsvItems(csv: string): FatoRelevante[] {
   const lines = csv.split("\n").filter((l) => l.trim().length > 0);
   const rows = lines.slice(1).map((l) => l.split(";"));
 
-  const todayISO = now.toISOString().slice(0, 10);
-
-  const items: FatoRelevante[] = rows
+  return rows
     .filter((r) => r[4]?.trim() === "Fato Relevante")
     .map((r) => ({
       companyName: r[1]?.trim() ?? "",
@@ -54,10 +48,30 @@ export async function getFatosRelevantes(limit = 30): Promise<FatoRelevante[]> {
       subject: r[7]?.trim() || "Fato Relevante",
       documentUrl: r[12]?.trim() ?? "",
     }))
+    .filter((item) => item.companyName && item.date);
+}
+
+export async function getFatosRelevantes(limit = 30): Promise<FatoRelevante[]> {
+  const now = new Date();
+  const currentYear = now.getUTCFullYear();
+  const todayISO = now.toISOString().slice(0, 10);
+
+  // A CVM às vezes ainda não republicou o zip do ano corrente (ex.: gap real
+  // observado em produção — arquivo de 2026 retornando 404 mesmo em agosto)
+  // — busca o ano atual E o anterior sempre, não só como fallback condicional,
+  // pra essa lacuna nunca deixar o painel inteiro vazio. Ambos com cache de
+  // 6h, custo extra é só mais um fetch pequeno na maioria das vezes.
+  const [currentCsv, previousCsv] = await Promise.all([fetchYearCsv(currentYear), fetchYearCsv(currentYear - 1)]);
+
+  if (!currentCsv && !previousCsv) {
+    throw new Error("CSV de fatos relevantes indisponível na CVM");
+  }
+
+  const items = [...(currentCsv ? parseCsvItems(currentCsv) : []), ...(previousCsv ? parseCsvItems(previousCsv) : [])]
     // A própria CVM já teve erro de digitação de ano no CSV (ex.: "3026" em
     // vez de "2026") — descarta datas futuras implausíveis pra não deixar
     // isso subir ao topo da lista por ordenação.
-    .filter((item) => item.companyName && item.date && item.date <= todayISO);
+    .filter((item) => item.date <= todayISO);
 
   return items.sort((a, b) => b.date.localeCompare(a.date)).slice(0, limit);
 }
