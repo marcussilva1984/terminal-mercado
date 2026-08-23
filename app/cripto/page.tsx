@@ -23,6 +23,8 @@ import { getNegativeCryptoSignals } from "@/lib/cryptoNewsSentiment";
 import { CryptoSentimentPanel } from "@/components/CryptoSentimentPanel";
 import { CRIPTO_WATCHLIST } from "@/lib/watchlist";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
+import { getCriptoMoneyFlowIdeas } from "@/lib/moneyFlowIdeas";
+import { MoneyFlowIdeasList } from "@/components/MoneyFlowIdeasList";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +72,7 @@ export default async function CriptoPage() {
       })()
     : Promise.resolve(CRIPTO_WATCHLIST);
 
-  const [coinsResult, newsResult, zScoreResult, categoriesResult, derivativesResult, onChainResult, fearGreedResult, etfFlowResult, trendingResult, tvlResult, sentimentResult] =
+  const [coinsResult, newsResult, zScoreResult, categoriesResult, derivativesResult, onChainResult, fearGreedResult, etfFlowResult, trendingResult, tvlResult, sentimentResult, ideasResult] =
     await Promise.allSettled([
       getTopCoinMarkets(100),
       getNews("cripto", 10),
@@ -83,6 +85,7 @@ export default async function CriptoPage() {
       getTrendingCoins(),
       criptoWatchlist.then((w) => getProtocolTvl(w.map((x) => x.symbol))),
       criptoWatchlist.then((w) => getNegativeCryptoSignals(w)),
+      getCriptoMoneyFlowIdeas(),
     ]);
 
   if (coinsResult.status === "fulfilled") {
@@ -103,6 +106,7 @@ export default async function CriptoPage() {
   const trending = trendingResult.status === "fulfilled" ? trendingResult.value : null;
   const tvl = tvlResult.status === "fulfilled" ? tvlResult.value : null;
   const cryptoSentiment = sentimentResult.status === "fulfilled" ? sentimentResult.value : null;
+  const moneyFlowIdeas = ideasResult.status === "fulfilled" ? ideasResult.value : null;
   const topSectors = categories
     ? [...categories].filter((c) => c.marketCapChange24h !== null).sort((a, b) => (b.marketCapChange24h ?? 0) - (a.marketCapChange24h ?? 0))
     : null;
@@ -231,6 +235,14 @@ export default async function CriptoPage() {
           </ul>
         </Panel>
       )}
+
+      <Panel title="Onde o Dinheiro Está Indo" updatedAt={now}>
+        {moneyFlowIdeas ? (
+          <MoneyFlowIdeasList items={moneyFlowIdeas} />
+        ) : (
+          <p className="text-sm text-down">Fonte indisponível no momento.</p>
+        )}
+      </Panel>
 
       <Panel title="Trending — Onde a Atenção Está" updatedAt={now}>
         {trending ? <TrendingCoinsPanel items={trending} /> : <p className="text-sm text-down">Fonte indisponível no momento.</p>}

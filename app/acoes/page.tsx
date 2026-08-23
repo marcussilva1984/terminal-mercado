@@ -14,6 +14,8 @@ import { buildB3Insights, fillMinimumInsights } from "@/lib/insights";
 import { getBaseUrl } from "@/lib/baseUrl";
 import { B3_WATCHLIST } from "@/lib/watchlist";
 import { hasDatabase } from "@/lib/db/client";
+import { getB3MoneyFlowIdeas } from "@/lib/moneyFlowIdeas";
+import { MoneyFlowIdeasList } from "@/components/MoneyFlowIdeasList";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { formatNumber } from "@/lib/format";
 import type { AnalystTarget } from "@/lib/sources/yahooAnalyst";
@@ -94,7 +96,7 @@ async function getUpcomingEarnings(): Promise<UpcomingEarnings[]> {
 export default async function AcoesPage() {
   const now = new Date().toISOString();
 
-  const [flowResult, newsResult, zScoreResult, gainersResult, losersResult, volumeResult, volatilityResult, fatosResult, priceTargetResult, earningsResult] =
+  const [flowResult, newsResult, zScoreResult, gainersResult, losersResult, volumeResult, volatilityResult, fatosResult, priceTargetResult, earningsResult, ideasResult] =
     await Promise.allSettled([
       getFlowHistory(),
       getNews("b3", 10),
@@ -106,6 +108,7 @@ export default async function AcoesPage() {
       getFatosRelevantes(25),
       getB3PriceTargetHits(),
       getUpcomingEarnings(),
+      getB3MoneyFlowIdeas(),
     ]);
 
   const news = newsResult.status === "fulfilled" ? newsResult.value : [];
@@ -117,6 +120,7 @@ export default async function AcoesPage() {
   const fatosRelevantes = fatosResult.status === "fulfilled" ? fatosResult.value : null;
   const priceTargetHits = priceTargetResult.status === "fulfilled" ? priceTargetResult.value : null;
   const upcomingEarnings = earningsResult.status === "fulfilled" ? earningsResult.value : null;
+  const moneyFlowIdeas = ideasResult.status === "fulfilled" ? ideasResult.value : null;
 
   const insights =
     gainers && losers && byVolume && flowResult.status === "fulfilled"
@@ -153,6 +157,14 @@ export default async function AcoesPage() {
           </p>
         </Panel>
       )}
+
+      <Panel title="Onde o Dinheiro Está Indo" updatedAt={now}>
+        {moneyFlowIdeas ? (
+          <MoneyFlowIdeasList items={moneyFlowIdeas} />
+        ) : (
+          <p className="text-sm text-down">Fonte indisponível no momento.</p>
+        )}
+      </Panel>
 
       <Panel title="Fluxo de Investidores — Semáforo" updatedAt={now}>
         {flowResult.status === "fulfilled" ? (
