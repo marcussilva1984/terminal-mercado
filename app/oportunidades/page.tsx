@@ -64,7 +64,15 @@ export default async function OportunidadesPage({
     getMonteCarloRanges(targetWithClass, 756, 1000).catch(() => []),
     getRsiSignals(targetWithClass).catch(() => []),
     getBollingerSignals(targetWithClass).catch(() => []),
-    isB3 ? getFatosRelevantes(60).catch(() => []) : Promise.resolve([]),
+    // getFatosRelevantes ordena por data DESC no mercado inteiro (~500
+    // empresas da B3) antes de cortar pelo limite — com um número baixo tipo
+    // 60, a janela real acaba sendo só uns 2-3 dias de mercado inteiro, então
+    // um Fato Relevante de 2 semanas atrás da empresa buscada nunca aparece
+    // mesmo existindo. Como o CSV do ano inteiro já é baixado e parseado de
+    // qualquer forma (o limite só corta o array depois), pedir um número bem
+    // alto aqui não custa fetch extra — só garante que o ano inteiro entra
+    // na busca por essa empresa específica.
+    isB3 ? getFatosRelevantes(5000).catch(() => []) : Promise.resolve([]),
   ]);
 
   const fatosMatches = isB3 ? matchFatosRelevantes(target, fatos) : [];
