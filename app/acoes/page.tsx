@@ -16,6 +16,7 @@ import { B3_WATCHLIST } from "@/lib/watchlist";
 import { hasDatabase } from "@/lib/db/client";
 import { getB3MoneyFlowIdeas } from "@/lib/moneyFlowIdeas";
 import { MoneyFlowIdeasList } from "@/components/MoneyFlowIdeasList";
+import { InsightsList } from "@/components/InsightsList";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { formatNumber } from "@/lib/format";
 import type { AnalystTarget } from "@/lib/sources/yahooAnalyst";
@@ -143,14 +144,7 @@ export default async function AcoesPage() {
 
       {finalInsights.length > 0 && (
         <Panel title="Insights do Dia" updatedAt={now}>
-          <ul className="flex flex-col gap-2 text-sm text-text">
-            {finalInsights.map((insight, i) => (
-              <li key={i} className="flex gap-2">
-                <span className="text-gold-bright">•</span>
-                <span>{insight}</span>
-              </li>
-            ))}
-          </ul>
+          <InsightsList items={finalInsights} />
           <p className="mt-3 text-xs text-text-muted">
             Gerado a partir dos rankings, fluxo agregado e z-score — não atribui fluxo de
             investidor a um ticker específico (isso só existe no B3 DataWise+, pago).

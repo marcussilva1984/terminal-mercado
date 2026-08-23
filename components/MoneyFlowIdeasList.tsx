@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { MoneyFlowIdea, ConvictionLevel, Rationale } from "@/lib/moneyFlowIdeas";
 
 const CONVICTION_BADGE: Record<ConvictionLevel, { emoji: string; label: string; className: string }> = {
@@ -14,14 +17,27 @@ const RATIONALE_LABEL: Record<Rationale, string> = {
 };
 
 export function MoneyFlowIdeasList({ items }: { items: MoneyFlowIdea[] }) {
+  const [count, setCount] = useState(Math.min(10, items.length));
+
   if (items.length === 0) {
     return <p className="text-sm text-text-muted">Nenhum sinal relevante batendo agora na watchlist.</p>;
   }
 
   return (
     <div>
+      <div className="mb-3 flex items-center justify-end gap-2">
+        <span className="text-xs text-text-muted">Mostrar</span>
+        <input
+          type="number"
+          min={3}
+          max={items.length}
+          value={count}
+          onChange={(e) => setCount(Math.max(3, Math.min(items.length, Number(e.target.value) || 10)))}
+          className="w-14 rounded border border-border bg-panel-alt px-1.5 py-0.5 text-xs text-text"
+        />
+      </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        {items.map((idea) => {
+        {items.slice(0, count).map((idea) => {
           const badge = CONVICTION_BADGE[idea.conviction];
           return (
             <div key={`${idea.assetClass}-${idea.symbol}`} className="rounded border border-border bg-panel-alt p-3">

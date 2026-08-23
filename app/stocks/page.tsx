@@ -9,6 +9,7 @@ import { STOCKS_WATCHLIST, US_INDICES } from "@/lib/watchlist";
 import { buildGenericInsights, fillMinimumInsights } from "@/lib/insights";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
+import { InsightsList } from "@/components/InsightsList";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -93,14 +94,7 @@ export default async function StocksPage() {
 
       {finalInsights.length > 0 && (
         <Panel title="Insights do Dia" updatedAt={now}>
-          <ul className="flex flex-col gap-2 text-sm text-text">
-            {finalInsights.slice(0, 15).map((insight, i) => (
-              <li key={i} className="flex gap-2">
-                <span className="text-gold-bright">•</span>
-                <span>{insight}</span>
-              </li>
-            ))}
-          </ul>
+          <InsightsList items={finalInsights} defaultCount={15} />
         </Panel>
       )}
 

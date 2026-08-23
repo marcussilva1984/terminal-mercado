@@ -25,6 +25,7 @@ import { CRIPTO_WATCHLIST } from "@/lib/watchlist";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { getCriptoMoneyFlowIdeas } from "@/lib/moneyFlowIdeas";
 import { MoneyFlowIdeasList } from "@/components/MoneyFlowIdeasList";
+import { InsightsList } from "@/components/InsightsList";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -225,14 +226,7 @@ export default async function CriptoPage() {
 
       {finalInsights.length > 0 && (
         <Panel title="Insights do Dia" updatedAt={now}>
-          <ul className="flex flex-col gap-2 text-sm text-text">
-            {finalInsights.map((insight, i) => (
-              <li key={i} className="flex gap-2">
-                <span className="text-gold-bright">•</span>
-                <span>{insight}</span>
-              </li>
-            ))}
-          </ul>
+          <InsightsList items={finalInsights} />
         </Panel>
       )}
 

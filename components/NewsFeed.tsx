@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { NewsItem } from "@/lib/types";
 import { formatTime } from "@/lib/format";
 import { getNewsPriority } from "@/lib/sentiment";
@@ -25,6 +28,8 @@ function matchesWatchlist(title: string, symbols: string[]): string | null {
 }
 
 export function NewsFeed({ items, now, watchlistSymbols }: { items: NewsItem[]; now: string; watchlistSymbols?: string[] }) {
+  const [count, setCount] = useState(Math.min(10, items.length));
+
   if (items.length === 0) {
     return <p className="text-sm text-text-muted">Sem notícias no momento.</p>;
   }
@@ -33,8 +38,22 @@ export function NewsFeed({ items, now, watchlistSymbols }: { items: NewsItem[]; 
   const isRecent = (iso: string) => nowMs - new Date(iso).getTime() < 15 * 60 * 1000;
 
   return (
-    <ul className="flex flex-col divide-y divide-border/50">
-      {items.map((item, i) => {
+    <div>
+      {items.length > 3 && (
+        <div className="mb-2 flex items-center justify-end gap-2">
+          <span className="text-xs text-text-muted">Mostrar</span>
+          <input
+            type="number"
+            min={3}
+            max={items.length}
+            value={count}
+            onChange={(e) => setCount(Math.max(3, Math.min(items.length, Number(e.target.value) || 10)))}
+            className="w-14 rounded border border-border bg-panel-alt px-1.5 py-0.5 text-xs text-text"
+          />
+        </div>
+      )}
+      <ul className="flex flex-col divide-y divide-border/50">
+        {items.slice(0, count).map((item, i) => {
         const priority = getNewsPriority(item.title);
         const badge = priority !== "baixa" ? PRIORITY_BADGE[priority] : null;
         const watchlistMatch = watchlistSymbols && watchlistSymbols.length > 0 ? matchesWatchlist(item.title, watchlistSymbols) : null;
@@ -69,6 +88,7 @@ export function NewsFeed({ items, now, watchlistSymbols }: { items: NewsItem[]; 
           </li>
         );
       })}
-    </ul>
+      </ul>
+    </div>
   );
 }
