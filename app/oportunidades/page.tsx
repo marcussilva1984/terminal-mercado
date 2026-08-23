@@ -14,6 +14,7 @@ import {
   getDcfValuations,
 } from "@/lib/valuation";
 import { getFatosRelevantes } from "@/lib/sources/cvmFatosRelevantes";
+import { getTickerDetail } from "@/lib/sources/yahooTickerDetail";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,7 @@ export default async function OportunidadesPage({
   const isB3 = assetClass === "b3";
   const isFii = assetClass === "fii";
 
-  const [graham, bazinB3, bazinFii, sma200, monteCarlo, rsi, bollinger, fatos] = await Promise.all([
+  const [graham, bazinB3, bazinFii, sma200, monteCarlo, rsi, bollinger, fatos, tickerDetail] = await Promise.all([
     isB3 ? getGrahamValuations(target).catch(() => []) : Promise.resolve([]),
     isB3 ? getBazinValuationsB3(target).catch(() => []) : Promise.resolve([]),
     isFii ? getBazinValuationsFii(target).catch(() => []) : Promise.resolve([]),
@@ -73,9 +74,15 @@ export default async function OportunidadesPage({
     // alto aqui não custa fetch extra — só garante que o ano inteiro entra
     // na busca por essa empresa específica.
     isB3 ? getFatosRelevantes(5000).catch(() => []) : Promise.resolve([]),
+    // matchFatosRelevantes cruza pelo NOME da empresa, não pelo ticker — "PETR4"
+    // nunca aparece no nome oficial da CVM ("PETRÓLEO BRASILEIRO S.A. -
+    // PETROBRAS"), então sem isso o cruzamento falhava sempre, pra qualquer
+    // ativo buscado. Busca o nome curto real via Yahoo antes de cruzar.
+    isB3 ? getTickerDetail(`${symbol}.SA`).catch(() => null) : Promise.resolve(null),
   ]);
 
-  const fatosMatches = isB3 ? matchFatosRelevantes(target, fatos) : [];
+  const companyLabel = tickerDetail?.shortName || symbol;
+  const fatosMatches = isB3 ? matchFatosRelevantes([{ symbol, label: companyLabel }], fatos) : [];
   const nothingFound =
     graham.length === 0 &&
     bazinB3.length === 0 &&
