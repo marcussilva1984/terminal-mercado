@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { hasDatabase } from "@/lib/db/client";
@@ -115,7 +116,7 @@ function finalize(
   return ideas.slice(0, MAX_IDEAS_PER_CLASS);
 }
 
-export async function getCriptoMoneyFlowIdeas(): Promise<MoneyFlowIdea[]> {
+async function computeCriptoMoneyFlowIdeas(): Promise<MoneyFlowIdea[]> {
   const watchlist = hasDatabase() ? await getWatchlist("cripto") : CRIPTO_WATCHLIST.map((w, i) => ({ ...w, id: i }));
   const symbols = watchlist.map((w) => w.symbol);
   const labelBySymbol = new Map(watchlist.map((w) => [w.symbol, w.label]));
@@ -190,7 +191,7 @@ export async function getCriptoMoneyFlowIdeas(): Promise<MoneyFlowIdea[]> {
   return finalize(signalsBySymbol, changePctBySymbol, labelBySymbol, "cripto", zScores);
 }
 
-export async function getB3MoneyFlowIdeas(): Promise<MoneyFlowIdea[]> {
+async function computeB3MoneyFlowIdeas(): Promise<MoneyFlowIdea[]> {
   const watchlist = hasDatabase() ? await getWatchlist("b3") : B3_WATCHLIST.map((w, i) => ({ ...w, id: i }));
   const labelBySymbol = new Map(watchlist.map((w) => [w.symbol, w.label]));
 
@@ -251,7 +252,7 @@ export async function getB3MoneyFlowIdeas(): Promise<MoneyFlowIdea[]> {
   return finalize(signalsBySymbol, changePctBySymbol, labelBySymbol, "b3", zScores);
 }
 
-export async function getFiiMoneyFlowIdeas(): Promise<MoneyFlowIdea[]> {
+async function computeFiiMoneyFlowIdeas(): Promise<MoneyFlowIdea[]> {
   const watchlist = hasDatabase() ? await getWatchlist("fii") : FII_WATCHLIST.map((w, i) => ({ ...w, id: i }));
   const labelBySymbol = new Map(watchlist.map((w) => [w.symbol, w.label]));
 
@@ -305,3 +306,18 @@ export async function getFiiMoneyFlowIdeas(): Promise<MoneyFlowIdea[]> {
 
   return finalize(signalsBySymbol, changePctBySymbol, labelBySymbol, "fii", zScores);
 }
+
+// Cada uma dessas funções soma várias fontes externas pesadas (CoinGecko,
+// DefiLlama, CVM, brapi, varredura de notícia) por cima do que a página já
+// busca — sem cache, cada carregamento de página recalculava tudo do zero,
+// o que na prática significava 15-25s por navegação (medido em produção).
+// Mesmo padrão de cache já usado pro z-score/SMA200/TVL da watchlist.
+export const getCriptoMoneyFlowIdeas = unstable_cache(computeCriptoMoneyFlowIdeas, ["cripto-money-flow-ideas"], {
+  revalidate: 5 * 60,
+});
+export const getB3MoneyFlowIdeas = unstable_cache(computeB3MoneyFlowIdeas, ["b3-money-flow-ideas"], {
+  revalidate: 5 * 60,
+});
+export const getFiiMoneyFlowIdeas = unstable_cache(computeFiiMoneyFlowIdeas, ["fii-money-flow-ideas"], {
+  revalidate: 5 * 60,
+});
