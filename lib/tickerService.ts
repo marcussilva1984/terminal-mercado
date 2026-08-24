@@ -31,11 +31,9 @@ const YAHOO_TICKER_SYMBOLS = {
 
 const CRIPTO_TICKER_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "HYPE", "XRP", "SUI", "BP", "LINK"];
 
-// Quantos ativos da watchlist entram no ticker, além dos índices/pares fixos
-// acima — a watchlist pode ter 100+ itens, e isso roda em toda página (é o
-// header global), então não dá pra buscar cotação de todos sem pesar o site
-// inteiro. Pega os primeiros N (ordem de cadastro).
-const MAX_WATCHLIST_IN_TICKER = 15;
+// Ordem pedida: cripto, forex, ação (B3), FII, e por último stocks (não
+// mencionado, mas não faz sentido descartar do ticker).
+const WATCHLIST_CLASS_ORDER = ["cripto", "forex", "b3", "fii", "stocks"];
 
 async function computeRealTickerQuotes(): Promise<Quote[]> {
   const now = new Date().toISOString();
@@ -80,7 +78,12 @@ async function computeRealTickerQuotes(): Promise<Quote[]> {
     seen.add(symbol);
   }
 
-  const watchlistToFetch = watchlist.filter((w) => !seen.has(w.symbol)).slice(0, MAX_WATCHLIST_IN_TICKER);
+  // Ordena pela classe pedida antes de buscar cotação — Promise.allSettled
+  // preserva a ordem do array de entrada na saída, então isso já garante a
+  // ordem final de exibição sem precisar reordenar depois.
+  const watchlistToFetch = watchlist
+    .filter((w) => !seen.has(w.symbol))
+    .sort((a, b) => WATCHLIST_CLASS_ORDER.indexOf(a.assetClass) - WATCHLIST_CLASS_ORDER.indexOf(b.assetClass));
   const watchlistResults = await Promise.allSettled(
     watchlistToFetch.map(async (w) => ({ w, price: await getCurrentPrice(w.symbol, w.assetClass) }))
   );
