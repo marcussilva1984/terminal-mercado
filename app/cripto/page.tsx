@@ -26,6 +26,8 @@ import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { getCriptoMoneyFlowIdeas } from "@/lib/moneyFlowIdeas";
 import { MoneyFlowIdeasList } from "@/components/MoneyFlowIdeasList";
 import { InsightsList } from "@/components/InsightsList";
+import { getMultiPeriodRanking } from "@/lib/multiPeriodRanking";
+import { MultiPeriodRankingTable } from "@/components/MultiPeriodRankingTable";
 import type { RankingItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -73,7 +75,7 @@ export default async function CriptoPage() {
       })()
     : Promise.resolve(CRIPTO_WATCHLIST);
 
-  const [coinsResult, newsResult, zScoreResult, categoriesResult, derivativesResult, onChainResult, fearGreedResult, etfFlowResult, trendingResult, tvlResult, sentimentResult, ideasResult] =
+  const [coinsResult, newsResult, zScoreResult, categoriesResult, derivativesResult, onChainResult, fearGreedResult, etfFlowResult, trendingResult, tvlResult, sentimentResult, ideasResult, multiPeriodResult] =
     await Promise.allSettled([
       getTopCoinMarkets(100),
       getNews("cripto", 10),
@@ -87,6 +89,7 @@ export default async function CriptoPage() {
       criptoWatchlist.then((w) => getProtocolTvl(w.map((x) => x.symbol))),
       criptoWatchlist.then((w) => getNegativeCryptoSignals(w)),
       getCriptoMoneyFlowIdeas(),
+      getMultiPeriodRanking("cripto"),
     ]);
 
   if (coinsResult.status === "fulfilled") {
@@ -108,6 +111,7 @@ export default async function CriptoPage() {
   const tvl = tvlResult.status === "fulfilled" ? tvlResult.value : null;
   const cryptoSentiment = sentimentResult.status === "fulfilled" ? sentimentResult.value : null;
   const moneyFlowIdeas = ideasResult.status === "fulfilled" ? ideasResult.value : null;
+  const multiPeriod = multiPeriodResult.status === "fulfilled" ? multiPeriodResult.value : null;
   const topSectors = categories
     ? [...categories].filter((c) => c.marketCapChange24h !== null).sort((a, b) => (b.marketCapChange24h ?? 0) - (a.marketCapChange24h ?? 0))
     : null;
@@ -236,6 +240,20 @@ export default async function CriptoPage() {
         ) : (
           <p className="text-sm text-down">Fonte indisponível no momento.</p>
         )}
+      </Panel>
+
+      <Panel title="Variação Multi-Período — Watchlist" updatedAt={now}>
+        {multiPeriod ? (
+          <MultiPeriodRankingTable items={multiPeriod} assetClass="cripto" />
+        ) : (
+          <p className="text-sm text-down">Fonte indisponível no momento.</p>
+        )}
+        <p className="mt-3 text-xs text-text-muted">
+          1/7/30 dias, só dos ativos da sua Watchlist (histórico coletado diariamente) — diferente
+          das tabelas de Maiores Altas/Baixas acima, que são o mercado inteiro mas só de 24h.
+          Clique no cabeçalho da coluna pra ordenar. Ativo recém-adicionado pode não ter 30 dias de
+          histórico ainda.
+        </p>
       </Panel>
 
       <Panel title="Trending — Onde a Atenção Está" updatedAt={now}>
