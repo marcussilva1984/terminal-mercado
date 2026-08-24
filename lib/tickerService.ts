@@ -1,6 +1,10 @@
+import { unstable_cache } from "next/cache";
 import type { Quote } from "@/lib/types";
 import { getYahooQuotes } from "@/lib/sources/yahoo";
 import { getTopCoinMarkets } from "@/lib/sources/coingecko";
+import { getCurrentPrice } from "@/lib/priceLookup";
+import { getWatchlist } from "@/lib/db/watchlistRepo";
+import { hasDatabase } from "@/lib/db/client";
 
 const YAHOO_TICKER_SYMBOLS = {
   IBOV: { yahoo: "^BVSP", label: "Ibovespa", currency: "BRL", assetClass: "indice" as const },
@@ -27,18 +31,24 @@ const YAHOO_TICKER_SYMBOLS = {
 
 const CRIPTO_TICKER_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "HYPE", "XRP", "SUI", "BP", "LINK"];
 
-// Cotações reais para o ticker tape e para a Home. Ativos cuja fonte falha são
-// simplesmente omitidos — nunca mostramos um valor de exemplo como se fosse real.
-export async function getRealTickerQuotes(): Promise<Quote[]> {
+// Quantos ativos da watchlist entram no ticker, além dos índices/pares fixos
+// acima — a watchlist pode ter 100+ itens, e isso roda em toda página (é o
+// header global), então não dá pra buscar cotação de todos sem pesar o site
+// inteiro. Pega os primeiros N (ordem de cadastro).
+const MAX_WATCHLIST_IN_TICKER = 15;
+
+async function computeRealTickerQuotes(): Promise<Quote[]> {
   const now = new Date().toISOString();
   const yahooSymbols = Object.values(YAHOO_TICKER_SYMBOLS).map((s) => s.yahoo);
 
-  const [yahooResults, coinMarkets] = await Promise.all([
+  const [yahooResults, coinMarkets, watchlist] = await Promise.all([
     getYahooQuotes(yahooSymbols),
     getTopCoinMarkets(250).catch(() => []),
+    hasDatabase() ? getWatchlist().catch(() => []) : Promise.resolve([]),
   ]);
 
   const quotes: Quote[] = [];
+  const seen = new Set<string>();
 
   for (const [symbol, cfg] of Object.entries(YAHOO_TICKER_SYMBOLS)) {
     const q = yahooResults[cfg.yahoo];
@@ -52,6 +62,7 @@ export async function getRealTickerQuotes(): Promise<Quote[]> {
       currency: cfg.currency,
       updatedAt: now,
     });
+    seen.add(symbol);
   }
 
   for (const symbol of CRIPTO_TICKER_SYMBOLS) {
@@ -66,10 +77,37 @@ export async function getRealTickerQuotes(): Promise<Quote[]> {
       currency: "USD",
       updatedAt: now,
     });
+    seen.add(symbol);
+  }
+
+  const watchlistToFetch = watchlist.filter((w) => !seen.has(w.symbol)).slice(0, MAX_WATCHLIST_IN_TICKER);
+  const watchlistResults = await Promise.allSettled(
+    watchlistToFetch.map(async (w) => ({ w, price: await getCurrentPrice(w.symbol, w.assetClass) }))
+  );
+  for (const r of watchlistResults) {
+    if (r.status !== "fulfilled" || !r.value.price) continue;
+    const { w, price } = r.value;
+    quotes.push({
+      symbol: w.symbol,
+      label: w.label,
+      price: price.price,
+      changePct: price.changePct,
+      assetClass: w.assetClass as Quote["assetClass"],
+      currency: price.currency,
+      updatedAt: now,
+    });
   }
 
   return quotes;
 }
+
+// Cotações reais para o ticker tape e para a Home. Ativos cuja fonte falha são
+// simplesmente omitidos — nunca mostramos um valor de exemplo como se fosse
+// real. Cacheado porque o layout raiz chama isso em toda navegação — sem
+// cache, cada troca de página refazia todas essas cotações do zero.
+export const getRealTickerQuotes = unstable_cache(computeRealTickerQuotes, ["real-ticker-quotes"], {
+  revalidate: 60,
+});
 
 export interface HighlightCard {
   label: string;

@@ -13,9 +13,14 @@ function TickerItem({ quote }: { quote: Quote }) {
 
 export function TickerTape({ quotes }: { quotes: Quote[] }) {
   const loop = [...quotes, ...quotes];
+  // Duração proporcional à quantidade de ativos — sem isso, adicionar mais
+  // itens (ex.: watchlist) deixaria a faixa "andando" mais rápido pra
+  // percorrer o mesmo espaço no mesmo tempo fixo. ~3s por ativo dá ritmo
+  // confortável de leitura mesmo com a watchlist inteira somada.
+  const durationSeconds = Math.max(50, quotes.length * 3);
   return (
     <div className="w-full overflow-hidden border-b border-border bg-panel">
-      <div className="flex w-max animate-ticker py-2">
+      <div className="flex w-max animate-ticker py-2" style={{ animationDuration: `${durationSeconds}s` }}>
         {loop.map((q, i) => (
           <TickerItem key={`${q.symbol}-${i}`} quote={q} />
         ))}
