@@ -35,6 +35,13 @@ const CRIPTO_TICKER_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "HYPE", "XRP", "SUI",
 // mencionado, mas não faz sentido descartar do ticker).
 const WATCHLIST_CLASS_ORDER = ["cripto", "forex", "b3", "fii", "stocks"];
 
+// Buscar TODA a watchlist (100+ itens em alguns casos) toda vez que o cache
+// expira deixava a troca de aba lenta — isso roda no layout raiz, ou seja,
+// em toda página. Limita por classe (não no total) pra continuar
+// representando as 5 categorias pedidas, só que sem estourar o tempo de
+// resposta quando o cache precisa recalcular.
+const MAX_PER_CLASS_IN_TICKER = 12;
+
 async function computeRealTickerQuotes(): Promise<Quote[]> {
   const now = new Date().toISOString();
   const yahooSymbols = Object.values(YAHOO_TICKER_SYMBOLS).map((s) => s.yahoo);
@@ -81,8 +88,15 @@ async function computeRealTickerQuotes(): Promise<Quote[]> {
   // Ordena pela classe pedida antes de buscar cotação — Promise.allSettled
   // preserva a ordem do array de entrada na saída, então isso já garante a
   // ordem final de exibição sem precisar reordenar depois.
+  const countByClass = new Map<string, number>();
   const watchlistToFetch = watchlist
     .filter((w) => !seen.has(w.symbol))
+    .filter((w) => {
+      const count = countByClass.get(w.assetClass) ?? 0;
+      if (count >= MAX_PER_CLASS_IN_TICKER) return false;
+      countByClass.set(w.assetClass, count + 1);
+      return true;
+    })
     .sort((a, b) => WATCHLIST_CLASS_ORDER.indexOf(a.assetClass) - WATCHLIST_CLASS_ORDER.indexOf(b.assetClass));
   const watchlistResults = await Promise.allSettled(
     watchlistToFetch.map(async (w) => ({ w, price: await getCurrentPrice(w.symbol, w.assetClass) }))
@@ -107,9 +121,12 @@ async function computeRealTickerQuotes(): Promise<Quote[]> {
 // Cotações reais para o ticker tape e para a Home. Ativos cuja fonte falha são
 // simplesmente omitidos — nunca mostramos um valor de exemplo como se fosse
 // real. Cacheado porque o layout raiz chama isso em toda navegação — sem
-// cache, cada troca de página refazia todas essas cotações do zero.
+// cache, cada troca de página refazia todas essas cotações do zero. Janela
+// de 5min (não 60s) porque isso busca dezenas de ativos de fontes externas
+// diferentes — recalcular com frequência alta é exatamente o que deixava a
+// troca de aba lenta sempre que o cache vencia.
 export const getRealTickerQuotes = unstable_cache(computeRealTickerQuotes, ["real-ticker-quotes"], {
-  revalidate: 60,
+  revalidate: 5 * 60,
 });
 
 export interface HighlightCard {
