@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { hasDatabase } from "@/lib/db/client";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
-import { getCloses } from "@/lib/db/priceSeriesRepo";
+import { getClosesForClass } from "@/lib/db/priceSeriesRepo";
 
 export interface MultiPeriodChange {
   symbol: string;
@@ -22,34 +22,31 @@ export interface MultiPeriodChange {
 async function computeMultiPeriodRanking(assetClass: string): Promise<MultiPeriodChange[]> {
   if (!hasDatabase()) return [];
 
-  const watchlist = await getWatchlist(assetClass);
-  const results = await Promise.allSettled(
-    watchlist.map(async (w) => {
-      const closes = await getCloses(w.symbol, assetClass, 31);
-      if (closes.length < 2) return null;
+  const [watchlist, closesBySymbol] = await Promise.all([getWatchlist(assetClass), getClosesForClass(assetClass, 31)]);
 
-      const last = closes[closes.length - 1].closePrice;
-      const prev1d = closes[closes.length - 2]?.closePrice ?? null;
-      const prev7d = closes.length > 7 ? closes[closes.length - 8].closePrice : null;
-      const prev30d = closes.length >= 31 ? closes[0].closePrice : null;
+  const results: MultiPeriodChange[] = [];
+  for (const w of watchlist) {
+    const closes = closesBySymbol.get(w.symbol);
+    if (!closes || closes.length < 2) continue;
 
-      const pct = (base: number | null) => (base !== null && base !== 0 ? ((last - base) / base) * 100 : null);
+    const last = closes[closes.length - 1].closePrice;
+    const prev1d = closes[closes.length - 2]?.closePrice ?? null;
+    const prev7d = closes.length > 7 ? closes[closes.length - 8].closePrice : null;
+    const prev30d = closes.length >= 31 ? closes[0].closePrice : null;
 
-      return {
-        symbol: w.symbol,
-        label: w.label,
-        price: last,
-        changePct1d: pct(prev1d),
-        changePct7d: pct(prev7d),
-        changePct30d: pct(prev30d),
-      } satisfies MultiPeriodChange;
-    })
-  );
+    const pct = (base: number | null) => (base !== null && base !== 0 ? ((last - base) / base) * 100 : null);
 
-  return results
-    .filter((r): r is PromiseFulfilledResult<MultiPeriodChange | null> => r.status === "fulfilled")
-    .map((r) => r.value)
-    .filter((v): v is MultiPeriodChange => v !== null);
+    results.push({
+      symbol: w.symbol,
+      label: w.label,
+      price: last,
+      changePct1d: pct(prev1d),
+      changePct7d: pct(prev7d),
+      changePct30d: pct(prev30d),
+    });
+  }
+
+  return results;
 }
 
 export const getMultiPeriodRanking = unstable_cache(computeMultiPeriodRanking, ["multi-period-ranking"], {
