@@ -5,7 +5,7 @@ import { getAllNewsWithCategory } from "@/lib/sources/rss";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { hasDatabase } from "@/lib/db/client";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 240;
 
 export default async function NoticiasPage() {
   const now = new Date().toISOString();

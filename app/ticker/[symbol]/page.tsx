@@ -11,7 +11,7 @@ import { formatNumber, formatPct, formatCompact, changeColorClass } from "@/lib/
 import { classifyIndicator, TONE_CLASS } from "@/lib/indicatorColor";
 import type { TickerDetail } from "@/lib/sources/yahooTickerDetail";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 240;
 
 type AssetClassParam = "b3" | "cripto" | "stocks" | "fii";
 

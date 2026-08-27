@@ -30,7 +30,7 @@ import { getMultiPeriodRanking } from "@/lib/multiPeriodRanking";
 import { MultiPeriodRankingTable } from "@/components/MultiPeriodRankingTable";
 import type { RankingItem } from "@/lib/types";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 240;
 
 function toRankingItem(coin: CoinMarket, metric: "price" | "volume" | "marketcap"): RankingItem {
   const valueByMetric = {

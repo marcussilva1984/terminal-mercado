@@ -28,7 +28,15 @@ import { getFatosRelevantes } from "@/lib/sources/cvmFatosRelevantes";
 import { FatosRelevantesTable } from "@/components/FatosRelevantesTable";
 import type { RankingItem } from "@/lib/types";
 
-export const dynamic = "force-dynamic";
+// Trocado de force-dynamic pra ISR (aprovado pelo usuário, depois estendido
+// pra 3-5min em todo o site): a página junta ~10 fontes diferentes, então
+// "sempre fresco" custava ~9s por visita mesmo com os agregadores
+// individuais já cacheados. Com revalidate, a primeira visita depois da
+// janela paga o custo cheio em segundo plano e todo mundo depois disso
+// recebe a versão pronta — defasagem de até 4min, bem menor que o problema
+// real que motivou "sempre fresco" no passado (dias de atraso por fonte
+// quebrada, não minutos por cache).
+export const revalidate = 240;
 
 function toRankingItem(item: BrapiListItem): RankingItem {
   return {

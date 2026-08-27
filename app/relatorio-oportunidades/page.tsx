@@ -10,7 +10,7 @@ import { hasDatabase } from "@/lib/db/client";
 import { formatPrice } from "@/lib/format";
 import { PrintButton } from "@/components/PrintButton";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 240;
 
 function dedupe(a: { symbol: string; label: string }[], b: { symbol: string; label: string }[]) {
   const merged = [...a, ...b];

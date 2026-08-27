@@ -8,7 +8,7 @@ import { formatPct, formatBRLCompact } from "@/lib/format";
 import { PrintButton } from "@/components/PrintButton";
 import type { RankingItem } from "@/lib/types";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 240;
 
 function toRankingItem(item: BrapiListItem): RankingItem {
   return { symbol: item.symbol, label: item.name, value: item.close, changePct: item.changePct, volume: item.volume };

@@ -22,7 +22,7 @@ import { getMultiPeriodRanking } from "@/lib/multiPeriodRanking";
 import { MultiPeriodRankingTable } from "@/components/MultiPeriodRankingTable";
 import type { RankingItem } from "@/lib/types";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 240;
 
 function toRankingItem(item: BrapiListItem): RankingItem {
   return { symbol: item.symbol, label: item.name, value: item.close, changePct: item.changePct, volume: item.volume };

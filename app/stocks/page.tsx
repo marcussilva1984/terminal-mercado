@@ -12,7 +12,7 @@ import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import { InsightsList } from "@/components/InsightsList";
 import type { RankingItem } from "@/lib/types";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 240;
 
 function toRankingItem(item: YahooScreenerItem): RankingItem {
   return { symbol: item.symbol, label: item.name, value: item.price, changePct: item.changePct, volume: item.volume };

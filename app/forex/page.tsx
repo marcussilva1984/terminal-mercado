@@ -18,7 +18,7 @@ import {
 import { getNews } from "@/lib/sources/rss";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 240;
 
 export default async function ForexPage() {
   const now = new Date().toISOString();

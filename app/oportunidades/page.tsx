@@ -16,7 +16,7 @@ import {
 import { getFatosRelevantes } from "@/lib/sources/cvmFatosRelevantes";
 import { getTickerDetail } from "@/lib/sources/yahooTickerDetail";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 240;
 
 const VALID_CLASSES = ["b3", "fii", "stocks", "cripto", "forex"];
 
