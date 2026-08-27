@@ -52,6 +52,40 @@ export function filterRateDecisions(events: CalendarEvent[]): CalendarEvent[] {
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
+// Só a decisão formal em si (não fala/testemunho de dirigente) — pra
+// responder "quando é a próxima reunião", não "o que os bancos centrais vão
+// falar essa semana" (isso já existe em filterRateDecisions, mais amplo).
+const RATE_DECISION_ONLY_PATTERN = /rate decision/i;
+
+export interface NextCentralBankMeeting {
+  bank: string;
+  country: string;
+  date: string | null; // null = sem reunião agendada na janela coberta pela fonte
+}
+
+export const CENTRAL_BANKS: { country: string; bank: string }[] = [
+  { country: "USD", bank: "Fed (EUA)" },
+  { country: "EUR", bank: "BCE (Zona do Euro)" },
+  { country: "GBP", bank: "BoE (Reino Unido)" },
+  { country: "JPY", bank: "BoJ (Japão)" },
+  { country: "CHF", bank: "SNB (Suíça)" },
+  { country: "AUD", bank: "RBA (Austrália)" },
+  { country: "NZD", bank: "RBNZ (Nova Zelândia)" },
+];
+
+// A fonte gratuita (ForexFactory) só cobre a semana corrente — se nenhum
+// banco tiver reunião nesse intervalo, date fica null, e a UI deve dizer
+// isso explicitamente em vez de sumir com a linha (evita parecer que
+// "não tem reunião nenhuma programada" quando na verdade é só que a
+// reunião cai fora da janela que essa fonte grátis alcança).
+export function getNextCentralBankMeetings(events: CalendarEvent[]): NextCentralBankMeeting[] {
+  const upcoming = filterUpcoming(events).filter((e) => RATE_DECISION_ONLY_PATTERN.test(e.title));
+  return CENTRAL_BANKS.map(({ country, bank }) => {
+    const next = upcoming.find((e) => e.country === country);
+    return { bank, country, date: next?.date ?? null };
+  });
+}
+
 // Tira o que já passou — "fique de olho" é sobre o que vem, não histórico.
 export function filterUpcoming(events: CalendarEvent[]): CalendarEvent[] {
   const now = Date.now();
