@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { Panel } from "@/components/Panel";
 import { RankingPanel } from "@/components/RankingPanel";
 import { NewsFeed } from "@/components/NewsFeed";
@@ -45,7 +46,7 @@ interface PriceTargetHit {
   targetMeanPrice: number;
 }
 
-async function getB3PriceTargetHits(): Promise<PriceTargetHit[] | null> {
+async function computeB3PriceTargetHits(): Promise<PriceTargetHit[] | null> {
   try {
     const symbols = B3_WATCHLIST.map((w) => `${w.symbol}.SA`).join(",");
     const res = await fetch(`${getBaseUrl()}/api/analyst-targets?symbols=${encodeURIComponent(symbols)}`, {
@@ -72,7 +73,7 @@ interface UpcomingEarnings {
   nextEarningsDate: string;
 }
 
-async function getUpcomingEarnings(): Promise<UpcomingEarnings[]> {
+async function computeUpcomingEarnings(): Promise<UpcomingEarnings[]> {
   const watchlist = hasDatabase() ? await getWatchlist("b3") : B3_WATCHLIST.map((w, i) => ({ ...w, id: i }));
   const results = await Promise.all(
     watchlist.map(async (w) => {
@@ -95,6 +96,18 @@ async function getUpcomingEarnings(): Promise<UpcomingEarnings[]> {
     .filter((r): r is UpcomingEarnings => r !== null && r.nextEarningsDate >= today)
     .sort((a, b) => a.nextEarningsDate.localeCompare(b.nextEarningsDate));
 }
+
+// As duas funções acima fazem dezenas de auto-fetches HTTP pro próprio app
+// (uma por ativo da watchlist B3, hoje ~33) — sem cache isso rodava do zero
+// em toda visita à página, sendo o motivo real da aba Ações continuar bem
+// mais lenta que as outras mesmo depois de outras otimizações. Mesmo padrão
+// de cache já usado nos outros agregadores pesados do site.
+const getB3PriceTargetHits = unstable_cache(computeB3PriceTargetHits, ["b3-price-target-hits"], {
+  revalidate: 15 * 60,
+});
+const getUpcomingEarnings = unstable_cache(computeUpcomingEarnings, ["b3-upcoming-earnings"], {
+  revalidate: 15 * 60,
+});
 
 export default async function AcoesPage() {
   const now = new Date().toISOString();
