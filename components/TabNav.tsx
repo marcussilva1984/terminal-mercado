@@ -6,18 +6,27 @@ import { useEffect, useRef } from "react";
 
 const TABS = [
   { href: "/", label: "Resumo do Dia" },
-  { href: "/noticias", label: "Notícias" },
+  {
+    href: "/noticias",
+    label: "Notícias",
+    // Alertas virou sub-seção de Notícias (link rápido no topo da página)
+    // em vez de aba separada.
+    matchPrefix: ["/noticias", "/alertas"],
+  },
   { href: "/acoes", label: "Ações (B3)" },
   { href: "/cripto", label: "Cripto" },
   { href: "/stocks", label: "Stocks (EUA)" },
   { href: "/forex", label: "Forex" },
   { href: "/fii", label: "FII" },
-  { href: "/ticker/PETR4?class=b3", label: "Fundamentalista", matchPrefix: "/ticker" },
-  { href: "/comparador", label: "Comparador" },
-  { href: "/carteira", label: "Minha Carteira" },
+  {
+    href: "/ticker/PETR4?class=b3",
+    label: "Fundamentalista",
+    // Oportunidades e Comparador viraram sub-seções de Fundamentalista (link
+    // rápido no topo da própria página) em vez de abas separadas — a aba
+    // continua "ativa" quando o usuário está em qualquer uma das três.
+    matchPrefix: ["/ticker", "/oportunidades", "/comparador"],
+  },
   { href: "/watchlist", label: "Watchlist" },
-  { href: "/alertas", label: "Alertas" },
-  { href: "/oportunidades", label: "Oportunidades" },
 ];
 
 export function TabNav() {
@@ -43,7 +52,8 @@ export function TabNav() {
       >
         {TABS.map((tab) => {
           const matchAgainst = tab.matchPrefix ?? tab.href;
-          const active = tab.href === "/" ? pathname === "/" : pathname.startsWith(matchAgainst);
+          const prefixes = Array.isArray(matchAgainst) ? matchAgainst : [matchAgainst];
+          const active = tab.href === "/" ? pathname === "/" : prefixes.some((p) => pathname.startsWith(p));
           return (
             <Link
               key={tab.href}

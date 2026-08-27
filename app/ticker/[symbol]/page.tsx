@@ -109,6 +109,18 @@ export default async function TickerDetailPage({
         )}
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href={`/oportunidades?symbol=${symbol}&assetClass=${assetClass}`}
+          className="rounded border border-gold/40 bg-panel-alt px-3 py-1.5 text-sm text-gold-bright hover:bg-panel"
+        >
+          Ver Oportunidades pra {symbol} →
+        </Link>
+        <Link href="/comparador" className="rounded border border-border px-3 py-1.5 text-sm text-text-muted hover:text-text">
+          Comparar com outro ativo →
+        </Link>
+      </div>
+
       <TickerTabs
         overview={
           <>
