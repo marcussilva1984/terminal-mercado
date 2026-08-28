@@ -35,6 +35,14 @@ export default async function NoticiasPage() {
 
       <Panel title="Todas as Fontes" updatedAt={now}>
         <NewsBoard items={items} now={now} watchlistSymbols={watchlistSymbols} />
+        <p className="mt-3 text-xs text-text-muted">
+          Onde aparece "· Esquerda/Centro/Direita" ao lado da fonte, é a classificação de viés
+          editorial do veículo segundo o AllSides Media Bias Chart (allsides.com) — referência
+          pública de terceiro, não é análise nossa. Só rotulamos veículo com classificação estável
+          e bem documentada; sem o rótulo não significa "neutro", só que não avaliamos. Cobre
+          majoritariamente as categorias Geral/Internacional — imprensa financeira (Valor,
+          InfoMoney etc.) não tem esse tipo de classificação política.
+        </p>
       </Panel>
     </div>
   );

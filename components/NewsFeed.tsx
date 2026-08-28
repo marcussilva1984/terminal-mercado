@@ -4,6 +4,15 @@ import { useState } from "react";
 import type { NewsItem } from "@/lib/types";
 import { formatTime } from "@/lib/format";
 import { getNewsPriority } from "@/lib/sentiment";
+import { getMediaBias } from "@/lib/mediaBias";
+
+const BIAS_CLASS: Record<string, string> = {
+  Esquerda: "text-down",
+  "Centro-Esquerda": "text-down/70",
+  Centro: "text-text-muted",
+  "Centro-Direita": "text-gold-bright/70",
+  Direita: "text-gold-bright",
+};
 
 const PRIORITY_BADGE: Record<"alta" | "media", { label: string; badgeClass: string; textClass: string }> = {
   alta: {
@@ -57,6 +66,7 @@ export function NewsFeed({ items, now, watchlistSymbols }: { items: NewsItem[]; 
         const priority = getNewsPriority(item.title);
         const badge = priority !== "baixa" ? PRIORITY_BADGE[priority] : null;
         const watchlistMatch = watchlistSymbols && watchlistSymbols.length > 0 ? matchesWatchlist(item.title, watchlistSymbols) : null;
+        const bias = getMediaBias(item.source);
         return (
           <li key={`${item.url}-${i}`} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
             <span className="mt-1 shrink-0 text-xs tabular-nums text-text-muted">
@@ -83,7 +93,10 @@ export function NewsFeed({ items, now, watchlistSymbols }: { items: NewsItem[]; 
               >
                 {item.title}
               </a>
-              <div className="mt-0.5 text-xs text-text-muted">{item.source}</div>
+              <div className="mt-0.5 text-xs text-text-muted">
+                {item.source}
+                {bias && <span className={`ml-1.5 ${BIAS_CLASS[bias]}`}>· {bias}</span>}
+              </div>
             </div>
           </li>
         );
