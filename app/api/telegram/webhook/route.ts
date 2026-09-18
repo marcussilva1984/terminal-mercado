@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { sendTelegramMessage, hasTelegramConfig } from "@/lib/sources/telegram";
+import { sendTelegramMessage, hasTelegramConfig, escapeHtml } from "@/lib/sources/telegram";
 import { handleTelegramCommand } from "@/lib/telegramAgent";
 import { hasDatabase } from "@/lib/db/client";
 import { transcribeTelegramVoice, hasGroqConfig } from "@/lib/voiceTranscription";
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     }
     try {
       text = await transcribeTelegramVoice(message.voice.file_id);
-      await sendTelegramMessage(`🎙️ <i>Entendi: "${text}"</i>`).catch(() => {});
+      await sendTelegramMessage(`🎙️ <i>Entendi: "${escapeHtml(text)}"</i>`).catch(() => {});
     } catch (err) {
       await sendTelegramMessage(`⚠️ Não consegui transcrever o áudio: ${err instanceof Error ? err.message : "falha desconhecida"}`).catch(() => {});
       return NextResponse.json({ ok: true });

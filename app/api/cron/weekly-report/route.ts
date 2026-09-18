@@ -8,7 +8,7 @@ import { getFlowChartData, SEGMENT_CONFIG } from "@/lib/semaphore";
 import { getFatosRelevantes } from "@/lib/sources/cvmFatosRelevantes";
 import { getWeeklyCalendar, filterHighSignal } from "@/lib/sources/economicCalendar";
 import { getZScoreHighlights } from "@/lib/zscoreService";
-import { sendTelegramMessage, hasTelegramConfig } from "@/lib/sources/telegram";
+import { sendTelegramMessage, hasTelegramConfig, escapeHtml } from "@/lib/sources/telegram";
 import { formatBRLCompact, formatPct } from "@/lib/format";
 import type { AssetClass } from "@/lib/types";
 
@@ -110,7 +110,9 @@ export async function GET(request: Request) {
     const alerts = await getRecentAlerts(24 * 7, 100);
     const news = alerts.filter((a) => a.kind === "noticia").slice(0, 8);
     if (news.length > 0) {
-      const lines = news.map((n) => `• ${n.url ? `<a href="${n.url}">${n.label}</a>` : n.label}`).join("\n");
+      const lines = news
+        .map((n) => `• ${n.url ? `<a href="${escapeHtml(n.url)}">${escapeHtml(n.label)}</a>` : escapeHtml(n.label)}`)
+        .join("\n");
       sections.push(`🚨 <b>Manchetes de destaque na semana</b>\n${lines}`);
     }
   } catch {
@@ -123,7 +125,10 @@ export async function GET(request: Request) {
     const highSignal = filterHighSignal(calendar).slice(0, 8);
     if (highSignal.length > 0) {
       const lines = highSignal
-        .map((e) => `• ${new Date(e.date).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" })} — ${e.country}: ${e.title}`)
+        .map(
+          (e) =>
+            `• ${new Date(e.date).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" })} — ${escapeHtml(e.country)}: ${escapeHtml(e.title)}`
+        )
         .join("\n");
       sections.push(`🔭 <b>Fique de olho na semana que vem</b>\n${lines}`);
     }
@@ -138,7 +143,7 @@ export async function GET(request: Request) {
   const text = sections.join("\n\n");
   // Telegram limita ~4096 caracteres por mensagem — corta com aviso se passar.
   const finalText = text.length > 4000 ? `${text.slice(0, 3950)}\n\n[...continua no dashboard]` : text;
-  await sendTelegramMessage(finalText).catch(() => {});
+  await sendTelegramMessage(finalText).catch((e) => console.error("Falha ao enviar relatório semanal pro Telegram:", e));
 
   return NextResponse.json({ sent: true, sections: sections.length });
 }

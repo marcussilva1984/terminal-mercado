@@ -6,7 +6,7 @@ import { buildFlowSegments } from "@/lib/semaphore";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 import { getYahooQuotes } from "@/lib/sources/yahoo";
 import { getTopCoinMarkets } from "@/lib/sources/coingecko";
-import { sendTelegramMessage, hasTelegramConfig } from "@/lib/sources/telegram";
+import { sendTelegramMessage, hasTelegramConfig, escapeHtml } from "@/lib/sources/telegram";
 import { B3_WATCHLIST, CRIPTO_WATCHLIST, STOCKS_WATCHLIST, FII_WATCHLIST } from "@/lib/watchlist";
 import { getCloses } from "@/lib/db/priceSeriesRepo";
 import { getActivePriceAlerts, markPriceAlertTriggered, getHoldings } from "@/lib/db/portfolioRepo";
@@ -21,12 +21,22 @@ import { getGrahamValuations } from "@/lib/valuation";
 
 const WATCHLIST_MOVE_THRESHOLD = 5; // %
 
+// Escapa o label (pode conter nome de empresa/setor com "&" vindo de fonte
+// externa — o mesmo bug de HTML quebrado corrigido nos outros crons de
+// Telegram) e só grava o dedup (logAlert) depois do envio realmente
+// funcionar, senão uma falha de envio marca o alerta como "já visto" e ele
+// nunca mais dispara.
 async function notify(key: string, label: string, kind: string, hoursCooldown: number): Promise<boolean> {
   if (await hasRecentAlert(key, hoursCooldown)) return false;
-  await logAlert(key, label, kind);
   if (hasTelegramConfig()) {
-    await sendTelegramMessage(`📡 <b>Terminal de Mercado</b>\n${label}`).catch(() => {});
+    try {
+      await sendTelegramMessage(`📡 <b>Terminal de Mercado</b>\n${escapeHtml(label)}`);
+    } catch (e) {
+      console.error("Falha ao enviar alerta pro Telegram:", e, label);
+      return false;
+    }
   }
+  await logAlert(key, label, kind);
   return true;
 }
 
@@ -128,7 +138,9 @@ export async function GET(request: Request) {
         await markPriceAlertTriggered(alert.id);
         await logAlert(`price:${alert.id}`, label, "preco");
         if (hasTelegramConfig()) {
-          await sendTelegramMessage(`📡 <b>Terminal de Mercado</b>\n${label}`).catch(() => {});
+          await sendTelegramMessage(`📡 <b>Terminal de Mercado</b>\n${escapeHtml(label)}`).catch((e) =>
+            console.error("Falha ao enviar alerta de preço pro Telegram:", e, label)
+          );
         }
         sent.push(label);
       }

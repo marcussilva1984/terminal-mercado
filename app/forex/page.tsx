@@ -3,7 +3,6 @@ import { StatCard } from "@/components/StatCard";
 import { NewsFeed } from "@/components/NewsFeed";
 import { CurrencyStrengthMeter } from "@/components/CurrencyStrengthMeter";
 import { EconomicCalendar } from "@/components/EconomicCalendar";
-import { CentralBankMeetings } from "@/components/CentralBankMeetings";
 import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import { changeColorClass, formatNumber, formatPct } from "@/lib/format";
 import { getForexPairs, getCurrencyStrength, getDXY, getUSYieldCurve } from "@/lib/forexService";
@@ -13,7 +12,6 @@ import {
   filterRateDecisions,
   filterUpcoming,
   filterForexRelevant,
-  getNextCentralBankMeetings,
 } from "@/lib/sources/economicCalendar";
 import { getNews } from "@/lib/sources/rss";
 import { getZScoreHighlights } from "@/lib/zscoreService";
@@ -35,7 +33,6 @@ export default async function ForexPage() {
 
   const rateDecisions = calendarResult ? filterUpcoming(filterRateDecisions(calendarResult)) : null;
   const highSignalEvents = calendarResult ? filterUpcoming(filterForexRelevant(filterHighSignal(calendarResult))) : null;
-  const nextMeetings = calendarResult ? getNextCentralBankMeetings(calendarResult) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -104,20 +101,6 @@ export default async function ForexPage() {
         <p className="mt-3 text-xs text-text-muted">
           Curva de juros do Brasil (DI) fica para uma fase futura — a fonte pública exige scraping
           mais trabalhoso (contratos futuros na B3).
-        </p>
-      </Panel>
-
-      <Panel title="Próxima Reunião de Cada Banco Central" updatedAt={now}>
-        {nextMeetings ? (
-          <CentralBankMeetings items={nextMeetings} />
-        ) : (
-          <p className="text-sm text-down">Fonte indisponível no momento.</p>
-        )}
-        <p className="mt-3 text-xs text-text-muted">
-          Bancos centrais das moedas da sua watchlist de Forex (EUR/GBP/USD/JPY/CHF/AUD/NZD). A
-          fonte gratuita (mesmo feed do ForexFactory) só cobre os próximos 7 dias — se um banco não
-          tem reunião marcada nessa janela, aparece "sem reunião nos próximos 7 dias" em vez de
-          inventar uma data ou esconder a linha.
         </p>
       </Panel>
 

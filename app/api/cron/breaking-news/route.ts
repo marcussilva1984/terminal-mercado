@@ -10,7 +10,7 @@ import { getNewsPriority } from "@/lib/sentiment";
 export const maxDuration = 60;
 
 const PRIORITY_EMOJI: Record<"alta" | "media", string> = { alta: "🔴", media: "🟡" };
-import { sendTelegramMessage, hasTelegramConfig } from "@/lib/sources/telegram";
+import { sendTelegramMessage, hasTelegramConfig, escapeHtml } from "@/lib/sources/telegram";
 
 const CATEGORY_LABEL: Record<string, string> = {
   b3: "B3 / Brasil",
@@ -50,8 +50,8 @@ export async function GET(request: Request) {
     const label = CATEGORY_LABEL[item.category] ?? item.category;
     const priorityLabel = priority === "alta" ? "Alta Prioridade" : "Média Prioridade";
     const text =
-      `${PRIORITY_EMOJI[priority]} <b>${priorityLabel} — ${label}</b>\n<a href="${item.url}">${item.title}</a>\n<i>${item.source}</i>`;
-    await sendTelegramMessage(text).catch(() => {});
+      `${PRIORITY_EMOJI[priority]} <b>${escapeHtml(priorityLabel)} — ${escapeHtml(label)}</b>\n<a href="${escapeHtml(item.url)}">${escapeHtml(item.title)}</a>\n<i>${escapeHtml(item.source)}</i>`;
+    await sendTelegramMessage(text).catch((e) => console.error("Falha ao enviar breaking news pro Telegram:", e, item.url));
     await logAlert(`noticia:${item.url}`, item.title, "noticia", item.url);
   }
 

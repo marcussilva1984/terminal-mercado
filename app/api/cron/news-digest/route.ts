@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { hasDatabase } from "@/lib/db/client";
 import { getLastDigestTime, markDigestSent } from "@/lib/db/alertRepo";
 import { getAllNewsWithCategory } from "@/lib/sources/rss";
-import { sendTelegramMessage, hasTelegramConfig } from "@/lib/sources/telegram";
+import { sendTelegramMessage, hasTelegramConfig, escapeHtml } from "@/lib/sources/telegram";
 
 // Mesmo motivo do breaking-news/fatos-relevantes: varredura de feeds RSS
 // pode passar do timeout padrão da Vercel (10s) com cache frio.
@@ -55,8 +55,8 @@ export async function GET(request: Request) {
   for (const item of fresh) {
     const label = CATEGORY_LABEL[item.category] ?? item.category;
     const priority = getNewsPriority(item.title);
-    const text = `${PRIORITY_EMOJI[priority]} <b>${label}</b>\n<a href="${item.url}">${item.title}</a>\n<i>${item.source}</i>`;
-    await sendTelegramMessage(text).catch(() => {});
+    const text = `${PRIORITY_EMOJI[priority]} <b>${escapeHtml(label)}</b>\n<a href="${escapeHtml(item.url)}">${escapeHtml(item.title)}</a>\n<i>${escapeHtml(item.source)}</i>`;
+    await sendTelegramMessage(text).catch((e) => console.error("Falha ao enviar notícia pro Telegram:", e, item.url));
   }
 
   await markDigestSent();
