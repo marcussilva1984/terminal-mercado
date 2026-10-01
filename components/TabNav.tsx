@@ -16,6 +16,7 @@ const TABS = [
   { href: "/acoes", label: "Ações (B3)" },
   { href: "/cripto", label: "Cripto" },
   { href: "/stocks", label: "Stocks (EUA)" },
+  { href: "/macro", label: "Macro" },
   { href: "/forex", label: "Forex", matchPrefix: ["/forex"] },
   { href: "/forex/carteira", label: "Carteira Forex" },
   { href: "/fii", label: "FII" },

@@ -3,7 +3,7 @@ import Parser from "rss-parser";
 import iconv from "iconv-lite";
 import type { NewsItem } from "@/lib/types";
 
-export type NewsCategory = "b3" | "cripto" | "internacional" | "forex" | "fii" | "geral";
+export type NewsCategory = "b3" | "cripto" | "internacional" | "forex" | "fii" | "geral" | "macro";
 
 interface FeedConfig {
   source: string;
@@ -48,11 +48,15 @@ const FEEDS: FeedConfig[] = [
   { source: "Seeking Alpha", url: "https://seekingalpha.com/feed.xml", category: "internacional" },
   { source: "DigiTimes", url: "https://www.digitimes.com/rss/daily.xml", category: "internacional" },
   { source: "Nikkei Asia", url: "https://asia.nikkei.com/rss/feed/nar", category: "internacional" },
-  { source: "ING Think", url: "https://think.ing.com/rss/", category: "internacional" },
-  { source: "ECB (Banco Central Europeu)", url: "https://www.ecb.europa.eu/rss/press.html", category: "internacional" },
-  { source: "Federal Reserve (Fed)", url: "https://www.federalreserve.gov/feeds/press_all.xml", category: "internacional" },
-  { source: "Bank of England (BoE)", url: "https://www.bankofengland.co.uk/rss/news", category: "internacional" },
-  { source: "Bank of Japan (BoJ)", url: "https://www.boj.or.jp/en/rss/whatsnew.xml", category: "internacional" },
+  { source: "ECB (Banco Central Europeu)", url: "https://www.ecb.europa.eu/rss/press.html", category: "macro" },
+  { source: "Federal Reserve (Fed)", url: "https://www.federalreserve.gov/feeds/press_all.xml", category: "macro" },
+  { source: "Bank of England (BoE)", url: "https://www.bankofengland.co.uk/rss/news", category: "macro" },
+  { source: "Bank of Japan (BoJ)", url: "https://www.boj.or.jp/en/rss/whatsnew.xml", category: "macro" },
+
+  // Macro — análise macro e conjuntura global
+  { source: "ING Think", url: "https://think.ing.com/rss/", category: "macro" },
+  { source: "BIS (Bank for Int'l Settlements)", url: "https://www.bis.org/doclist/all_speeches.rss", category: "macro" },
+  { source: "IMF Blog", url: "https://www.imf.org/en/News/rss?language=eng&rsstype=Blog", category: "macro" },
 
   // Forex
   { source: "FXStreet", url: "https://www.fxstreet.com/rss/news", category: "forex" },
