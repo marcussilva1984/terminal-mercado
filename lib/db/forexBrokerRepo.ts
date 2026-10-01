@@ -46,3 +46,20 @@ export async function deleteForexEntry(id: number): Promise<void> {
   const { eq } = await import("drizzle-orm");
   await db.delete(forexBrokerEntries).where(eq(forexBrokerEntries.id, id));
 }
+
+export async function updateForexEntry(
+  id: number,
+  fields: { balanceUsd: number; depositUsd: number; withdrawalUsd: number; recordedAt: string }
+): Promise<void> {
+  const db = getDb();
+  const { eq } = await import("drizzle-orm");
+  await db
+    .update(forexBrokerEntries)
+    .set({
+      balanceUsd: fields.balanceUsd,
+      depositUsd: fields.depositUsd,
+      withdrawalUsd: fields.withdrawalUsd,
+      recordedAt: fields.recordedAt,
+    })
+    .where(eq(forexBrokerEntries.id, id));
+}
