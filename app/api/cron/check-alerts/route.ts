@@ -17,6 +17,7 @@ import { getTrendingCoins } from "@/lib/sources/coingecko";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import type { AnalystTarget } from "@/lib/sources/yahooAnalyst";
 import { getNegativeSectorSignals } from "@/lib/sectorSentiment";
+import { getForexEntries } from "@/lib/db/forexBrokerRepo";
 import { getGrahamValuations } from "@/lib/valuation";
 
 const WATCHLIST_MOVE_THRESHOLD = 5; // %
@@ -356,6 +357,45 @@ export async function GET(request: Request) {
     }
   } catch {
     // fonte de fundamentos indisponível nesta rodada
+  }
+
+  // 10. Lucro mensal forex: se o total da carteira forex cresceu >= X% no mês
+  // corrente (ajustado por depósitos/retiradas), envia alerta uma vez por mês.
+  // Threshold configurável via FOREX_PROFIT_ALERT_PCT (padrão: 5%).
+  try {
+    const forexEntries = await getForexEntries();
+    if (forexEntries.length >= 2) {
+      const threshold = parseFloat(process.env.FOREX_PROFIT_ALERT_PCT ?? "5");
+      const now = new Date();
+      const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const brokers = [...new Set(forexEntries.map((e) => e.broker))];
+      let totalProfit = 0;
+      let totalBase = 0;
+      for (const broker of brokers) {
+        const bEntries = forexEntries
+          .filter((e) => e.broker === broker)
+          .sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
+        const monthEntries = bEntries.filter((e) => e.recordedAt.startsWith(thisMonth));
+        if (monthEntries.length === 0) continue;
+        const prevEntry = bEntries.filter((e) => e.recordedAt < thisMonth + "-01").slice(-1)[0];
+        if (!prevEntry) continue;
+        const deposits = monthEntries.reduce((s, e) => s + (e.depositUsd ?? 0), 0);
+        const withdrawals = monthEntries.reduce((s, e) => s + (e.withdrawalUsd ?? 0), 0);
+        const lastOfMonth = monthEntries[monthEntries.length - 1];
+        totalProfit += lastOfMonth.balanceUsd - prevEntry.balanceUsd - deposits + withdrawals;
+        totalBase += prevEntry.balanceUsd;
+      }
+      if (totalBase > 0) {
+        const pct = (totalProfit / totalBase) * 100;
+        if (pct >= threshold) {
+          const label = `💰 Carteira Forex: lucro de ${pct.toFixed(2)}% no mês de ${now.toLocaleDateString("pt-BR", { month: "long" })} (ajustado por depósitos/retiradas). Total: US$ ${totalProfit.toFixed(2)}.`;
+          const ok = await notify(`forex:profit_month:${thisMonth}`, label, "forex", 24 * 30);
+          if (ok) sent.push(label);
+        }
+      }
+    }
+  } catch {
+    // carteira forex indisponível ou sem entradas suficientes
   }
 
   return NextResponse.json({ checked: true, alertsSent: sent.length, sent });

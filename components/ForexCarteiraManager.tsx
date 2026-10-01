@@ -13,6 +13,7 @@ interface ForexEntry {
 }
 
 const DEFAULT_BROKERS = ["EBC", "AXI", "ICMarkets", "FBS", "XM", "Pepperstone", "Outro"];
+const BROKER_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4", "#ec4899", "#84cc16"];
 
 function fmt(value: number): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(value);
@@ -25,7 +26,6 @@ function daysBetween(a: string, b: string): number {
 }
 
 // Para cada broker, calcula lucro de N dias a partir da entrada mais recente.
-// Busca a entrada mais antiga disponível dentro da janela de N dias (ou anterior a ela).
 function calcProfit(entries: ForexEntry[], broker: string, windowDays: number) {
   const brokerEntries = entries
     .filter((e) => e.broker === broker)
@@ -33,17 +33,13 @@ function calcProfit(entries: ForexEntry[], broker: string, windowDays: number) {
   if (brokerEntries.length < 2) return null;
 
   const latest = brokerEntries[0];
-  const latestDate = new Date(latest.recordedAt);
-  const cutoff = new Date(latestDate);
+  const cutoff = new Date(latest.recordedAt);
   cutoff.setDate(cutoff.getDate() - windowDays);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
 
-  // Entradas dentro da janela (excluindo a mais recente) + a imediatamente anterior
-  const windowEntries = brokerEntries.slice(1).filter((e) => new Date(e.recordedAt) >= cutoff);
-  // Procura a referência: última entrada antes ou no início da janela
-  const prior = brokerEntries.slice(1).find((e) => new Date(e.recordedAt) <= cutoff)
+  const prior = brokerEntries.slice(1).find((e) => e.recordedAt <= cutoffStr)
     ?? brokerEntries[brokerEntries.length - 1];
 
-  // Soma depósitos e retiradas de todas entradas APÓS a referência (inclusive as da janela)
   const entriesAfterPrior = brokerEntries.filter((e) => e.recordedAt > prior.recordedAt);
   const totalDeposits = entriesAfterPrior.reduce((s, e) => s + (e.depositUsd ?? 0), 0);
   const totalWithdrawals = entriesAfterPrior.reduce((s, e) => s + (e.withdrawalUsd ?? 0), 0);
@@ -52,9 +48,218 @@ function calcProfit(entries: ForexEntry[], broker: string, windowDays: number) {
   const profitPct = prior.balanceUsd > 0 ? (profit / prior.balanceUsd) * 100 : 0;
   const days = daysBetween(prior.recordedAt, latest.recordedAt);
 
-  return { profit, profitPct, days, totalDeposits, totalWithdrawals, prior };
+  return { profit, profitPct, days, totalDeposits, totalWithdrawals };
 }
 
+// -------------------------------------------------------------------
+// 1. Gráfico de evolução de saldo (SVG puro)
+// -------------------------------------------------------------------
+function BalanceChart({ entries, brokers }: { entries: ForexEntry[]; brokers: string[] }) {
+  const allDates = [...new Set(entries.map((e) => e.recordedAt))].sort();
+  if (allDates.length < 2) return <p className="text-xs text-text-muted">Registre pelo menos 2 lançamentos pra ver o gráfico.</p>;
+
+  const W = 800;
+  const H = 180;
+  const PAD = { top: 10, right: 10, bottom: 28, left: 64 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+
+  // Para cada broker, pontos (date, balance) em ordem cronológica
+  const brokerLines = brokers.map((b, i) => ({
+    broker: b,
+    color: BROKER_COLORS[i % BROKER_COLORS.length],
+    points: entries
+      .filter((e) => e.broker === b)
+      .sort((a, z) => a.recordedAt.localeCompare(z.recordedAt))
+      .map((e) => ({ date: e.recordedAt, val: e.balanceUsd })),
+  }));
+
+  // Linha de total: para cada date, soma o último saldo de cada broker até aquela date
+  const totalLine = allDates.map((date) => {
+    const total = brokers.reduce((sum, b) => {
+      const latest = entries
+        .filter((e) => e.broker === b && e.recordedAt <= date)
+        .sort((a, z) => z.recordedAt.localeCompare(a.recordedAt))[0];
+      return sum + (latest?.balanceUsd ?? 0);
+    }, 0);
+    return { date, val: total };
+  });
+
+  const allVals = [...entries.map((e) => e.balanceUsd), ...totalLine.map((t) => t.val)];
+  const minVal = Math.min(...allVals) * 0.97;
+  const maxVal = Math.max(...allVals) * 1.03;
+
+  const xOf = (date: string) => PAD.left + (allDates.indexOf(date) / (allDates.length - 1)) * innerW;
+  const yOf = (val: number) => PAD.top + innerH - ((val - minVal) / (maxVal - minVal)) * innerH;
+
+  function toPolyline(pts: { date: string; val: number }[]) {
+    return pts.map((p) => `${xOf(p.date)},${yOf(p.val)}`).join(" ");
+  }
+
+  // Y axis ticks
+  const yTicks = [minVal, (minVal + maxVal) / 2, maxVal];
+
+  return (
+    <div className="overflow-x-auto">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[360px]" style={{ fontFamily: "var(--font-geist-sans, sans-serif)" }}>
+        {/* Y axis ticks */}
+        {yTicks.map((v, i) => (
+          <g key={i}>
+            <line x1={PAD.left} y1={yOf(v)} x2={W - PAD.right} y2={yOf(v)} stroke="var(--color-border, #333)" strokeWidth={0.5} strokeDasharray="3,3" />
+            <text x={PAD.left - 4} y={yOf(v) + 4} textAnchor="end" fontSize={10} fill="var(--color-text-muted, #888)">${Math.round(v).toLocaleString("pt-BR")}</text>
+          </g>
+        ))}
+        {/* X axis labels — só primeiro, meio e último */}
+        {[0, Math.floor((allDates.length - 1) / 2), allDates.length - 1].filter((v, i, arr) => arr.indexOf(v) === i).map((idx) => (
+          <text key={idx} x={PAD.left + (idx / (allDates.length - 1)) * innerW} y={H - 4} textAnchor="middle" fontSize={9} fill="var(--color-text-muted, #888)">
+            {new Date(allDates[idx]).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+          </text>
+        ))}
+        {/* Linhas por broker */}
+        {brokerLines.map(({ broker, color, points }) =>
+          points.length >= 2 ? (
+            <polyline key={broker} points={toPolyline(points)} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" />
+          ) : null
+        )}
+        {/* Linha de total (tracejada, mais grossa) */}
+        {totalLine.length >= 2 && (
+          <polyline points={toPolyline(totalLine)} fill="none" stroke="#fff" strokeWidth={2} strokeDasharray="6,3" opacity={0.6} />
+        )}
+        {/* Dots por broker */}
+        {brokerLines.map(({ broker, color, points }) =>
+          points.map((p, i) => (
+            <circle key={`${broker}-${i}`} cx={xOf(p.date)} cy={yOf(p.val)} r={3} fill={color} />
+          ))
+        )}
+      </svg>
+      {/* Legenda */}
+      <div className="mt-1 flex flex-wrap gap-3">
+        {brokerLines.map(({ broker, color }) => (
+          <div key={broker} className="flex items-center gap-1">
+            <div className="h-2 w-4 rounded-sm" style={{ background: color }} />
+            <span className="text-xs text-text-muted">{broker}</span>
+          </div>
+        ))}
+        <div className="flex items-center gap-1">
+          <div className="h-0.5 w-4 border-t-2 border-dashed border-white/60" />
+          <span className="text-xs text-text-muted">Total</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------------
+// 3. Rentabilidade mensal consolidada
+// -------------------------------------------------------------------
+function MonthlyPnL({ entries, brokers }: { entries: ForexEntry[]; brokers: string[] }) {
+  // Agrupar por mês: "2026-09", "2026-10" etc.
+  const months = [...new Set(entries.map((e) => e.recordedAt.slice(0, 7)))].sort().reverse();
+  if (months.length === 0) return <p className="text-sm text-text-muted">Sem dados mensais ainda.</p>;
+
+  function getMonthReturn(broker: string, month: string) {
+    const bEntries = entries
+      .filter((e) => e.broker === broker)
+      .sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
+
+    const monthEntries = bEntries.filter((e) => e.recordedAt.startsWith(month));
+    if (monthEntries.length === 0) return null;
+
+    const lastOfMonth = monthEntries[monthEntries.length - 1];
+    // Último saldo do mês anterior
+    const prevEntry = bEntries.filter((e) => e.recordedAt < month + "-01").slice(-1)[0];
+    if (!prevEntry) return null;
+
+    const deposits = monthEntries.reduce((s, e) => s + (e.depositUsd ?? 0), 0);
+    const withdrawals = monthEntries.reduce((s, e) => s + (e.withdrawalUsd ?? 0), 0);
+    const profit = lastOfMonth.balanceUsd - prevEntry.balanceUsd - deposits + withdrawals;
+    const pct = prevEntry.balanceUsd > 0 ? (profit / prevEntry.balanceUsd) * 100 : 0;
+    return { profit, pct };
+  }
+
+  function getTotalReturn(month: string) {
+    const results = brokers.map((b) => getMonthReturn(b, month)).filter(Boolean) as { profit: number; pct: number }[];
+    if (results.length === 0) return null;
+    const totalProfit = results.reduce((s, r) => s + r.profit, 0);
+    // Base = soma dos saldos no início do mês de todos os brokers com dados
+    let base = 0;
+    for (const b of brokers) {
+      const bEntries = entries.filter((e) => e.broker === b && e.recordedAt < month + "-01");
+      if (bEntries.length > 0) base += bEntries.sort((a, z) => z.recordedAt.localeCompare(a.recordedAt))[0].balanceUsd;
+    }
+    return { profit: totalProfit, pct: base > 0 ? (totalProfit / base) * 100 : 0 };
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border text-left text-xs text-text-muted">
+            <th className="pb-2 font-medium">Mês</th>
+            {brokers.map((b) => <th key={b} className="pb-2 font-medium text-right">{b}</th>)}
+            <th className="pb-2 font-medium text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {months.map((month) => {
+            const total = getTotalReturn(month);
+            return (
+              <tr key={month} className="border-b border-border/40 last:border-0">
+                <td className="py-1.5 text-text-muted">
+                  {new Date(month + "-15").toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}
+                </td>
+                {brokers.map((b) => {
+                  const r = getMonthReturn(b, month);
+                  return (
+                    <td key={b} className="py-1.5 text-right">
+                      {r ? (
+                        <span className={r.pct >= 0 ? "text-up" : "text-down"} title={fmt(r.profit)}>
+                          {fmtPct(r.pct)}
+                        </span>
+                      ) : <span className="text-text-muted">—</span>}
+                    </td>
+                  );
+                })}
+                <td className="py-1.5 text-right font-medium">
+                  {total ? (
+                    <span className={total.pct >= 0 ? "text-up" : "text-down"} title={fmt(total.profit)}>
+                      {fmtPct(total.pct)}
+                    </span>
+                  ) : <span className="text-text-muted">—</span>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="mt-2 text-xs text-text-muted">
+        Lucro mensal = saldo final do mês − saldo final do mês anterior − depósitos + retiradas. Passe o mouse sobre o % pra ver o valor em USD.
+      </p>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------------
+// 4. Export CSV
+// -------------------------------------------------------------------
+function exportCsv(entries: ForexEntry[]) {
+  if (entries.length === 0) return;
+  const header = "Data,Corretora,Saldo (USD),Depósito (USD),Retirada (USD)\n";
+  const rows = entries
+    .map((e) => [e.recordedAt, e.broker, e.balanceUsd, e.depositUsd, e.withdrawalUsd].join(","))
+    .join("\n");
+  const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `forex-carteira-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// -------------------------------------------------------------------
+// Simulador de meta
+// -------------------------------------------------------------------
 function GoalSimulator({ initialBalance }: { initialBalance: number }) {
   const [start, setStart] = useState(String(Math.round(initialBalance)));
   const [monthly, setMonthly] = useState("0");
@@ -68,20 +273,17 @@ function GoalSimulator({ initialBalance }: { initialBalance: number }) {
 
   const rows: { month: number; startBal: number; contribution: number; return: number; endBal: number }[] = [];
   let bal = startVal;
-  const MAX_MONTHS = 600;
-  while (bal < goalVal && rows.length < MAX_MONTHS) {
+  while (bal < goalVal && rows.length < 600) {
     const startBal = bal;
     const ret = bal * (rateVal / 100);
     bal = bal + ret + monthlyVal;
     rows.push({ month: rows.length + 1, startBal, contribution: monthlyVal, return: ret, endBal: bal });
   }
-  const reached = bal >= goalVal;
 
   return (
     <Panel title="Simulador de meta">
       <p className="mb-3 text-xs text-text-muted">
-        Juros compostos: saldo inicial + aporte mensal, rendendo a taxa mensal informada, até bater a meta. Só simulação
-        — não salva nada, mexe os valores à vontade.
+        Juros compostos: saldo inicial + aporte mensal, rendendo a taxa mensal informada, até bater a meta. Só simulação — não salva nada.
       </p>
       <div className="mb-4 flex flex-wrap gap-3">
         {[
@@ -102,7 +304,7 @@ function GoalSimulator({ initialBalance }: { initialBalance: number }) {
           </div>
         ))}
       </div>
-      {reached && goalVal > 0 && (
+      {rows.length > 0 && goalVal > 0 && bal >= goalVal && (
         <p className="mb-3 text-sm font-medium text-up">
           Meta de {fmt(goalVal)} atingida em {rows.length} meses (~{(rows.length / 12).toFixed(1)} anos).
         </p>
@@ -137,6 +339,9 @@ function GoalSimulator({ initialBalance }: { initialBalance: number }) {
   );
 }
 
+// -------------------------------------------------------------------
+// Componente principal
+// -------------------------------------------------------------------
 export function ForexCarteiraManager() {
   const [entries, setEntries] = useState<ForexEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -198,14 +403,13 @@ export function ForexCarteiraManager() {
     );
   }
 
-  // Brokers únicos e seus saldos mais recentes
-  const brokers = entries
-    ? [...new Set(entries.map((e) => e.broker))]
-    : [];
+  const brokers = entries ? [...new Set(entries.map((e) => e.broker))] : [];
 
   const latestByBroker = Object.fromEntries(
     brokers.map((b) => {
-      const latest = entries!.filter((e) => e.broker === b).sort((a, z) => z.recordedAt.localeCompare(a.recordedAt))[0];
+      const latest = entries!
+        .filter((e) => e.broker === b)
+        .sort((a, z) => z.recordedAt.localeCompare(a.recordedAt))[0];
       return [b, latest];
     })
   );
@@ -233,12 +437,12 @@ export function ForexCarteiraManager() {
           </div>
           {form.broker === "Outro" && (
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-text-muted">Nome da corretora</label>
+              <label className="text-xs text-text-muted">Nome</label>
               <input
                 required
                 value={form.customBroker}
                 onChange={(e) => setForm((f) => ({ ...f, customBroker: e.target.value }))}
-                placeholder="Nome"
+                placeholder="Nome da corretora"
                 className="w-28 rounded border border-border bg-panel-alt px-2 py-1 text-sm text-text"
               />
             </div>
@@ -301,7 +505,6 @@ export function ForexCarteiraManager() {
           Saldo das suas corretoras de forex (preenchimento manual). Lucro descontando depósitos/retiradas do período,
           pra não confundir aporte com ganho — em USD.
         </p>
-
         <div className="mb-3 flex items-center gap-2">
           <label className="text-xs text-text-muted">Lucro dos últimos N dias (1 a 30)</label>
           <input
@@ -312,21 +515,14 @@ export function ForexCarteiraManager() {
             onChange={(e) => setWindowDays(Math.min(30, Math.max(1, parseInt(e.target.value) || 7)))}
             className="w-20 rounded border border-border bg-panel-alt px-2 py-1 text-sm text-text"
           />
-          <button
-            onClick={() => setWindowDays(windowDays)}
-            className="rounded border border-border bg-panel-alt px-3 py-1 text-xs text-text-muted hover:text-text"
-          >
-            Aplicar
-          </button>
         </div>
-
         {entries !== null && brokers.length > 0 ? (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs text-text-muted">
                 <th className="pb-2 font-medium">Corretora</th>
                 <th className="pb-2 font-medium text-right">Saldo</th>
-                <th className="pb-2 font-medium text-right">Lucro {windowDays} dias (lucro % · depósito · retirada)</th>
+                <th className="pb-2 font-medium text-right">Lucro {windowDays} dias</th>
                 <th className="pb-2 font-medium text-right">Atualizado</th>
                 <th className="pb-2" />
               </tr>
@@ -343,24 +539,17 @@ export function ForexCarteiraManager() {
                       {p ? (
                         <span className={p.profit >= 0 ? "text-up" : "text-down"}>
                           {fmtPct(p.profitPct)}
-                          {p.totalDeposits > 0 && <span className="ml-1 text-xs text-text-muted">−dep {fmt(p.totalDeposits)}</span>}
-                          {p.totalWithdrawals > 0 && <span className="ml-1 text-xs text-text-muted">+ret {fmt(p.totalWithdrawals)}</span>}
                           <span className="ml-1 text-xs text-text-muted">({p.days}d)</span>
+                          {p.totalDeposits > 0 && <span className="ml-1 text-xs text-text-muted">dep {fmt(p.totalDeposits)}</span>}
+                          {p.totalWithdrawals > 0 && <span className="ml-1 text-xs text-text-muted">ret {fmt(p.totalWithdrawals)}</span>}
                         </span>
-                      ) : (
-                        <span className="text-text-muted">—</span>
-                      )}
+                      ) : <span className="text-text-muted">—</span>}
                     </td>
                     <td className="py-2 text-right text-xs text-text-muted">
                       {latest ? new Date(latest.recordedAt).toLocaleDateString("pt-BR") : "—"}
                     </td>
                     <td className="py-2 text-right">
-                      <button
-                        onClick={() => handleDelete(latest.id)}
-                        className="text-xs text-down hover:underline"
-                      >
-                        remover
-                      </button>
+                      <button onClick={() => handleDelete(latest.id)} className="text-xs text-down hover:underline">remover</button>
                     </td>
                   </tr>
                 );
@@ -376,37 +565,53 @@ export function ForexCarteiraManager() {
                     const totalProfit = profits.reduce((s, p) => s + (p?.profit ?? 0), 0);
                     const base = totalBalance - totalProfit;
                     const pct = base > 0 ? (totalProfit / base) * 100 : 0;
-                    return (
-                      <span className={totalProfit >= 0 ? "font-semibold text-up" : "font-semibold text-down"}>
-                        {fmtPct(pct)}
-                      </span>
-                    );
+                    return <span className={totalProfit >= 0 ? "font-semibold text-up" : "font-semibold text-down"}>{fmtPct(pct)}</span>;
                   })()}
                 </td>
-                <td />
-                <td />
+                <td /><td />
               </tr>
             </tbody>
           </table>
         ) : (
-          <p className="text-sm text-text-muted">Nenhum lançamento cadastrado ainda. Use o formulário acima para registrar seu primeiro saldo.</p>
+          <p className="text-sm text-text-muted">Nenhum lançamento cadastrado ainda. Use o formulário acima.</p>
         )}
-
         {entries !== null && brokers.length > 0 && (
-          <p className="mt-3 text-xs text-text-muted">
-            Só calcula quando houver um lançamento anterior à janela escolhida — com um único saldo cadastrado, ainda
-            não dá pra calcular. Registre um novo saldo hoje e o lucro aparece automaticamente.
+          <p className="mt-2 text-xs text-text-muted">
+            Só calcula quando houver um lançamento anterior à janela escolhida. Registre um novo saldo hoje e o lucro aparece automaticamente.
           </p>
         )}
       </Panel>
 
+      {/* 1. Gráfico de evolução */}
+      {entries && entries.length >= 2 && (
+        <Panel title="Evolução do saldo">
+          <BalanceChart entries={entries} brokers={brokers} />
+        </Panel>
+      )}
+
+      {/* 3. Rentabilidade mensal */}
+      {entries && entries.length > 0 && (
+        <Panel title="Rentabilidade mensal">
+          <MonthlyPnL entries={entries} brokers={brokers} />
+        </Panel>
+      )}
+
       {/* Simulador de meta */}
       <GoalSimulator initialBalance={totalBalance} />
 
-      {/* Histórico completo */}
-      <Panel title="Histórico de lançamentos">
+      {/* Histórico completo + 4. export CSV */}
+      <Panel
+        title="Histórico de lançamentos"
+        action={
+          entries && entries.length > 0 ? (
+            <button onClick={() => exportCsv(entries)} className="text-xs text-gold-bright hover:underline">
+              exportar CSV
+            </button>
+          ) : undefined
+        }
+      >
         <p className="mb-2 text-xs text-text-muted">
-          Cada linha é um lançamento seu — pra você ver exatamente quando fez cada depósito, retirada ou atualização de saldo.
+          Cada linha é um lançamento seu — pra ver exatamente quando fez cada depósito, retirada ou atualização de saldo.
         </p>
         {entries && entries.length > 0 ? (
           <table className="w-full text-sm">
@@ -433,9 +638,7 @@ export function ForexCarteiraManager() {
                     {e.withdrawalUsd > 0 ? <span className="text-down">{fmt(e.withdrawalUsd)}</span> : <span className="text-text-muted">—</span>}
                   </td>
                   <td className="py-1.5 text-right">
-                    <button onClick={() => handleDelete(e.id)} className="text-xs text-down hover:underline">
-                      remover
-                    </button>
+                    <button onClick={() => handleDelete(e.id)} className="text-xs text-down hover:underline">remover</button>
                   </td>
                 </tr>
               ))}
