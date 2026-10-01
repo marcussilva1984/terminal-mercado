@@ -398,5 +398,38 @@ export async function GET(request: Request) {
     // carteira forex indisponível ou sem entradas suficientes
   }
 
+  // 11. Queda forex: se qualquer corretora cair >= FOREX_LOSS_ALERT_PCT% nos últimos 7 dias
+  try {
+    const forexEntries = await getForexEntries();
+    if (forexEntries.length >= 2) {
+      const lossThreshold = parseFloat(process.env.FOREX_LOSS_ALERT_PCT ?? "3");
+      const brokers = [...new Set(forexEntries.map((e: { broker: string }) => e.broker))];
+      for (const broker of brokers) {
+        const bEntries = forexEntries
+          .filter((e: { broker: string }) => e.broker === broker)
+          .sort((a: { recordedAt: string }, b: { recordedAt: string }) => b.recordedAt.localeCompare(a.recordedAt));
+        if (bEntries.length < 2) continue;
+        const latest = bEntries[0];
+        const cutoff = new Date(latest.recordedAt);
+        cutoff.setDate(cutoff.getDate() - 7);
+        const cutoffStr = cutoff.toISOString().slice(0, 10);
+        const prior = bEntries.slice(1).find((e: { recordedAt: string }) => e.recordedAt <= cutoffStr) ?? bEntries[bEntries.length - 1];
+        const entriesAfter = bEntries.filter((e: { recordedAt: string }) => e.recordedAt > prior.recordedAt);
+        const deposits = entriesAfter.reduce((s: number, e: { depositUsd: number }) => s + (e.depositUsd ?? 0), 0);
+        const withdrawals = entriesAfter.reduce((s: number, e: { withdrawalUsd: number }) => s + (e.withdrawalUsd ?? 0), 0);
+        const profit = latest.balanceUsd - prior.balanceUsd - deposits + withdrawals;
+        const pct = prior.balanceUsd > 0 ? (profit / prior.balanceUsd) * 100 : 0;
+        if (pct <= -lossThreshold) {
+          const label = `⚠️ Carteira Forex — ${broker}: queda de ${Math.abs(pct).toFixed(2)}% nos últimos 7 dias (ajustado por depósitos/retiradas). Saldo atual: US$ ${latest.balanceUsd.toFixed(2)}.`;
+          const today = new Date().toISOString().slice(0, 10);
+          const ok = await notify(`forex:loss:${broker}:${today}`, label, "forex", 24);
+          if (ok) sent.push(label);
+        }
+      }
+    }
+  } catch {
+    // carteira forex indisponível
+  }
+
   return NextResponse.json({ checked: true, alertsSent: sent.length, sent });
 }

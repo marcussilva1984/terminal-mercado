@@ -52,9 +52,11 @@ function calcProfit(entries: ForexEntry[], broker: string, windowDays: number) {
 }
 
 // -------------------------------------------------------------------
-// 1. Gráfico de evolução de saldo (SVG puro)
+// 1. Gráfico de evolução de saldo (SVG puro) — com toggle Saldo $ / Performance %
 // -------------------------------------------------------------------
 function BalanceChart({ entries, brokers }: { entries: ForexEntry[]; brokers: string[] }) {
+  const [mode, setMode] = useState<"usd" | "pct">("usd");
+
   const allDates = [...new Set(entries.map((e) => e.recordedAt))].sort();
   if (allDates.length < 2) return <p className="text-xs text-text-muted">Registre pelo menos 2 lançamentos pra ver o gráfico.</p>;
 
@@ -64,17 +66,21 @@ function BalanceChart({ entries, brokers }: { entries: ForexEntry[]; brokers: st
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
 
-  // Para cada broker, pontos (date, balance) em ordem cronológica
-  const brokerLines = brokers.map((b, i) => ({
-    broker: b,
-    color: BROKER_COLORS[i % BROKER_COLORS.length],
-    points: entries
+  const brokerLines = brokers.map((b, i) => {
+    const sorted = entries
       .filter((e) => e.broker === b)
-      .sort((a, z) => a.recordedAt.localeCompare(z.recordedAt))
-      .map((e) => ({ date: e.recordedAt, val: e.balanceUsd })),
-  }));
+      .sort((a, z) => a.recordedAt.localeCompare(z.recordedAt));
+    const base = sorted[0]?.balanceUsd ?? 1;
+    return {
+      broker: b,
+      color: BROKER_COLORS[i % BROKER_COLORS.length],
+      points: sorted.map((e) => ({
+        date: e.recordedAt,
+        val: mode === "pct" ? ((e.balanceUsd - base) / base) * 100 : e.balanceUsd,
+      })),
+    };
+  });
 
-  // Linha de total: para cada date, soma o último saldo de cada broker até aquela date
   const totalLine = allDates.map((date) => {
     const total = brokers.reduce((sum, b) => {
       const latest = entries
@@ -84,65 +90,91 @@ function BalanceChart({ entries, brokers }: { entries: ForexEntry[]; brokers: st
     }, 0);
     return { date, val: total };
   });
+  const totalBase = totalLine[0]?.val ?? 1;
+  const totalLineFinal = totalLine.map((t) => ({
+    date: t.date,
+    val: mode === "pct" ? ((t.val - totalBase) / totalBase) * 100 : t.val,
+  }));
 
-  const allVals = [...entries.map((e) => e.balanceUsd), ...totalLine.map((t) => t.val)];
-  const minVal = Math.min(...allVals) * 0.97;
-  const maxVal = Math.max(...allVals) * 1.03;
+  const allVals = [
+    ...brokerLines.flatMap((l) => l.points.map((p) => p.val)),
+    ...(mode === "usd" ? totalLineFinal.map((t) => t.val) : []),
+  ];
+  const minVal = Math.min(...allVals);
+  const maxVal = Math.max(...allVals);
+  const span = maxVal - minVal || 1;
+  const padded = { min: minVal - span * 0.05, max: maxVal + span * 0.05 };
 
   const xOf = (date: string) => PAD.left + (allDates.indexOf(date) / (allDates.length - 1)) * innerW;
-  const yOf = (val: number) => PAD.top + innerH - ((val - minVal) / (maxVal - minVal)) * innerH;
+  const yOf = (val: number) => PAD.top + innerH - ((val - padded.min) / (padded.max - padded.min)) * innerH;
 
   function toPolyline(pts: { date: string; val: number }[]) {
     return pts.map((p) => `${xOf(p.date)},${yOf(p.val)}`).join(" ");
   }
 
-  // Y axis ticks
-  const yTicks = [minVal, (minVal + maxVal) / 2, maxVal];
+  const yTicks = [padded.min, (padded.min + padded.max) / 2, padded.max];
 
   return (
-    <div className="overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[360px]" style={{ fontFamily: "var(--font-geist-sans, sans-serif)" }}>
-        {/* Y axis ticks */}
-        {yTicks.map((v, i) => (
-          <g key={i}>
-            <line x1={PAD.left} y1={yOf(v)} x2={W - PAD.right} y2={yOf(v)} stroke="var(--color-border, #333)" strokeWidth={0.5} strokeDasharray="3,3" />
-            <text x={PAD.left - 4} y={yOf(v) + 4} textAnchor="end" fontSize={10} fill="var(--color-text-muted, #888)">${Math.round(v).toLocaleString("pt-BR")}</text>
-          </g>
-        ))}
-        {/* X axis labels — só primeiro, meio e último */}
-        {[0, Math.floor((allDates.length - 1) / 2), allDates.length - 1].filter((v, i, arr) => arr.indexOf(v) === i).map((idx) => (
-          <text key={idx} x={PAD.left + (idx / (allDates.length - 1)) * innerW} y={H - 4} textAnchor="middle" fontSize={9} fill="var(--color-text-muted, #888)">
-            {new Date(allDates[idx]).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
-          </text>
-        ))}
-        {/* Linhas por broker */}
-        {brokerLines.map(({ broker, color, points }) =>
-          points.length >= 2 ? (
-            <polyline key={broker} points={toPolyline(points)} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" />
-          ) : null
-        )}
-        {/* Linha de total (tracejada, mais grossa) */}
-        {totalLine.length >= 2 && (
-          <polyline points={toPolyline(totalLine)} fill="none" stroke="#fff" strokeWidth={2} strokeDasharray="6,3" opacity={0.6} />
-        )}
-        {/* Dots por broker */}
-        {brokerLines.map(({ broker, color, points }) =>
-          points.map((p, i) => (
-            <circle key={`${broker}-${i}`} cx={xOf(p.date)} cy={yOf(p.val)} r={3} fill={color} />
-          ))
-        )}
-      </svg>
-      {/* Legenda */}
-      <div className="mt-1 flex flex-wrap gap-3">
-        {brokerLines.map(({ broker, color }) => (
-          <div key={broker} className="flex items-center gap-1">
-            <div className="h-2 w-4 rounded-sm" style={{ background: color }} />
-            <span className="text-xs text-text-muted">{broker}</span>
-          </div>
-        ))}
-        <div className="flex items-center gap-1">
-          <div className="h-0.5 w-4 border-t-2 border-dashed border-white/60" />
-          <span className="text-xs text-text-muted">Total</span>
+    <div>
+      <div className="mb-2 flex gap-1">
+        <button
+          onClick={() => setMode("usd")}
+          className={`rounded px-3 py-1 text-xs ${mode === "usd" ? "border border-gold/50 text-gold-bright" : "border border-border text-text-muted hover:text-text"}`}
+        >
+          Saldo $
+        </button>
+        <button
+          onClick={() => setMode("pct")}
+          className={`rounded px-3 py-1 text-xs ${mode === "pct" ? "border border-gold/50 text-gold-bright" : "border border-border text-text-muted hover:text-text"}`}
+        >
+          Performance %
+        </button>
+      </div>
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[360px]" style={{ fontFamily: "var(--font-geist-sans, sans-serif)" }}>
+          {yTicks.map((v, i) => (
+            <g key={i}>
+              <line x1={PAD.left} y1={yOf(v)} x2={W - PAD.right} y2={yOf(v)} stroke="var(--color-border, #333)" strokeWidth={0.5} strokeDasharray="3,3" />
+              <text x={PAD.left - 4} y={yOf(v) + 4} textAnchor="end" fontSize={10} fill="var(--color-text-muted, #888)">
+                {mode === "pct" ? `${v >= 0 ? "+" : ""}${v.toFixed(1)}%` : `$${Math.round(v).toLocaleString("pt-BR")}`}
+              </text>
+            </g>
+          ))}
+          {mode === "pct" && (
+            <line x1={PAD.left} y1={yOf(0)} x2={W - PAD.right} y2={yOf(0)} stroke="#ffffff" strokeWidth={0.5} opacity={0.2} />
+          )}
+          {[0, Math.floor((allDates.length - 1) / 2), allDates.length - 1].filter((v, i, arr) => arr.indexOf(v) === i).map((idx) => (
+            <text key={idx} x={PAD.left + (idx / (allDates.length - 1)) * innerW} y={H - 4} textAnchor="middle" fontSize={9} fill="var(--color-text-muted, #888)">
+              {new Date(allDates[idx]).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+            </text>
+          ))}
+          {brokerLines.map(({ broker, color, points }) =>
+            points.length >= 2 ? (
+              <polyline key={broker} points={toPolyline(points)} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" />
+            ) : null
+          )}
+          {mode === "usd" && totalLineFinal.length >= 2 && (
+            <polyline points={toPolyline(totalLineFinal)} fill="none" stroke="#fff" strokeWidth={2} strokeDasharray="6,3" opacity={0.6} />
+          )}
+          {brokerLines.map(({ broker, color, points }) =>
+            points.map((p, i) => (
+              <circle key={`${broker}-${i}`} cx={xOf(p.date)} cy={yOf(p.val)} r={3} fill={color} />
+            ))
+          )}
+        </svg>
+        <div className="mt-1 flex flex-wrap gap-3">
+          {brokerLines.map(({ broker, color }) => (
+            <div key={broker} className="flex items-center gap-1">
+              <div className="h-2 w-4 rounded-sm" style={{ background: color }} />
+              <span className="text-xs text-text-muted">{broker}</span>
+            </div>
+          ))}
+          {mode === "usd" && (
+            <div className="flex items-center gap-1">
+              <div className="h-0.5 w-4 border-t-2 border-dashed border-white/60" />
+              <span className="text-xs text-text-muted">Total</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -669,6 +701,7 @@ export function ForexCarteiraManager() {
                 <th className="pb-2 font-medium">Corretora</th>
                 <th className="pb-2 font-medium text-right">Saldo</th>
                 <th className="pb-2 font-medium text-right">Lucro {windowDays} dias (lucro % · depósito · retirada)</th>
+                <th className="pb-2 font-medium text-right">ROI total</th>
                 <th className="pb-2 font-medium text-right">Atualizado</th>
                 <th className="pb-2" />
               </tr>
@@ -677,6 +710,13 @@ export function ForexCarteiraManager() {
               {brokers.map((b) => {
                 const latest = latestByBroker[b];
                 const p = entries ? calcProfit(entries, b, windowDays) : null;
+                // ROI total: (saldo atual - primeiro saldo - aportes líquidos) / primeiro saldo
+                const bAll = entries!.filter((e) => e.broker === b).sort((a, z) => a.recordedAt.localeCompare(z.recordedAt));
+                const firstBalance = bAll[0]?.balanceUsd ?? 0;
+                const totalDeposited = bAll.reduce((s, e) => s + (e.depositUsd ?? 0), 0);
+                const totalWithdrawn = bAll.reduce((s, e) => s + (e.withdrawalUsd ?? 0), 0);
+                const netInvested = firstBalance + totalDeposited - totalWithdrawn;
+                const roiPct = netInvested > 0 ? (((latest?.balanceUsd ?? 0) - netInvested) / netInvested) * 100 : null;
                 return (
                   <tr key={b} className="border-b border-border/50 last:border-0">
                     <td className="py-2 font-medium text-text">{b}</td>
@@ -688,6 +728,13 @@ export function ForexCarteiraManager() {
                           <span className="ml-1 text-xs text-text-muted">({p.days}d)</span>
                           {p.totalDeposits > 0 && <span className="ml-1 text-xs text-text-muted">dep {fmt(p.totalDeposits)}</span>}
                           {p.totalWithdrawals > 0 && <span className="ml-1 text-xs text-text-muted">ret {fmt(p.totalWithdrawals)}</span>}
+                        </span>
+                      ) : <span className="text-text-muted">—</span>}
+                    </td>
+                    <td className="py-2 text-right">
+                      {roiPct !== null ? (
+                        <span className={roiPct >= 0 ? "text-up" : "text-down"} title={`Investido líquido: ${fmt(netInvested)}`}>
+                          {fmtPct(roiPct)}
                         </span>
                       ) : <span className="text-text-muted">—</span>}
                     </td>
@@ -712,6 +759,20 @@ export function ForexCarteiraManager() {
                     const base = totalBalance - totalProfit;
                     const pct = base > 0 ? (totalProfit / base) * 100 : 0;
                     return <span className={totalProfit >= 0 ? "font-semibold text-up" : "font-semibold text-down"}>{fmtPct(pct)}</span>;
+                  })()}
+                </td>
+                <td className="pt-2 text-right">
+                  {(() => {
+                    const allFirst = brokers.reduce((s, b) => {
+                      const bAll = entries!.filter((e) => e.broker === b).sort((a, z) => a.recordedAt.localeCompare(z.recordedAt));
+                      const first = bAll[0]?.balanceUsd ?? 0;
+                      const dep = bAll.reduce((s, e) => s + (e.depositUsd ?? 0), 0);
+                      const wit = bAll.reduce((s, e) => s + (e.withdrawalUsd ?? 0), 0);
+                      return s + first + dep - wit;
+                    }, 0);
+                    if (allFirst <= 0) return <span className="text-text-muted">—</span>;
+                    const roi = ((totalBalance - allFirst) / allFirst) * 100;
+                    return <span className={roi >= 0 ? "font-semibold text-up" : "font-semibold text-down"} title={`Investido líquido total: ${fmt(allFirst)}`}>{fmtPct(roi)}</span>;
                   })()}
                 </td>
                 <td /><td />
