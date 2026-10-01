@@ -272,6 +272,157 @@ function MonthlyPnL({ entries, brokers }: { entries: ForexEntry[]; brokers: stri
 }
 
 // -------------------------------------------------------------------
+// Painel de metas mensais
+// -------------------------------------------------------------------
+function GoalTracker({ entries, brokers }: { entries: ForexEntry[]; brokers: string[] }) {
+  const [targetPct, setTargetPct] = useState("2");
+  const targetVal = parseFloat(targetPct) || 2;
+
+  const now = new Date();
+  const daysElapsed = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+  // Lucro real total de todas as corretoras no mês corrente
+  let totalProfit = 0;
+  let totalBase = 0;
+  for (const broker of brokers) {
+    const bEntries = entries.filter((e) => e.broker === broker).sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
+    const monthEntries = bEntries.filter((e) => e.recordedAt.startsWith(thisMonth));
+    const prevEntry = bEntries.filter((e) => e.recordedAt < thisMonth + "-01").slice(-1)[0];
+    if (!prevEntry || monthEntries.length === 0) continue;
+    const deposits = monthEntries.reduce((s, e) => s + (e.depositUsd ?? 0), 0);
+    const withdrawals = monthEntries.reduce((s, e) => s + (e.withdrawalUsd ?? 0), 0);
+    const last = monthEntries[monthEntries.length - 1];
+    totalProfit += last.balanceUsd - prevEntry.balanceUsd - deposits + withdrawals;
+    totalBase += prevEntry.balanceUsd;
+  }
+
+  const hasData = totalBase > 0;
+  const realPct = hasData ? (totalProfit / totalBase) * 100 : 0;
+  const proRataTarget = (targetVal * daysElapsed) / daysInMonth;
+  const gap = realPct - proRataTarget;
+  const metaBatida = realPct >= targetVal;
+  const effectiveTarget = metaBatida ? targetVal * 2 : targetVal;
+
+  // Performance semanal (últimas 4 semanas do mês)
+  const weeks = [
+    { label: "Semana 1", start: `${thisMonth}-01`, end: `${thisMonth}-07` },
+    { label: "Semana 2", start: `${thisMonth}-08`, end: `${thisMonth}-14` },
+    { label: "Semana 3", start: `${thisMonth}-15`, end: `${thisMonth}-21` },
+    { label: "Semana 4", start: `${thisMonth}-22`, end: `${thisMonth}-${String(daysInMonth).padStart(2, "0")}` },
+  ];
+
+  function weekProfit(startDate: string, endDate: string) {
+    let profit = 0;
+    let base = 0;
+    for (const broker of brokers) {
+      const bEntries = entries.filter((e) => e.broker === broker).sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
+      const weekEntries = bEntries.filter((e) => e.recordedAt >= startDate && e.recordedAt <= endDate);
+      if (weekEntries.length === 0) continue;
+      const prior = bEntries.filter((e) => e.recordedAt < startDate).slice(-1)[0];
+      if (!prior) continue;
+      const dep = weekEntries.reduce((s, e) => s + (e.depositUsd ?? 0), 0);
+      const wit = weekEntries.reduce((s, e) => s + (e.withdrawalUsd ?? 0), 0);
+      const last = weekEntries[weekEntries.length - 1];
+      profit += last.balanceUsd - prior.balanceUsd - dep + wit;
+      base += prior.balanceUsd;
+    }
+    return base > 0 ? { pct: (profit / base) * 100, usd: profit } : null;
+  }
+
+  if (!hasData) return null;
+
+  return (
+    <Panel title="Metas do mês">
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-text-muted">Meta mensal (%)</label>
+          <input
+            type="number"
+            step="0.1"
+            value={targetPct}
+            onChange={(e) => setTargetPct(e.target.value)}
+            className="w-20 rounded border border-border bg-panel-alt px-2 py-1 text-sm text-text"
+          />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          {metaBatida ? (
+            <p className="text-sm font-medium text-up">
+              🎯 Meta de {targetVal}% batida! Nova meta automática: {fmtPct(effectiveTarget)}
+            </p>
+          ) : (
+            <p className="text-sm text-text-muted">
+              Meta: <span className="font-medium text-text">{fmtPct(targetVal)}</span> no mês
+            </p>
+          )}
+          <p className="text-xs text-text-muted">
+            Pró-rata até dia {daysElapsed}/{daysInMonth}:{" "}
+            <span className="font-medium text-text">{fmtPct(proRataTarget)}</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Barra de progresso */}
+      <div className="mb-4">
+        <div className="mb-1 flex justify-between text-xs text-text-muted">
+          <span>Feito: <span className={realPct >= 0 ? "text-up" : "text-down"}>{fmtPct(realPct)}</span></span>
+          <span>
+            {gap >= 0
+              ? <span className="text-up">+{fmtPct(gap)} à frente da meta pró-rata</span>
+              : <span className="text-down">{fmtPct(gap)} atrás da meta pró-rata</span>}
+          </span>
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-panel-alt">
+          <div
+            className={`h-full rounded-full transition-all ${realPct >= targetVal ? "bg-up" : realPct >= proRataTarget ? "bg-up/70" : "bg-down/70"}`}
+            style={{ width: `${Math.min(100, (realPct / effectiveTarget) * 100).toFixed(1)}%` }}
+          />
+        </div>
+        <p className="mt-0.5 text-right text-xs text-text-muted">{((realPct / effectiveTarget) * 100).toFixed(0)}% da meta</p>
+      </div>
+
+      {/* Performance semanal */}
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border text-left text-xs text-text-muted">
+            <th className="pb-1.5 font-medium">Período</th>
+            <th className="pb-1.5 font-medium text-right">Performance</th>
+            <th className="pb-1.5 font-medium text-right">USD</th>
+            <th className="pb-1.5 font-medium text-right">vs meta semana</th>
+          </tr>
+        </thead>
+        <tbody>
+          {weeks.map((w) => {
+            const r = weekProfit(w.start, w.end);
+            const weekTarget = targetVal / 4;
+            return (
+              <tr key={w.label} className="border-b border-border/40 last:border-0">
+                <td className="py-1.5 text-text-muted">{w.label}</td>
+                <td className="py-1.5 text-right">
+                  {r ? <span className={r.pct >= 0 ? "text-up" : "text-down"}>{fmtPct(r.pct)}</span> : <span className="text-text-muted">—</span>}
+                </td>
+                <td className="py-1.5 text-right text-xs text-text-muted">
+                  {r ? fmt(r.usd) : "—"}
+                </td>
+                <td className="py-1.5 text-right">
+                  {r ? (
+                    <span className={r.pct >= weekTarget ? "text-up" : "text-down"}>
+                      {r.pct >= weekTarget ? `+${(r.pct - weekTarget).toFixed(2)}%` : `${(r.pct - weekTarget).toFixed(2)}%`}
+                    </span>
+                  ) : <span className="text-text-muted">—</span>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="mt-2 text-xs text-text-muted">Meta semana = meta mensal ÷ 4. Só aparece quando há lançamentos dos dois lados da janela.</p>
+    </Panel>
+  );
+}
+
+// -------------------------------------------------------------------
 // 4. Export CSV
 // -------------------------------------------------------------------
 function exportCsv(entries: ForexEntry[]) {
@@ -788,6 +939,11 @@ export function ForexCarteiraManager() {
           </p>
         )}
       </Panel>
+
+      {/* Metas do mês + performance semanal */}
+      {entries && brokers.length > 0 && (
+        <GoalTracker entries={entries} brokers={brokers} />
+      )}
 
       {/* 1. Gráfico de evolução */}
       {entries && entries.length >= 2 && (
