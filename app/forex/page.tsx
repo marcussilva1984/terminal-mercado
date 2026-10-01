@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Panel } from "@/components/Panel";
 import { StatCard } from "@/components/StatCard";
 import { NewsFeed } from "@/components/NewsFeed";
@@ -38,7 +39,12 @@ export default async function ForexPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold text-text">Forex</h1>
-        <p className="mt-1 text-sm text-text-muted">Dados reais via Yahoo Finance (sem chave de API).</p>
+        <p className="mt-1 text-sm text-text-muted">
+          Dados reais via Yahoo Finance (sem chave de API).{" "}
+          <Link href="/forex/carteira" className="text-gold-bright hover:underline">
+            → Minha Carteira Forex (corretoras)
+          </Link>
+        </p>
       </div>
 
       {dxyResult && (

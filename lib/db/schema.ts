@@ -91,6 +91,16 @@ export const portfolioClosedPositions = pgTable("portfolio_closed_positions", {
   closedAt: timestamp("closed_at").notNull().defaultNow(),
 });
 
+export const forexBrokerEntries = pgTable("forex_broker_entries", {
+  id: serial("id").primaryKey(),
+  broker: text("broker").notNull(),
+  balanceUsd: real("balance_usd").notNull(),
+  depositUsd: real("deposit_usd").notNull().default(0),
+  withdrawalUsd: real("withdrawal_usd").notNull().default(0),
+  recordedAt: date("recorded_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const portfolioHoldings = pgTable("portfolio_holdings", {
   id: serial("id").primaryKey(),
   symbol: text("symbol").notNull(),

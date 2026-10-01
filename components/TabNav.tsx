@@ -16,7 +16,8 @@ const TABS = [
   { href: "/acoes", label: "Ações (B3)" },
   { href: "/cripto", label: "Cripto" },
   { href: "/stocks", label: "Stocks (EUA)" },
-  { href: "/forex", label: "Forex" },
+  { href: "/forex", label: "Forex", matchPrefix: ["/forex"] },
+  { href: "/forex/carteira", label: "Carteira Forex" },
   { href: "/fii", label: "FII" },
   {
     href: "/ticker/PETR4?class=b3",
@@ -26,6 +27,7 @@ const TABS = [
     // continua "ativa" quando o usuário está em qualquer uma das três.
     matchPrefix: ["/ticker", "/oportunidades", "/comparador"],
   },
+  { href: "/carteira", label: "Carteira" },
   { href: "/watchlist", label: "Watchlist" },
 ];
 
