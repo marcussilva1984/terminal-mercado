@@ -257,10 +257,44 @@ function exportCsv(entries: ForexEntry[]) {
   URL.revokeObjectURL(url);
 }
 
+// Lucro do mês corrente (1º dia até hoje), somado entre todas as corretoras — mesma convenção de
+// calcProfit (janela de N dias a partir da entrada mais recente), só que N = dia do mês atual.
+interface MonthProgress {
+  profit: number;
+  baseBalance: number;
+  daysElapsed: number;
+  daysInMonth: number;
+}
+
+function computeMonthProgress(entries: ForexEntry[], brokers: string[]): MonthProgress | null {
+  const now = new Date();
+  const daysElapsed = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+
+  let totalProfit = 0;
+  let totalBalance = 0;
+  let hasAny = false;
+
+  for (const broker of brokers) {
+    const p = calcProfit(entries, broker, daysElapsed);
+    const latest = entries
+      .filter((e) => e.broker === broker)
+      .sort((a, z) => z.recordedAt.localeCompare(a.recordedAt))[0];
+    if (latest) totalBalance += latest.balanceUsd;
+    if (p) {
+      totalProfit += p.profit;
+      hasAny = true;
+    }
+  }
+
+  if (!hasAny) return null;
+  return { profit: totalProfit, baseBalance: totalBalance - totalProfit, daysElapsed, daysInMonth };
+}
+
 // -------------------------------------------------------------------
 // Simulador de meta
 // -------------------------------------------------------------------
-function GoalSimulator({ initialBalance }: { initialBalance: number }) {
+function GoalSimulator({ initialBalance, monthProgress }: { initialBalance: number; monthProgress: MonthProgress | null }) {
   const [start, setStart] = useState(String(Math.round(initialBalance)));
   const [monthly, setMonthly] = useState("0");
   const [rate, setRate] = useState("2");
@@ -309,6 +343,26 @@ function GoalSimulator({ initialBalance }: { initialBalance: number }) {
           Meta de {fmt(goalVal)} atingida em {rows.length} meses (~{(rows.length / 12).toFixed(1)} anos).
         </p>
       )}
+
+      {monthProgress && (
+        <div className="mb-4 rounded border border-border bg-panel-alt p-3">
+          <p className="text-xs font-medium text-text-muted">Progresso real deste mês vs. simulado</p>
+          {(() => {
+            const expectedFullMonth = monthProgress.baseBalance * (rateVal / 100);
+            const expectedToDate = (expectedFullMonth * monthProgress.daysElapsed) / monthProgress.daysInMonth;
+            const diff = monthProgress.profit - expectedToDate;
+            const ahead = diff >= 0;
+            return (
+              <p className="mt-1 text-sm text-text">
+                Lucro real no mês:{" "}
+                <span className={ahead ? "text-up" : "text-down"}>{fmt(monthProgress.profit)}</span>
+                {" · "}esperado até hoje (dia {monthProgress.daysElapsed}/{monthProgress.daysInMonth} a {rateVal}%/mês):{" "}
+                {fmt(expectedToDate)} · {ahead ? "à frente" : "atrás"} da meta em {fmt(Math.abs(diff))}
+              </p>
+            );
+          })()}
+        </div>
+      )}
       {rows.length > 0 && (
         <div className="max-h-64 overflow-y-auto">
           <table className="w-full text-sm">
@@ -340,12 +394,82 @@ function GoalSimulator({ initialBalance }: { initialBalance: number }) {
 }
 
 // -------------------------------------------------------------------
+// Linha editável do histórico
+// -------------------------------------------------------------------
+function HistoryRow({
+  entry,
+  onUpdate,
+  onDelete,
+}: {
+  entry: ForexEntry;
+  onUpdate: (id: number, fields: { balance_usd: string; deposit_usd: string; withdrawal_usd: string; recorded_at: string }) => Promise<void>;
+  onDelete: (id: number) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [recordedAt, setRecordedAt] = useState(entry.recordedAt.slice(0, 10));
+  const [balance, setBalance] = useState(String(entry.balanceUsd));
+  const [deposit, setDeposit] = useState(String(entry.depositUsd));
+  const [withdrawal, setWithdrawal] = useState(String(entry.withdrawalUsd));
+
+  async function save() {
+    setBusy(true);
+    await onUpdate(entry.id, { balance_usd: balance, deposit_usd: deposit, withdrawal_usd: withdrawal, recorded_at: recordedAt });
+    setBusy(false);
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <tr className="border-b border-border/40 last:border-0">
+        <td className="py-1.5">
+          <input type="date" value={recordedAt} onChange={(e) => setRecordedAt(e.target.value)} className="w-32 rounded border border-border bg-panel-alt px-1.5 py-1 text-xs text-text" />
+        </td>
+        <td className="py-1.5 text-text">{entry.broker}</td>
+        <td className="py-1.5 text-right">
+          <input type="number" step="any" value={balance} onChange={(e) => setBalance(e.target.value)} className="w-24 rounded border border-border bg-panel-alt px-1.5 py-1 text-right text-xs text-text" />
+        </td>
+        <td className="py-1.5 text-right">
+          <input type="number" step="any" value={deposit} onChange={(e) => setDeposit(e.target.value)} className="w-20 rounded border border-border bg-panel-alt px-1.5 py-1 text-right text-xs text-text" />
+        </td>
+        <td className="py-1.5 text-right">
+          <input type="number" step="any" value={withdrawal} onChange={(e) => setWithdrawal(e.target.value)} className="w-20 rounded border border-border bg-panel-alt px-1.5 py-1 text-right text-xs text-text" />
+        </td>
+        <td className="py-1.5 text-right whitespace-nowrap">
+          <button onClick={save} disabled={busy} className="text-xs text-gold-bright hover:underline disabled:opacity-50">salvar</button>
+          <button onClick={() => setEditing(false)} disabled={busy} className="ml-2 text-xs text-text-muted hover:underline">cancelar</button>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className="border-b border-border/40 last:border-0">
+      <td className="py-1.5 text-xs text-text-muted">{new Date(entry.recordedAt).toLocaleDateString("pt-BR")}</td>
+      <td className="py-1.5 text-text">{entry.broker}</td>
+      <td className="py-1.5 text-right text-text">{fmt(entry.balanceUsd)}</td>
+      <td className="py-1.5 text-right">
+        {entry.depositUsd > 0 ? <span className="text-up">{fmt(entry.depositUsd)}</span> : <span className="text-up opacity-40">—</span>}
+      </td>
+      <td className="py-1.5 text-right">
+        {entry.withdrawalUsd > 0 ? <span className="text-down">{fmt(entry.withdrawalUsd)}</span> : <span className="text-down opacity-40">—</span>}
+      </td>
+      <td className="py-1.5 text-right whitespace-nowrap">
+        <button onClick={() => setEditing(true)} className="text-xs text-gold-bright hover:underline">editar</button>
+        <button onClick={() => onDelete(entry.id)} className="ml-2 text-xs text-down hover:underline">remover</button>
+      </td>
+    </tr>
+  );
+}
+
+// -------------------------------------------------------------------
 // Componente principal
 // -------------------------------------------------------------------
 export function ForexCarteiraManager() {
   const [entries, setEntries] = useState<ForexEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [windowDays, setWindowDays] = useState(7);
+  const [pendingDays, setPendingDays] = useState(7);
   const [form, setForm] = useState({
     broker: "EBC",
     customBroker: "",
@@ -395,6 +519,21 @@ export function ForexCarteiraManager() {
     load();
   }
 
+  async function handleUpdate(id: number, fields: { balance_usd: string; deposit_usd: string; withdrawal_usd: string; recorded_at: string }) {
+    await fetch("/api/forex/carteira", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id,
+        balance_usd: parseFloat(fields.balance_usd),
+        deposit_usd: parseFloat(fields.deposit_usd) || 0,
+        withdrawal_usd: parseFloat(fields.withdrawal_usd) || 0,
+        recorded_at: fields.recorded_at,
+      }),
+    });
+    load();
+  }
+
   if (error) {
     return (
       <Panel title="Carteira Forex">
@@ -415,6 +554,7 @@ export function ForexCarteiraManager() {
   );
 
   const totalBalance = brokers.reduce((s, b) => s + (latestByBroker[b]?.balanceUsd ?? 0), 0);
+  const monthProgress = entries ? computeMonthProgress(entries, brokers) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -511,10 +651,16 @@ export function ForexCarteiraManager() {
             type="number"
             min={1}
             max={30}
-            value={windowDays}
-            onChange={(e) => setWindowDays(Math.min(30, Math.max(1, parseInt(e.target.value) || 7)))}
-            className="w-20 rounded border border-border bg-panel-alt px-2 py-1 text-sm text-text"
+            value={pendingDays}
+            onChange={(e) => setPendingDays(Math.min(30, Math.max(1, parseInt(e.target.value) || 7)))}
+            className="w-16 rounded border border-border bg-panel-alt px-2 py-1 text-sm text-text"
           />
+          <button
+            onClick={() => setWindowDays(pendingDays)}
+            className="rounded border border-border bg-panel-alt px-3 py-1 text-xs text-gold-bright hover:bg-panel"
+          >
+            Aplicar
+          </button>
         </div>
         {entries !== null && brokers.length > 0 ? (
           <table className="w-full text-sm">
@@ -522,7 +668,7 @@ export function ForexCarteiraManager() {
               <tr className="border-b border-border text-left text-xs text-text-muted">
                 <th className="pb-2 font-medium">Corretora</th>
                 <th className="pb-2 font-medium text-right">Saldo</th>
-                <th className="pb-2 font-medium text-right">Lucro {windowDays} dias</th>
+                <th className="pb-2 font-medium text-right">Lucro {windowDays} dias (lucro % · depósito · retirada)</th>
                 <th className="pb-2 font-medium text-right">Atualizado</th>
                 <th className="pb-2" />
               </tr>
@@ -597,7 +743,7 @@ export function ForexCarteiraManager() {
       )}
 
       {/* Simulador de meta */}
-      <GoalSimulator initialBalance={totalBalance} />
+      <GoalSimulator initialBalance={totalBalance} monthProgress={monthProgress} />
 
       {/* Histórico completo + 4. export CSV */}
       <Panel
@@ -627,20 +773,7 @@ export function ForexCarteiraManager() {
             </thead>
             <tbody>
               {entries.map((e) => (
-                <tr key={e.id} className="border-b border-border/40 last:border-0">
-                  <td className="py-1.5 text-xs text-text-muted">{new Date(e.recordedAt).toLocaleDateString("pt-BR")}</td>
-                  <td className="py-1.5 text-text">{e.broker}</td>
-                  <td className="py-1.5 text-right text-text">{fmt(e.balanceUsd)}</td>
-                  <td className="py-1.5 text-right">
-                    {e.depositUsd > 0 ? <span className="text-up">{fmt(e.depositUsd)}</span> : <span className="text-text-muted">—</span>}
-                  </td>
-                  <td className="py-1.5 text-right">
-                    {e.withdrawalUsd > 0 ? <span className="text-down">{fmt(e.withdrawalUsd)}</span> : <span className="text-text-muted">—</span>}
-                  </td>
-                  <td className="py-1.5 text-right">
-                    <button onClick={() => handleDelete(e.id)} className="text-xs text-down hover:underline">remover</button>
-                  </td>
-                </tr>
+                <HistoryRow key={e.id} entry={e} onUpdate={handleUpdate} onDelete={handleDelete} />
               ))}
             </tbody>
           </table>
