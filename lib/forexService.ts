@@ -28,6 +28,9 @@ const MAIN_PAIRS: { symbol: string; pair: string; label: string }[] = [
   { symbol: "GBPNZD=X", pair: "GBP/NZD", label: "Libra x Dólar Neozelandês" },
   { symbol: "EURAUD=X", pair: "EUR/AUD", label: "Euro x Dólar Australiano" },
   { symbol: "EURNZD=X", pair: "EUR/NZD", label: "Euro x Dólar Neozelandês" },
+  { symbol: "EURCHF=X", pair: "EUR/CHF", label: "Euro x Franco Suíço" },
+  { symbol: "GBPCHF=X", pair: "GBP/CHF", label: "Libra x Franco Suíço" },
+  { symbol: "NZDCHF=X", pair: "NZD/CHF", label: "Dólar Neozelandês x Franco Suíço" },
 ];
 
 // Cache curto (30s) — forex se move o tempo todo (24/5), diferente de ações
