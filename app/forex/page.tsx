@@ -44,6 +44,10 @@ export default async function ForexPage() {
           <Link href="/forex/carteira" className="text-gold-bright hover:underline">
             → Minha Carteira Forex (corretoras)
           </Link>
+          {" · "}
+          <Link href="/forex/ideias" className="text-gold-bright hover:underline">
+            → Ideias de Trading
+          </Link>
         </p>
       </div>
 
