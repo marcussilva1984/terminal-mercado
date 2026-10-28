@@ -101,8 +101,37 @@ export function CurrencyStrengthMeter({ items }: { items: CurrencyStrength[] }) 
       ) : (
         <div className={loading ? "opacity-50 transition-opacity" : ""}>
           <Meter items={data} />
+          <AsymmetricPair items={data} />
         </div>
       )}
+    </div>
+  );
+}
+
+function AsymmetricPair({ items }: { items: CurrencyStrength[] }) {
+  if (items.length < 2) return null;
+  const sorted = [...items].sort((a, b) => b.score - a.score);
+  const strongest = sorted[0];
+  const weakest = sorted[sorted.length - 1];
+  const spread = strongest.score - weakest.score;
+  if (spread < 0.1) return null;
+
+  // Canonical pair: stronger currency first
+  const pair = `${strongest.currency}/${weakest.currency}`;
+  const spreadFmt = spread.toFixed(2);
+
+  return (
+    <div className="mt-3 rounded border border-gold/30 bg-gold/5 px-3 py-2">
+      <p className="text-xs text-text-muted">
+        <span className="font-medium text-gold-bright">Par mais assimétrico:</span>{" "}
+        <span className="font-medium text-text">{pair}</span>
+        {" — "}
+        <span className="text-up">{strongest.currency} {strongest.score > 0 ? "+" : ""}{formatNumber(strongest.score)}%</span>
+        {" vs "}
+        <span className="text-down">{weakest.currency} {formatNumber(weakest.score)}%</span>
+        {" — spread "}
+        <span className="font-medium text-text">{spreadFmt}pp</span>
+      </p>
     </div>
   );
 }

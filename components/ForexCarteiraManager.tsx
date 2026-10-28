@@ -423,7 +423,94 @@ function GoalTracker({ entries, brokers }: { entries: ForexEntry[]; brokers: str
 }
 
 // -------------------------------------------------------------------
-// 4. Export CSV
+// 4. Correlação entre corretoras
+// -------------------------------------------------------------------
+function pearson(xs: number[], ys: number[]): number | null {
+  const n = Math.min(xs.length, ys.length);
+  if (n < 3) return null;
+  const ax = xs.slice(0, n);
+  const ay = ys.slice(0, n);
+  const mx = ax.reduce((s, v) => s + v, 0) / n;
+  const my = ay.reduce((s, v) => s + v, 0) / n;
+  const num = ax.reduce((s, x, i) => s + (x - mx) * (ay[i] - my), 0);
+  const dx = Math.sqrt(ax.reduce((s, x) => s + (x - mx) ** 2, 0));
+  const dy = Math.sqrt(ay.reduce((s, y) => s + (y - my) ** 2, 0));
+  if (dx === 0 || dy === 0) return null;
+  return num / (dx * dy);
+}
+
+function getBrokerReturns(entries: ForexEntry[], broker: string): number[] {
+  const sorted = entries
+    .filter((e) => e.broker === broker)
+    .sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
+  const returns: number[] = [];
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const curr = sorted[i];
+    const profit = curr.balanceUsd - prev.balanceUsd - (curr.depositUsd ?? 0) + (curr.withdrawalUsd ?? 0);
+    if (prev.balanceUsd > 0) returns.push(profit / prev.balanceUsd);
+  }
+  return returns;
+}
+
+function corrColor(r: number): string {
+  if (r >= 0.7) return "text-down"; // high correlation = concentrated risk
+  if (r >= 0.4) return "text-yellow-400";
+  return "text-up"; // low/negative = diversified
+}
+
+function BrokerCorrelation({ entries, brokers }: { entries: ForexEntry[]; brokers: string[] }) {
+  if (brokers.length < 2) return null;
+
+  const returnsMap = Object.fromEntries(brokers.map((b) => [b, getBrokerReturns(entries, b)]));
+  const hasEnough = brokers.some((b) => returnsMap[b].length >= 3);
+  if (!hasEnough) return null;
+
+  // Build pairs
+  const pairs: { a: string; b: string; r: number | null }[] = [];
+  for (let i = 0; i < brokers.length; i++) {
+    for (let j = i + 1; j < brokers.length; j++) {
+      pairs.push({ a: brokers[i], b: brokers[j], r: pearson(returnsMap[brokers[i]], returnsMap[brokers[j]]) });
+    }
+  }
+
+  const highCorr = pairs.filter((p) => p.r !== null && p.r >= 0.7);
+
+  return (
+    <Panel title="Correlação entre corretoras">
+      <p className="mb-3 text-xs text-text-muted">
+        Correlação de Pearson entre os retornos de cada par de corretoras. Alta (≥0.7) = risco concentrado — ambas perdem juntas. Baixa/negativa = diversificação real.
+      </p>
+      {pairs.some((p) => p.r !== null) ? (
+        <>
+          <div className="flex flex-wrap gap-3">
+            {pairs.map((p) => (
+              <div key={p.a + p.b} className="rounded border border-border bg-panel-alt px-3 py-2 text-center">
+                <div className="text-xs text-text-muted">{p.a} × {p.b}</div>
+                <div className={`text-base font-semibold tabular-nums ${p.r !== null ? corrColor(p.r) : "text-text-muted"}`}>
+                  {p.r !== null ? (p.r >= 0 ? "+" : "") + p.r.toFixed(2) : "—"}
+                </div>
+              </div>
+            ))}
+          </div>
+          {highCorr.length > 0 && (
+            <p className="mt-3 text-xs text-down">
+              ⚠ Alta correlação: {highCorr.map((p) => `${p.a}+${p.b} (${p.r!.toFixed(2)})`).join(", ")} — diversifique ou reduza exposição.
+            </p>
+          )}
+          <p className="mt-2 text-xs text-text-muted">
+            Baseado em {Math.max(...brokers.map((b) => returnsMap[b].length))} retornos por corretora. Mínimo 3 para calcular.
+          </p>
+        </>
+      ) : (
+        <p className="text-sm text-text-muted">Registre pelo menos 3 lançamentos em 2 corretoras para ver a correlação.</p>
+      )}
+    </Panel>
+  );
+}
+
+// -------------------------------------------------------------------
+// 5. Export CSV
 // -------------------------------------------------------------------
 function exportCsv(entries: ForexEntry[]) {
   if (entries.length === 0) return;
@@ -957,6 +1044,11 @@ export function ForexCarteiraManager() {
         <Panel title="Rentabilidade mensal">
           <MonthlyPnL entries={entries} brokers={brokers} />
         </Panel>
+      )}
+
+      {/* Correlação entre corretoras */}
+      {entries && brokers.length >= 2 && (
+        <BrokerCorrelation entries={entries} brokers={brokers} />
       )}
 
       {/* Simulador de meta */}

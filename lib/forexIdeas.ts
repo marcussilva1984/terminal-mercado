@@ -11,13 +11,18 @@ export interface ForexIdea {
   dayPct: number;
   weekPct: number;
   carryPp?: number;
+  carryAligned: boolean;
+  isDistortion: boolean; // movimento vai CONTRA o carry — potencial desconto exagerado
 }
 
-// Central bank rates (approximate, updated manually)
-const RATES: Record<string, number> = {
-  USD: 5.25, EUR: 3.75, GBP: 5.00, JPY: 0.10,
-  AUD: 4.35, NZD: 5.50, CAD: 4.75, CHF: 1.50,
+// Central bank policy rates (%, updated manually — see updatedAt below)
+export const CARRY_RATES: Record<string, number> = {
+  NZD: 5.50, USD: 5.25, GBP: 5.00, CAD: 4.75,
+  AUD: 4.35, EUR: 3.75, CHF: 1.50, JPY: 0.10,
 };
+export const CARRY_RATES_DATE = "2026-08-22";
+
+const RATES = CARRY_RATES;
 
 function carryPp(base: string, quote: string): number | undefined {
   if (RATES[base] === undefined || RATES[quote] === undefined) return undefined;
@@ -112,6 +117,8 @@ export async function getForexIdeas(): Promise<{ ideas: ForexIdea[]; updatedAt: 
     score: number;
     conviction: "forte" | "medio" | "fraco";
     carryPp?: number;
+    carryAligned: boolean;
+    isDistortion: boolean;
   }
 
   const candidates: Candidate[] = [];
@@ -122,64 +129,92 @@ export async function getForexIdeas(): Promise<{ ideas: ForexIdea[]; updatedAt: 
     if (day === null || week === null) return;
 
     const sameDir = (day > 0 && week > 0) || (day < 0 && week < 0);
-    if (!sameDir) return; // only consistent signals
+    if (!sameDir) return; // need consistency across timeframes
 
     const direction: "alta" | "queda" = day > 0 ? "alta" : "queda";
     const absDay = Math.abs(day);
     const absWeek = Math.abs(week);
 
-    // Carry bonus
     const cp = carryPp(p.base, p.quote);
     const carryAligned =
       cp !== undefined && ((direction === "alta" && cp > 0) || (direction === "queda" && cp < 0));
-    const carryBonus = carryAligned ? Math.abs(cp ?? 0) * 0.1 : 0;
 
-    const score = absDay + absWeek * 0.6 + carryBonus;
+    // Distortion: price moves AGAINST carry — potential deep discount reversal opportunity
+    const isDistortion =
+      cp !== undefined &&
+      Math.abs(cp) >= 2.0 && // meaningful carry differential
+      !carryAligned &&        // moving against carry
+      absWeek >= 1.5;         // significant weekly move (real distortion, not noise)
+
+    // Positive carry bias: strong bonus when carry and direction align
+    const carryBonus = carryAligned ? Math.abs(cp ?? 0) * 0.2 : 0;
+    // Distortion gets a moderate score (mean-reversion opportunity)
+    const distortionBonus = isDistortion ? Math.abs(cp ?? 0) * 0.1 : 0;
+
+    const score = absDay + absWeek * 0.6 + carryBonus + distortionBonus;
 
     let conviction: "forte" | "medio" | "fraco";
     if (absDay >= 0.3 && absWeek >= 1.0) conviction = "forte";
     else if (absDay >= 0.15 || absWeek >= 0.5) conviction = "medio";
     else conviction = "fraco";
 
-    candidates.push({ pair: p.pair, base: p.base, quote: p.quote, direction, dayPct: day, weekPct: week, score, conviction, carryPp: cp });
+    // Upgrade conviction if carry strongly aligned
+    if (conviction === "medio" && carryAligned && Math.abs(cp ?? 0) >= 3.0) conviction = "forte";
+
+    candidates.push({ pair: p.pair, base: p.base, quote: p.quote, direction, dayPct: day, weekPct: week, score, conviction, carryPp: cp, carryAligned, isDistortion });
   });
 
-  candidates.sort((a, b) => b.score - a.score);
-
-  // Pick top ideas (at most 5 forte + 5 medio/fraco)
-  const forte = candidates.filter((c) => c.conviction === "forte").slice(0, 5);
-  const medio = candidates.filter((c) => c.conviction !== "forte").slice(0, 5);
-  const top = [...forte, ...medio];
-
-  // Build hedge suggestions (for each top forte, find best non-overlapping currency hedge)
-  const hedges: Candidate[] = [];
-  for (const idea of forte.slice(0, 3)) {
-    // Find a strong candidate that doesn't share currency
-    const hedge = candidates.find(
-      (c) => !sharedCurrency(idea.pair, c.pair) && !top.some((t) => t.pair === c.pair)
-    );
-    if (hedge && !hedges.some((h) => h.pair === hedge.pair)) {
-      hedges.push({ ...hedge, conviction: "forte" });
+  // Sort: positive-carry-aligned first within each conviction tier
+  candidates.sort((a, b) => {
+    if (a.conviction !== b.conviction) {
+      const order = { forte: 0, medio: 1, fraco: 2 };
+      return order[a.conviction] - order[b.conviction];
     }
+    return b.score - a.score;
+  });
+
+  // Separate: carry-aligned ideas vs distortion opportunities
+  const carryIdeas = candidates.filter((c) => c.carryAligned && !c.isDistortion);
+  const distortionIdeas = candidates.filter((c) => c.isDistortion);
+  const neutralIdeas = candidates.filter((c) => !c.carryAligned && !c.isDistortion);
+
+  const top = [...carryIdeas.slice(0, 5), ...neutralIdeas.slice(0, 3), ...distortionIdeas.slice(0, 2)];
+  const forte = top.filter((c) => c.conviction === "forte");
+
+  // Hedge suggestions: non-overlapping currencies for top carry ideas
+  const hedges: Candidate[] = [];
+  for (const idea of forte.filter((c) => c.carryAligned).slice(0, 3)) {
+    const hedge = candidates.find(
+      (c) => !sharedCurrency(idea.pair, c.pair) && !top.some((t) => t.pair === c.pair) && !hedges.some((h) => h.pair === c.pair)
+    );
+    if (hedge) hedges.push({ ...hedge, conviction: "forte" });
   }
 
   const buildIdea = (c: Candidate, isHedge: boolean, hedgeFor?: string): ForexIdea => {
     const dirLabel = c.direction === "alta" ? "alta" : "queda";
-    const sameLabel = "consistente (diário e semanal)";
-    const carryLabel = c.carryPp !== undefined ? ` | Carry: ${c.carryPp > 0 ? "+" : ""}${c.carryPp.toFixed(2)}pp` : "";
-    const label = isHedge
-      ? `Hedge sugerido: ${c.pair} (${dirLabel})`
-      : `${c.pair}: ${dirLabel} ${sameLabel}`;
-    const rationale = isHedge
-      ? `Não compartilha moeda com "${hedgeFor}" — serve pra não concentrar a aposta numa moeda só.${carryLabel}`
-      : `Variação diária ${c.dayPct > 0 ? "+" : ""}${c.dayPct.toFixed(2)}% e semanal ${c.weekPct > 0 ? "+" : ""}${c.weekPct.toFixed(2)}% na mesma direção — não é só ruído de um dia.${carryLabel}`;
+    const carryStr = c.carryPp !== undefined ? ` | Carry: ${c.carryPp > 0 ? "+" : ""}${c.carryPp.toFixed(2)}pp` : "";
 
-    return { pair: c.pair, direction: c.direction, label, rationale, conviction: c.conviction, isHedge, hedgeFor, dayPct: c.dayPct, weekPct: c.weekPct, carryPp: c.carryPp };
+    let label: string;
+    let rationale: string;
+
+    if (isHedge) {
+      label = `Hedge sugerido: ${c.pair} (${dirLabel})`;
+      rationale = `Não compartilha moeda com "${hedgeFor}" — diversifica exposição sem concentrar numa moeda só.${carryStr}`;
+    } else if (c.isDistortion) {
+      label = `${c.pair}: distorção — carry positivo mas preço caindo`;
+      rationale = `Carry favorável de ${c.carryPp !== undefined ? Math.abs(c.carryPp).toFixed(2) : "?"}pp, mas semanal ${c.weekPct > 0 ? "+" : ""}${c.weekPct.toFixed(2)}% contra o carry — possível desconto exagerado. Aguardar confirmação de reversão.`;
+    } else {
+      const carryNote = c.carryAligned ? " Carry positivo alinhado." : "";
+      label = `${c.pair}: ${dirLabel} consistente (diário e semanal)`;
+      rationale = `Variação diária ${c.dayPct > 0 ? "+" : ""}${c.dayPct.toFixed(2)}% e semanal ${c.weekPct > 0 ? "+" : ""}${c.weekPct.toFixed(2)}% na mesma direção — não é só ruído de um dia.${carryNote}${carryStr}`;
+    }
+
+    return { pair: c.pair, direction: c.direction, label, rationale, conviction: c.conviction, isHedge, hedgeFor, dayPct: c.dayPct, weekPct: c.weekPct, carryPp: c.carryPp, carryAligned: c.carryAligned, isDistortion: c.isDistortion };
   };
 
   const ideas: ForexIdea[] = [
     ...top.map((c) => buildIdea(c, false)),
-    ...hedges.map((h, i) => buildIdea(h, true, forte[i]?.pair)),
+    ...hedges.map((h, i) => buildIdea(h, true, forte.filter((c) => c.carryAligned)[i]?.pair)),
   ];
 
   return { ideas, updatedAt: new Date().toISOString() };
