@@ -1,4 +1,5 @@
-import { pgTable, serial, text, real, date, timestamp, uniqueIndex, unique, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, real, date, timestamp, uniqueIndex, unique, jsonb, doublePrecision } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const watchlistItems = pgTable(
   "watchlist_items",
@@ -100,6 +101,41 @@ export const forexBrokerEntries = pgTable("forex_broker_entries", {
   recordedAt: date("recorded_at").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+// Taxa de juros de cada banco central do G8. Atualizada pelo cron a partir do
+// calendário econômico; 'estimado' = consenso de reunião que já passou (o feed
+// não traz o resultado oficial), 'confirmado' = taxa vigente antes da próxima reunião.
+export const forexPolicyRates = pgTable("forex_policy_rates", {
+  currency: text("currency").primaryKey(),
+  rate: doublePrecision("rate").notNull(),
+  status: text("status").notNull(), // 'confirmado' | 'estimado' | 'manual'
+  source: text("source").notNull(),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const forexIdeaTracker = pgTable(
+  "forex_idea_tracker",
+  {
+    id: serial("id").primaryKey(),
+    pair: text("pair").notNull(),
+    symbol: text("symbol").notNull(),
+    direction: text("direction").notNull(), // 'alta' | 'queda'
+    conviction: text("conviction").notNull(),
+    kind: text("kind").notNull(), // 'carry' | 'neutro'
+    entry: doublePrecision("entry").notNull(),
+    stop: doublePrecision("stop").notNull(),
+    target: doublePrecision("target").notNull(),
+    status: text("status").notNull().default("aberta"), // 'aberta' | 'alvo' | 'stop' | 'expirada'
+    exitPrice: doublePrecision("exit_price"),
+    resultR: doublePrecision("result_r"),
+    openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("forex_idea_tracker_open_idx").on(table.pair, table.direction).where(sql`status = 'aberta'`),
+  ]
+);
 
 export const portfolioHoldings = pgTable("portfolio_holdings", {
   id: serial("id").primaryKey(),
