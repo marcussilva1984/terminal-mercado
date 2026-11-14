@@ -114,7 +114,10 @@ export async function fetchDailyBars(symbol: string): Promise<DailyBar[]> {
       const low = q.low?.[i];
       const close = q.close?.[i];
       if ([high, low, close].every((v) => typeof v === "number" && v > 0)) {
-        bars.push({ date: new Date((t + 6 * 3600) * 1000).toISOString().slice(0, 10), high, low, close });
+        const date = new Date((t + 6 * 3600) * 1000);
+        // O Yahoo às vezes devolve a barra em aberto com data de sábado/domingo.
+        if (date.getUTCDay() === 0 || date.getUTCDay() === 6) return;
+        bars.push({ date: date.toISOString().slice(0, 10), high, low, close });
       }
     });
     return bars;
