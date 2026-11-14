@@ -4,6 +4,15 @@ export interface YahooQuote {
   price: number;
   changePct: number;
   currency: string;
+  marketDate: string | null; // YYYY-MM-DD do pregão da cotação, no fuso da bolsa
+}
+
+// Data do pregão no fuso da bolsa. Pra timestamp de candle diário, passe
+// isCandle: o candle de forex começa à meia-noite de Londres (23:00 UTC no
+// verão) e o deslocamento de 6h evita cair no dia anterior.
+export function yahooTradingDate(unixSeconds: number, gmtOffsetSeconds: number, isCandle = false): string {
+  const shift = isCandle ? 6 * 3600 : 0;
+  return new Date((unixSeconds + gmtOffsetSeconds + shift) * 1000).toISOString().slice(0, 10);
 }
 
 // API não-oficial do Yahoo Finance: sem chave, sem token, cobre índices (^GSPC, ^BVSP,
@@ -28,7 +37,10 @@ export async function getYahooQuote(symbol: string, revalidateSeconds = 300): Pr
   const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? price;
   const changePct = prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
 
-  return { symbol, price, changePct, currency: meta.currency ?? "USD" };
+  const marketDate =
+    typeof meta.regularMarketTime === "number" ? yahooTradingDate(meta.regularMarketTime, meta.gmtoffset ?? 0) : null;
+
+  return { symbol, price, changePct, currency: meta.currency ?? "USD", marketDate };
 }
 
 export async function getYahooQuotes(symbols: string[], revalidateSeconds = 300): Promise<Record<string, YahooQuote>> {

@@ -14,7 +14,7 @@ import { hasDatabase } from "@/lib/db/client";
 import { getNews } from "@/lib/sources/rss";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 import { formatPrice } from "@/lib/format";
-import { LongShortPanel, FundingRateTable, OpenInterestPanel } from "@/components/DerivativesPanel";
+import { FundingRateTable, OpenInterestPanel } from "@/components/DerivativesPanel";
 import { OnChainPanel } from "@/components/OnChainPanel";
 import { buildGenericInsights, fillMinimumInsights } from "@/lib/insights";
 import { getProtocolTvl } from "@/lib/sources/defillama";
@@ -52,18 +52,6 @@ export default async function CriptoPage() {
   let available = true;
   let fetchError: string | undefined;
 
-  // Lê o cache no banco em vez de chamar a Binance ao vivo — chamadas
-  // server-to-server pra Binance de dentro da Vercel falham sempre (parece
-  // bloqueio de IP), mesmo a mesma rota funcionando perfeitamente quando
-  // acessada de fora. Um job externo (GitHub Actions) atualiza esse cache
-  // a cada 15min batendo na rota pública.
-  const fetchDerivatives = async () => {
-    if (!hasDatabase()) throw new Error("DATABASE_URL não configurada");
-    const cache = await getDerivativesCache();
-    if (!cache) throw new Error("Cache de derivativos ainda vazio — aguardando primeira rodada do job externo");
-    return cache;
-  };
-
   const criptoWatchlist = hasDatabase()
     ? (() => {
         const merged = [...CRIPTO_WATCHLIST];
@@ -81,7 +69,7 @@ export default async function CriptoPage() {
       getNews("cripto", 10),
       getZScoreHighlights("cripto"),
       getCoinCategories(),
-      fetchDerivatives(),
+      hasDatabase() ? getDerivativesCache() : Promise.resolve(null),
       getOnChainSnapshot(),
       getFearGreedIndex(),
       getEtfFlows(),
@@ -102,8 +90,9 @@ export default async function CriptoPage() {
   const news = newsResult.status === "fulfilled" ? newsResult.value : [];
   const zScoreHighlights = zScoreResult.status === "fulfilled" ? zScoreResult.value : null;
   const categories = categoriesResult.status === "fulfilled" ? categoriesResult.value : null;
-  const derivatives = derivativesResult.status === "fulfilled" ? derivativesResult.value.data : null;
-  const derivativesUpdatedAt = derivativesResult.status === "fulfilled" ? derivativesResult.value.updatedAt : null;
+  if (derivativesResult.status === "rejected") console.error("Derivativos cripto indisponíveis:", derivativesResult.reason);
+  const derivatives = derivativesResult.status === "fulfilled" ? (derivativesResult.value?.data ?? null) : null;
+  const derivativesUpdatedAt = derivativesResult.status === "fulfilled" ? (derivativesResult.value?.updatedAt ?? null) : null;
   const onChain = onChainResult.status === "fulfilled" ? onChainResult.value : null;
   const fearGreed = fearGreedResult.status === "fulfilled" ? fearGreedResult.value : null;
   const etfFlows = etfFlowResult.status === "fulfilled" ? etfFlowResult.value : null;
@@ -335,24 +324,15 @@ export default async function CriptoPage() {
         )}
       </Panel>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Panel title="Long / Short Ratio — Perpétuos (Binance Futures)" updatedAt={derivativesUpdatedAt ?? now}>
-          {derivatives && derivatives.length > 0 ? (
-            <LongShortPanel items={derivatives} />
-          ) : (
-            <p className="text-sm text-down">Fonte indisponível no momento.</p>
-          )}
-        </Panel>
-        <Panel title="Open Interest — Perpétuos (Binance Futures)" updatedAt={derivativesUpdatedAt ?? now}>
-          {derivatives && derivatives.length > 0 ? (
-            <OpenInterestPanel items={derivatives} />
-          ) : (
-            <p className="text-sm text-down">Fonte indisponível no momento.</p>
-          )}
-        </Panel>
-      </div>
+      <Panel title="Open Interest — Perpétuos Binance (via CoinGecko)" updatedAt={derivativesUpdatedAt ?? now}>
+        {derivatives && derivatives.length > 0 ? (
+          <OpenInterestPanel items={derivatives} />
+        ) : (
+          <p className="text-sm text-down">Fonte indisponível no momento.</p>
+        )}
+      </Panel>
 
-      <Panel title="Funding Rate — Perpétuos (Binance Futures)" updatedAt={derivativesUpdatedAt ?? now}>
+      <Panel title="Funding Rate — Perpétuos Binance (via CoinGecko)" updatedAt={derivativesUpdatedAt ?? now}>
         {derivatives && derivatives.length > 0 ? (
           <FundingRateTable items={derivatives} />
         ) : (
@@ -360,8 +340,8 @@ export default async function CriptoPage() {
         )}
         {derivatives && derivatives.length > 0 && (
           <p className="mt-3 text-xs text-text-muted">
-            Atualizado a cada ~15min via job externo (a Binance bloqueia chamada direta de dentro da
-            Vercel) — os 3 painéis de derivativos acima usam o mesmo cache.
+            Fonte: CoinGecko (perpétuos da Binance Futures), coletado a cada 15 min e guardado no banco. Long/short ratio saiu: a Binance
+            recusa chamadas da Vercel e o CoinGecko não tem esse dado.
           </p>
         )}
       </Panel>

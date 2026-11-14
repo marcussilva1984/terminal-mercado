@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isCronAuthorized } from "@/lib/cronAuth";
 import { hasDatabase } from "@/lib/db/client";
 import { getLastBreakingNewsCheck, markBreakingNewsChecked, logAlert } from "@/lib/db/alertRepo";
 import { getAllNewsWithCategory } from "@/lib/sources/rss";
@@ -25,8 +26,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 // dispara pra manchetes de alto impacto (crash, recorde histórico, etc.) —
 // não espera o ciclo do digest normal pra essas.
 export async function GET(request: Request) {
-  const auth = request.headers.get("authorization");
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!(await isCronAuthorized(request))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

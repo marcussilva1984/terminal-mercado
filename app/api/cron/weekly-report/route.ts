@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isCronAuthorized } from "@/lib/cronAuth";
 import { hasDatabase } from "@/lib/db/client";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { getCloses } from "@/lib/db/priceSeriesRepo";
@@ -43,8 +44,7 @@ async function getWeeklyMovers(): Promise<WeeklyMover[]> {
 // buscar dado novo, então não deveria falhar mesmo se uma fonte pontual
 // estiver fora do ar.
 export async function GET(request: Request) {
-  const auth = request.headers.get("authorization");
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!(await isCronAuthorized(request))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   if (!hasDatabase()) {

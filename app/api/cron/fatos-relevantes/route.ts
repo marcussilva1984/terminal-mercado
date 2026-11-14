@@ -1,24 +1,19 @@
 import { NextResponse } from "next/server";
+import { isCronAuthorized } from "@/lib/cronAuth";
 import { hasDatabase } from "@/lib/db/client";
 import { hasRecentAlert, logAlert, hasAnyAlertWithKeyPrefix } from "@/lib/db/alertRepo";
-import { getFatosRelevantes } from "@/lib/sources/cvmFatosRelevantes";
+import { getB3FatosRelevantes } from "@/lib/sources/b3Plantao";
 import { sendTelegramMessage, hasTelegramConfig, escapeHtml } from "@/lib/sources/telegram";
 
-// O CSV anual da CVM às vezes vem lento pra baixar/parsear (sem cache
-// quente) — o timeout padrão da Vercel (10s) cortava a função no meio,
-// derrubando o GitHub Actions que chama esse endpoint a cada 20min.
 export const maxDuration = 60;
 
-// Roda a cada 15-30min via GitHub Actions. Fatos relevantes não têm timestamp
-// fino no CSV da CVM (só a data), então o dedup é por documento individual
-// (URL única por protocolo) via alert_log, não por corte de tempo como o
-// digest de notícias.
+const KEY_PREFIX = "fato_relevante:b3:";
+
+// Fonte: Plantão de Notícias da B3 (tempo real). Dedup pelo id do comunicado.
 export async function GET(request: Request) {
-  const auth = request.headers.get("authorization");
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!(await isCronAuthorized(request))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-
   if (!hasDatabase()) {
     return NextResponse.json({ sent: false, reason: "DATABASE_URL não configurada" });
   }
@@ -26,42 +21,37 @@ export async function GET(request: Request) {
     return NextResponse.json({ sent: false, reason: "Telegram não configurado" });
   }
 
-  const fatos = await getFatosRelevantes(50);
+  let fatos;
+  try {
+    fatos = await getB3FatosRelevantes();
+  } catch (e) {
+    console.error("Plantão da B3 indisponível:", e);
+    return NextResponse.json({ sent: false, error: String(e) }, { status: 502 });
+  }
 
-  // Primeira execução: marca tudo como "já visto" sem notificar (senão o
-  // primeiro run manda ~50 mensagens de uma vez) — só alerta a partir daqui.
-  const isFirstRun = !(await hasAnyAlertWithKeyPrefix("fato_relevante:"));
-  if (isFirstRun) {
-    for (const fato of fatos) {
-      if (!fato.documentUrl) continue;
-      await logAlert(`fato_relevante:${fato.documentUrl}`, `${fato.companyName}: ${fato.subject}`, "fato_relevante", fato.documentUrl);
-    }
+  // Primeira rodada com a fonte nova: marca o que já existe como visto, senão
+  // manda dezenas de mensagens de uma vez.
+  if (!(await hasAnyAlertWithKeyPrefix(KEY_PREFIX))) {
+    for (const f of fatos) await logAlert(`${KEY_PREFIX}${f.id}`, f.headline, "fato_relevante", f.url);
     return NextResponse.json({ sent: true, count: 0, bootstrapped: fatos.length });
   }
 
   let sent = 0;
-  for (const fato of fatos) {
-    if (!fato.documentUrl) continue;
-    const key = `fato_relevante:${fato.documentUrl}`;
-    const already = await hasRecentAlert(key, 24 * 7); // não repete em até 7 dias
-    if (already) continue;
+  for (const f of fatos) {
+    const key = `${KEY_PREFIX}${f.id}`;
+    if (await hasRecentAlert(key, 24 * 30)) continue;
 
-    const text =
-      `📢 <b>Fato Relevante — B3</b>\n${escapeHtml(fato.companyName)}\n${escapeHtml(fato.subject)}\n` +
-      `${new Date(fato.date).toLocaleDateString("pt-BR")}\n${escapeHtml(fato.documentUrl)}`;
-
-    // Só marca como "já alertado" (dedup de 7 dias) se o envio realmente deu
-    // certo — antes marcava mesmo quando sendTelegramMessage falhava (ex.:
-    // "&" no nome da empresa quebrando o parse HTML do Telegram), perdendo
-    // aquele alerta pra sempre porque o próximo run via como "já visto".
+    const hora = f.dateTime.slice(11, 16);
+    const text = `📢 <b>Fato Relevante — B3</b>\n${escapeHtml(f.company)}\n${hora} · ${escapeHtml(f.url)}`;
+    // Só grava o dedup se o envio deu certo, senão o fato se perde.
     try {
       await sendTelegramMessage(text);
-      await logAlert(key, `${fato.companyName}: ${fato.subject}`, "fato_relevante", fato.documentUrl);
+      await logAlert(key, f.headline, "fato_relevante", f.url);
       sent++;
     } catch (e) {
-      console.error("Falha ao enviar Fato Relevante pro Telegram:", e, fato.documentUrl);
+      console.error("Falha ao enviar Fato Relevante pro Telegram:", e, f.url);
     }
   }
 
-  return NextResponse.json({ sent: true, count: sent });
+  return NextResponse.json({ sent: true, count: sent, checked: fatos.length });
 }

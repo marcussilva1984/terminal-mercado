@@ -5,6 +5,8 @@ import { EconomicCalendar } from "@/components/EconomicCalendar";
 import { getNews } from "@/lib/sources/rss";
 import { getUSYieldCurve } from "@/lib/forexService";
 import { formatNumber } from "@/lib/format";
+import { getPolicyRates } from "@/lib/forexRates";
+import { ForexRatesTable } from "@/components/ForexRatesTable";
 import {
   getWeeklyCalendar,
   filterHighSignal,
@@ -14,22 +16,14 @@ import {
 
 export const revalidate = 300;
 
-const CENTRAL_BANKS = [
-  { name: "Fed (EUA)", abbr: "FOMC", flag: "🇺🇸" },
-  { name: "BCE (Zona Euro)", abbr: "ECB", flag: "🇪🇺" },
-  { name: "BoE (Reino Unido)", abbr: "BOE", flag: "🇬🇧" },
-  { name: "BoJ (Japão)", abbr: "BOJ", flag: "🇯🇵" },
-  { name: "BIS", abbr: "BIS", flag: "🌐" },
-  { name: "FMI", abbr: "IMF", flag: "🌐" },
-];
-
 export default async function MacroPage() {
   const now = new Date().toISOString();
 
-  const [yieldsResult, calendarResult, macroNews] = await Promise.all([
+  const [yieldsResult, calendarResult, macroNews, policyRates] = await Promise.all([
     getUSYieldCurve().catch(() => null),
     getWeeklyCalendar().catch(() => null),
     getNews("macro", 40),
+    getPolicyRates(),
   ]);
 
   const rateDecisions = calendarResult
@@ -68,17 +62,8 @@ export default async function MacroPage() {
         </Panel>
       )}
 
-      {/* Bancos centrais que monitoramos */}
-      <Panel title="Bancos centrais monitorados" updatedAt={now}>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6">
-          {CENTRAL_BANKS.map((bc) => (
-            <div key={bc.abbr} className="rounded border border-border bg-panel-alt px-3 py-2 text-center">
-              <div className="text-lg">{bc.flag}</div>
-              <div className="text-xs font-medium text-text">{bc.abbr}</div>
-              <div className="text-xs text-text-muted">{bc.name}</div>
-            </div>
-          ))}
-        </div>
+      <Panel title="Juros dos bancos centrais (G8)" updatedAt={now}>
+        <ForexRatesTable rates={policyRates} hideTitle />
       </Panel>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

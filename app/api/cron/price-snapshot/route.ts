@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isCronAuthorized } from "@/lib/cronAuth";
 import { hasDatabase } from "@/lib/db/client";
 import { upsertCloses, type PriceSeriesRow } from "@/lib/db/priceSeriesRepo";
 import { getWatchlist, seedWatchlistIfEmpty } from "@/lib/db/watchlistRepo";
@@ -21,12 +22,14 @@ async function fetchClass(
   assetClass: string,
   toYahooSymbol: (symbol: string) => string
 ): Promise<PriceSeriesRow[]> {
-  const today = new Date().toISOString().slice(0, 10);
+  // Data do pregão da própria cotação (fuso da bolsa), não "hoje em UTC": o job
+  // roda depois da meia-noite UTC e no fim de semana, e antes gravava o
+  // fechamento no dia seguinte e criava sábado/domingo falsos.
   const settled = await Promise.allSettled(
     items.map(async ({ symbol }) => {
-      const q = await getYahooQuote(toYahooSymbol(symbol));
-      if (!q) return null;
-      return { symbol, assetClass, date: today, closePrice: q.price, source: "yahoo" } satisfies PriceSeriesRow;
+      const q = await getYahooQuote(toYahooSymbol(symbol), 60);
+      if (!q?.marketDate) return null;
+      return { symbol, assetClass, date: q.marketDate, closePrice: q.price, source: "yahoo" } satisfies PriceSeriesRow;
     })
   );
   return settled
@@ -36,8 +39,7 @@ async function fetchClass(
 }
 
 export async function GET(request: Request) {
-  const auth = request.headers.get("authorization");
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!(await isCronAuthorized(request))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

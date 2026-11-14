@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isCronAuthorized } from "@/lib/cronAuth";
 import { sql } from "drizzle-orm";
 import { getDb, hasDatabase } from "@/lib/db/client";
 import { b3FlowDaily } from "@/lib/db/schema";
@@ -13,8 +14,7 @@ const SEGMENT_KEYS: { key: keyof Omit<FlowDayRaw, "date">; segment: string }[] =
 ];
 
 export async function GET(request: Request) {
-  const auth = request.headers.get("authorization");
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!(await isCronAuthorized(request))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getTickerDetail } from "@/lib/sources/yahooTickerDetail";
 
-// Edge Runtime: mesmo motivo do /api/derivatives e /api/analyst-targets — o
+// Edge Runtime: mesmo motivo do /api/analyst-targets — o
 // crumb do Yahoo falha a partir da região serverless padrão da Vercel.
 export const runtime = "edge";
 

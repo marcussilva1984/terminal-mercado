@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isCronAuthorized } from "@/lib/cronAuth";
 import { hasDatabase } from "@/lib/db/client";
 import { logAlert } from "@/lib/db/alertRepo";
 import { notify } from "@/lib/telegramNotify";
@@ -24,8 +25,7 @@ import { getGrahamValuations } from "@/lib/valuation";
 const WATCHLIST_MOVE_THRESHOLD = 5; // %
 
 export async function GET(request: Request) {
-  const auth = request.headers.get("authorization");
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!(await isCronAuthorized(request))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -403,8 +403,9 @@ export async function GET(request: Request) {
         const pct = prior.balanceUsd > 0 ? (profit / prior.balanceUsd) * 100 : 0;
         if (pct <= -lossThreshold) {
           const label = `⚠️ Carteira Forex — ${broker}: queda de ${Math.abs(pct).toFixed(2)}% nos últimos 7 dias (ajustado por depósitos/retiradas). Saldo atual: US$ ${latest.balanceUsd.toFixed(2)}.`;
-          const today = new Date().toISOString().slice(0, 10);
-          const ok = await notify(`forex:loss:${broker}:${today}`, label, "forex", 24);
+          // Chave pelo lançamento (não pelo dia): sem saldo novo, o cálculo é o
+          // mesmo — antes repetia o mesmo alerta todo dia por mais de um mês.
+          const ok = await notify(`forex:loss:${broker}:${latest.recordedAt}`, label, "forex", 24 * 365);
           if (ok) sent.push(label);
         }
       }

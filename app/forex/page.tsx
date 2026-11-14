@@ -3,17 +3,9 @@ import { Panel } from "@/components/Panel";
 import { StatCard } from "@/components/StatCard";
 import { NewsFeed } from "@/components/NewsFeed";
 import { CurrencyStrengthMeter } from "@/components/CurrencyStrengthMeter";
-import { EconomicCalendar } from "@/components/EconomicCalendar";
 import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import { changeColorClass, formatNumber, formatPct } from "@/lib/format";
-import { getForexPairs, getCurrencyStrength, getDXY, getUSYieldCurve } from "@/lib/forexService";
-import {
-  getWeeklyCalendar,
-  filterHighSignal,
-  filterRateDecisions,
-  filterUpcoming,
-  filterForexRelevant,
-} from "@/lib/sources/economicCalendar";
+import { getForexPairs, getCurrencyStrength, getDXY } from "@/lib/forexService";
 import { getNews } from "@/lib/sources/rss";
 import { getZScoreHighlights } from "@/lib/zscoreService";
 
@@ -22,18 +14,13 @@ export const revalidate = 240;
 export default async function ForexPage() {
   const now = new Date().toISOString();
 
-  const [pairsResult, strengthResult, dxyResult, yieldsResult, calendarResult, news, zScoreResult] = await Promise.all([
+  const [pairsResult, strengthResult, dxyResult, news, zScoreResult] = await Promise.all([
     getForexPairs().catch(() => null),
     getCurrencyStrength().catch(() => null),
     getDXY().catch(() => null),
-    getUSYieldCurve().catch(() => null),
-    getWeeklyCalendar().catch(() => null),
     getNews("forex", 10),
     getZScoreHighlights("forex").catch(() => null),
   ]);
-
-  const rateDecisions = calendarResult ? filterUpcoming(filterRateDecisions(calendarResult)) : null;
-  const highSignalEvents = calendarResult ? filterUpcoming(filterForexRelevant(filterHighSignal(calendarResult))) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -47,6 +34,10 @@ export default async function ForexPage() {
           {" · "}
           <Link href="/forex/ideias" className="text-gold-bright hover:underline">
             → Ideias de Trading
+          </Link>
+          {" · "}
+          <Link href="/macro" className="text-gold-bright hover:underline">
+            → Juros, bancos centrais e calendário (Macro)
           </Link>
         </p>
       </div>
@@ -95,45 +86,6 @@ export default async function ForexPage() {
           ) : (
             <p className="text-sm text-down">Fonte indisponível no momento.</p>
           )}
-        </Panel>
-      </div>
-
-      <Panel title="Curva de Juros (EUA)" updatedAt={now}>
-        {yieldsResult ? (
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {yieldsResult.map((y) => (
-              <StatCard key={y.label} label={y.label} value={`${formatNumber(y.yieldPct)}%`} changePct={y.changePct} />
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-down">Fonte indisponível no momento.</p>
-        )}
-        <p className="mt-3 text-xs text-text-muted">
-          Curva de juros do Brasil (DI) fica para uma fase futura — a fonte pública exige scraping
-          mais trabalhoso (contratos futuros na B3).
-        </p>
-      </Panel>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Panel title="Bancos Centrais — decisões e falas (semana)" updatedAt={now}>
-          {rateDecisions ? (
-            <EconomicCalendar events={rateDecisions} />
-          ) : (
-            <p className="text-sm text-down">Fonte indisponível no momento.</p>
-          )}
-        </Panel>
-
-        <Panel title="Calendário Econômico — fique de olho" updatedAt={now}>
-          {highSignalEvents ? (
-            <EconomicCalendar events={highSignalEvents} />
-          ) : (
-            <p className="text-sm text-down">Fonte indisponível no momento.</p>
-          )}
-          <p className="mt-3 text-xs text-text-muted">
-            Só impacto alto/médio das 8 moedas mais operadas (USD, EUR, JPY, GBP, CHF, CAD, AUD,
-            NZD) — sem ruído de outros países, e só o que ainda vai acontecer (o que já passou some
-            da lista). Fonte: mesmo feed público usado pelo calendário do ForexFactory.
-          </p>
         </Panel>
       </div>
 

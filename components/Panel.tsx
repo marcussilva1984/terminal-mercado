@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { formatTime } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 
 export function Panel({
   title,
@@ -21,7 +21,7 @@ export function Panel({
         <div className="flex items-center gap-3">
           {action}
           {updatedAt && (
-            <span className="text-xs text-text-muted">Atualizado {formatTime(updatedAt)}</span>
+            <span className="text-xs text-text-muted">Atualizado {formatDateTime(updatedAt)}</span>
           )}
         </div>
       </header>

@@ -6,12 +6,12 @@ const STATUS_STYLE: Record<PolicyRate["status"], string> = {
   manual: "text-text-muted",
 };
 
-export function ForexRatesTable({ rates }: { rates: PolicyRate[] }) {
+export function ForexRatesTable({ rates, hideTitle = false }: { rates: PolicyRate[]; hideTitle?: boolean }) {
   const stale = rates.filter((r) => rateAgeDays(r) > STALE_RATE_DAYS);
 
   return (
     <div>
-      <h2 className="mb-1 text-sm font-semibold text-text">Juros dos bancos centrais (G8)</h2>
+      {!hideTitle && <h2 className="mb-1 text-sm font-semibold text-text">Juros dos bancos centrais (G8)</h2>}
       <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
         {rates.map((r) => {
           const age = rateAgeDays(r);

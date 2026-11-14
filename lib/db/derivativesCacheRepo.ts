@@ -1,7 +1,7 @@
 import { desc, inArray } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { derivativesCache } from "@/lib/db/schema";
-import type { DerivativeSnapshot } from "@/lib/sources/binanceFutures";
+import type { DerivativeSnapshot } from "@/lib/sources/cryptoDerivatives";
 
 export interface DerivativesCacheEntry {
   data: DerivativeSnapshot[];
@@ -20,7 +20,7 @@ export async function getDerivativesCache(): Promise<DerivativesCacheEntry | nul
 export async function setDerivativesCache(data: DerivativeSnapshot[]): Promise<void> {
   const db = getDb();
   await db.insert(derivativesCache).values({ data });
-  // Limpa entradas antigas pra não acumular linha infinita (roda a cada 15min).
+  // Limpa entradas antigas pra não acumular linha infinita (cron a cada 15min).
   const rows = await db.select({ id: derivativesCache.id }).from(derivativesCache).orderBy(desc(derivativesCache.updatedAt));
   const staleIds = rows.slice(5).map((r) => r.id);
   if (staleIds.length > 0) {
