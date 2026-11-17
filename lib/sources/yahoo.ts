@@ -5,6 +5,9 @@ export interface YahooQuote {
   changePct: number;
   currency: string;
   marketDate: string | null; // YYYY-MM-DD do pregão da cotação, no fuso da bolsa
+  high?: number;
+  low?: number;
+  volume?: number;
 }
 
 // Data do pregão no fuso da bolsa. Pra timestamp de candle diário, passe
@@ -40,7 +43,16 @@ export async function getYahooQuote(symbol: string, revalidateSeconds = 300): Pr
   const marketDate =
     typeof meta.regularMarketTime === "number" ? yahooTradingDate(meta.regularMarketTime, meta.gmtoffset ?? 0) : null;
 
-  return { symbol, price, changePct, currency: meta.currency ?? "USD", marketDate };
+  return {
+    symbol,
+    price,
+    changePct,
+    currency: meta.currency ?? "USD",
+    marketDate,
+    high: typeof meta.regularMarketDayHigh === "number" ? meta.regularMarketDayHigh : undefined,
+    low: typeof meta.regularMarketDayLow === "number" ? meta.regularMarketDayLow : undefined,
+    volume: typeof meta.regularMarketVolume === "number" ? meta.regularMarketVolume : undefined,
+  };
 }
 
 export async function getYahooQuotes(symbols: string[], revalidateSeconds = 300): Promise<Record<string, YahooQuote>> {

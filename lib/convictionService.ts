@@ -74,6 +74,24 @@ export async function getConvictionRanking(): Promise<ConvictionEntry[]> {
       reasons.push("WT sobrecomprado");
     }
 
+    if (z.obvSignal === "diverge") {
+      score += 1;
+      reasons.push("OBV divergência");
+    } else if (z.obvSignal === "confirma" && z.obvTrend) {
+      score += 0.5;
+      reasons.push(`OBV ${z.obvTrend}`);
+    }
+
+    if (z.aboveMA200 !== undefined) {
+      if (z.aboveMA200) {
+        score += 0.5;
+        reasons.push("acima MA200");
+      } else {
+        score += 0.3;
+        reasons.push("abaixo MA200");
+      }
+    }
+
     if (reasons.length > 0) {
       entries.push({ symbol: z.symbol, label: z.label, assetClass: z.assetClass, score, reasons });
     }

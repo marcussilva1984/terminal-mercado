@@ -5,6 +5,9 @@ import { priceSeries } from "@/lib/db/schema";
 export interface ClosePoint {
   date: string;
   closePrice: number;
+  highPrice?: number;
+  lowPrice?: number;
+  volume?: number;
 }
 
 export async function getCloses(symbol: string, assetClass: string, limit = 60): Promise<ClosePoint[]> {
@@ -14,13 +17,25 @@ export async function getCloses(symbol: string, assetClass: string, limit = 60):
   // que o histórico acumulado passava de N linhas, deixando o z-score cego
   // pro preço de hoje.
   const rows = await db
-    .select({ date: priceSeries.date, closePrice: priceSeries.closePrice })
+    .select({
+      date: priceSeries.date,
+      closePrice: priceSeries.closePrice,
+      highPrice: priceSeries.highPrice,
+      lowPrice: priceSeries.lowPrice,
+      volume: priceSeries.volume,
+    })
     .from(priceSeries)
     .where(and(eq(priceSeries.symbol, symbol), eq(priceSeries.assetClass, assetClass)))
     .orderBy(desc(priceSeries.date))
     .limit(limit);
 
-  return rows.reverse();
+  return rows.reverse().map((r) => ({
+    date: r.date,
+    closePrice: r.closePrice,
+    highPrice: r.highPrice ?? undefined,
+    lowPrice: r.lowPrice ?? undefined,
+    volume: r.volume ?? undefined,
+  }));
 }
 
 // Uma query pra classe inteira em vez de uma por símbolo — usado pelo
@@ -34,7 +49,14 @@ export async function getClosesForClass(assetClass: string, sinceDays = 31): Pro
   const cutoffISO = cutoff.toISOString().slice(0, 10);
 
   const rows = await db
-    .select({ symbol: priceSeries.symbol, date: priceSeries.date, closePrice: priceSeries.closePrice })
+    .select({
+      symbol: priceSeries.symbol,
+      date: priceSeries.date,
+      closePrice: priceSeries.closePrice,
+      highPrice: priceSeries.highPrice,
+      lowPrice: priceSeries.lowPrice,
+      volume: priceSeries.volume,
+    })
     .from(priceSeries)
     .where(and(eq(priceSeries.assetClass, assetClass), gte(priceSeries.date, cutoffISO)))
     .orderBy(asc(priceSeries.date));
@@ -42,7 +64,7 @@ export async function getClosesForClass(assetClass: string, sinceDays = 31): Pro
   const bySymbol = new Map<string, ClosePoint[]>();
   for (const r of rows) {
     if (!bySymbol.has(r.symbol)) bySymbol.set(r.symbol, []);
-    bySymbol.get(r.symbol)!.push({ date: r.date, closePrice: r.closePrice });
+    bySymbol.get(r.symbol)!.push({ date: r.date, closePrice: r.closePrice, highPrice: r.highPrice ?? undefined, lowPrice: r.lowPrice ?? undefined, volume: r.volume ?? undefined } as ClosePoint);
   }
   return bySymbol;
 }
@@ -52,6 +74,9 @@ export interface PriceSeriesRow {
   assetClass: string;
   date: string;
   closePrice: number;
+  highPrice?: number;
+  lowPrice?: number;
+  volume?: number;
   source: string;
 }
 
@@ -63,6 +88,11 @@ export async function upsertCloses(rows: PriceSeriesRow[]): Promise<void> {
     .values(rows)
     .onConflictDoUpdate({
       target: [priceSeries.symbol, priceSeries.assetClass, priceSeries.date],
-      set: { closePrice: sql`excluded.close_price` },
+      set: {
+        closePrice: sql`excluded.close_price`,
+        highPrice: sql`COALESCE(excluded.high_price, price_series.high_price)`,
+        lowPrice: sql`COALESCE(excluded.low_price, price_series.low_price)`,
+        volume: sql`COALESCE(excluded.volume, price_series.volume)`,
+      },
     });
 }

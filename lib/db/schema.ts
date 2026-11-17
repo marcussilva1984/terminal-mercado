@@ -22,6 +22,9 @@ export const priceSeries = pgTable(
     assetClass: text("asset_class").notNull(), // 'b3' | 'cripto'
     date: date("date").notNull(),
     closePrice: real("close_price").notNull(),
+    highPrice: real("high_price"),
+    lowPrice: real("low_price"),
+    volume: real("volume"),
     source: text("source").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },

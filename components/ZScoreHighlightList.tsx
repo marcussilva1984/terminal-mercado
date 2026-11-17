@@ -3,7 +3,6 @@
 import { useState } from "react";
 import type { ZScoreHighlight } from "@/lib/types";
 import { formatPct } from "@/lib/format";
-import { ZScoreBadge } from "@/components/ZScoreBadge";
 
 // Ideia 5: célula pintada pela intensidade do movimento
 function heatCell(pct: number | undefined): string {
@@ -72,7 +71,7 @@ export function ZScoreHighlightList({ items }: { items: ZScoreHighlight[] }) {
                 <th className="pb-1 text-right font-normal">1d</th>
                 <th className="pb-1 text-right font-normal">7d</th>
                 <th className="pb-1 text-right font-normal">30d</th>
-                <th className="pb-1 text-right font-normal">Z</th>
+                <th className="pb-1 text-right font-normal">MA200</th>
                 <th className="pb-1 text-right font-normal">Sinais</th>
               </tr>
             </thead>
@@ -89,14 +88,21 @@ export function ZScoreHighlightList({ items }: { items: ZScoreHighlight[] }) {
                   <td className={`py-1 px-1 text-right tabular-nums rounded ${heatCell(z.change30d)}`}>
                     {z.change30d !== undefined ? formatPct(z.change30d) : "—"}
                   </td>
-                  <td className="py-1 pl-2 text-right"><ZScoreBadge zScore={z.zScore} /></td>
+                  <td className="py-1 pl-2 text-right text-xs tabular-nums">
+                    {z.aboveMA200 !== undefined ? (
+                      <span className={z.aboveMA200 ? "text-up" : "text-down"}>
+                        {z.aboveMA200 ? "▲" : "▼"}{z.ma200DistPct !== undefined ? ` ${Math.abs(z.ma200DistPct).toFixed(1)}%` : ""}
+                      </span>
+                    ) : "—"}
+                  </td>
                   <td className="py-1 pl-1 text-right whitespace-nowrap">
-                    {z.macdSignal === "alta" && <span className="text-[9px] font-bold text-up mr-1">▲M</span>}
-                    {z.macdSignal === "baixa" && <span className="text-[9px] font-bold text-down mr-1">▼M</span>}
                     {z.cipherSignal === "compra" && <span className="text-[9px] font-bold text-up">▲C</span>}
                     {z.cipherSignal === "venda" && <span className="text-[9px] font-bold text-down">▼C</span>}
                     {z.cipherOversold && <span className="text-[9px] text-cyan-400 ml-0.5">OS</span>}
                     {z.cipherOverbought && <span className="text-[9px] text-orange-400 ml-0.5">OB</span>}
+                    {z.obvSignal === "diverge" && <span className="text-[9px] text-purple-400 ml-0.5" title="OBV divergência">OBV!</span>}
+                    {z.obvSignal === "confirma" && z.obvTrend === "alta" && <span className="text-[9px] text-up/70 ml-0.5" title="OBV confirmando alta">▲V</span>}
+                    {z.obvSignal === "confirma" && z.obvTrend === "baixa" && <span className="text-[9px] text-down/70 ml-0.5" title="OBV confirmando baixa">▼V</span>}
                   </td>
                 </tr>
               ))}
@@ -113,13 +119,16 @@ export function ZScoreHighlightList({ items }: { items: ZScoreHighlight[] }) {
               </div>
               <div className="flex items-center gap-1.5">
                 <span className={`text-xs ${heatCell(z.changePct)}`}>{formatPct(z.changePct)}</span>
-                <ZScoreBadge zScore={z.zScore} />
-                {z.macdSignal === "alta" && <span className="text-[9px] font-bold text-up" title="MACD alta">▲M</span>}
-                {z.macdSignal === "baixa" && <span className="text-[9px] font-bold text-down" title="MACD baixa">▼M</span>}
+                {z.aboveMA200 !== undefined && (
+                  <span className={`text-[10px] ${z.aboveMA200 ? "text-up" : "text-down"}`} title={`${z.aboveMA200 ? "Acima" : "Abaixo"} da MA200`}>
+                    {z.aboveMA200 ? "▲" : "▼"}MA
+                  </span>
+                )}
                 {z.cipherSignal === "compra" && <span className="text-[9px] font-bold text-up" title="Cipher B compra">▲C</span>}
                 {z.cipherSignal === "venda" && <span className="text-[9px] font-bold text-down" title="Cipher B venda">▼C</span>}
                 {z.cipherOversold && <span className="text-[9px] text-cyan-400" title="WaveTrend sobrevendido">OS</span>}
                 {z.cipherOverbought && <span className="text-[9px] text-orange-400" title="WaveTrend sobrecomprado">OB</span>}
+                {z.obvSignal === "diverge" && <span className="text-[9px] text-purple-400" title="OBV divergência volume/preço">OBV!</span>}
               </div>
             </div>
           ))}

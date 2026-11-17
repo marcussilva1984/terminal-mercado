@@ -5,6 +5,8 @@ import { getWatchlist, seedWatchlistIfEmpty } from "@/lib/db/watchlistRepo";
 import { computeZScore } from "@/lib/zscore";
 import { computeMacd, macdSignal } from "@/lib/macd";
 import { computeCipherB, cipherBSignal } from "@/lib/cipherB";
+import { computeObv } from "@/lib/obv";
+import { computeMa200 } from "@/lib/ma200";
 import { B3_WATCHLIST, CRIPTO_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST, FOREX_WATCHLIST } from "@/lib/watchlist";
 import type { AssetClass, ZScoreHighlight } from "@/lib/types";
 
@@ -43,7 +45,7 @@ async function computeZScoreHighlights(assetClass?: AssetClass): Promise<ZScoreH
     entries.map(async (entry) => {
       const window = ZSCORE_WINDOW_BY_CLASS[entry.assetClass] ?? DEFAULT_ZSCORE_WINDOW;
       // CipherB precisa de ~60 candles; busca o máximo necessário
-      const closes = await getCloses(entry.symbol, entry.assetClass, Math.max(window + 1, 65));
+      const closes = await getCloses(entry.symbol, entry.assetClass, Math.max(window + 1, 205));
       return { entry, window, closes };
     })
   );
@@ -61,7 +63,9 @@ async function computeZScoreHighlights(assetClass?: AssetClass): Promise<ZScoreH
     const p30 = prices.length >= 31 ? prices[prices.length - 31] : null;
 
     const macd = computeMacd(prices);
-    const cipher = computeCipherB(prices);
+    const cipher = computeCipherB(closes);  // usa ClosePoint[] pra HLC3
+    const obv = computeObv(closes);
+    const ma200 = computeMa200(prices);
 
     results.push({
       symbol: entry.symbol,
@@ -75,6 +79,10 @@ async function computeZScoreHighlights(assetClass?: AssetClass): Promise<ZScoreH
       cipherSignal: cipherBSignal(cipher) ?? undefined,
       cipherOversold: cipher?.oversold,
       cipherOverbought: cipher?.overbought,
+      obvSignal: obv?.obvDivergence ? "diverge" : obv?.obvTrend !== "neutro" ? "confirma" : undefined,
+      obvTrend: obv?.obvTrend,
+      aboveMA200: ma200?.aboveMA,
+      ma200DistPct: ma200?.distPct,
     });
   }
 

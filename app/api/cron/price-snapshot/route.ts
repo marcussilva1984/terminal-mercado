@@ -29,7 +29,17 @@ async function fetchClass(
     items.map(async ({ symbol }) => {
       const q = await getYahooQuote(toYahooSymbol(symbol), 60);
       if (!q?.marketDate) return null;
-      return { symbol, assetClass, date: q.marketDate, closePrice: q.price, source: "yahoo" } satisfies PriceSeriesRow;
+      const row: PriceSeriesRow = {
+        symbol,
+        assetClass,
+        date: q.marketDate,
+        closePrice: q.price,
+        highPrice: q.high,
+        lowPrice: q.low,
+        volume: q.volume,
+        source: "yahoo",
+      };
+      return row;
     })
   );
   return settled

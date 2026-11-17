@@ -31,6 +31,10 @@ export interface ZScoreHighlight {
   cipherSignal?: "compra" | "venda";
   cipherOversold?: boolean;
   cipherOverbought?: boolean;
+  obvSignal?: "confirma" | "diverge";
+  obvTrend?: "alta" | "baixa" | "neutro";
+  aboveMA200?: boolean;
+  ma200DistPct?: number;
 }
 
 export interface NewsItem {

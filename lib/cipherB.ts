@@ -1,5 +1,5 @@
 // Cipher B — WaveTrend + RSI + Stoch RSI + divergências
-// Aproximação com close price (HLC3 não disponível no banco).
+// Usa HLC3 = (high+low+close)/3 quando disponível, senão aproxima com close.
 
 export interface CipherBResult {
   wt1: number;
@@ -117,22 +117,40 @@ function detectDivergence(
 }
 
 // ── API pública ───────────────────────────────────────────────────────────────
+// Aceita closes simples ou ClosePoint[] — usa HLC3 quando high/low disponíveis
+import type { ClosePoint } from "@/lib/db/priceSeriesRepo";
+
+function toHlc3(candles: ClosePoint[] | number[]): number[] {
+  if (candles.length === 0) return [];
+  if (typeof candles[0] === "number") return candles as number[];
+  return (candles as ClosePoint[]).map((c) =>
+    c.highPrice !== undefined && c.lowPrice !== undefined
+      ? (c.highPrice + c.lowPrice + c.closePrice) / 3
+      : c.closePrice
+  );
+}
+
 // Mínimo de candles: ~60 (para ter todas as EMAs convergidas)
-export function computeCipherB(closes: number[]): CipherBResult | null {
-  if (closes.length < 60) return null;
+export function computeCipherB(input: ClosePoint[] | number[]): CipherBResult | null {
+  if (input.length < 60) return null;
+
+  const closes = toHlc3(input);
+  const rawCloses = typeof input[0] === "number"
+    ? (input as number[])
+    : (input as ClosePoint[]).map((c) => c.closePrice);
 
   const { wt1: wt1arr, wt2: wt2arr } = computeWaveTrend(closes);
   if (wt1arr.length === 0 || wt2arr.length === 0) return null;
 
-  const rsiArr = computeRsi(closes);
-  const stochArr = computeStochRsi(closes);
+  const rsiArr = computeRsi(rawCloses);
+  const stochArr = computeStochRsi(rawCloses);
 
   const wt1 = wt1arr[wt1arr.length - 1];
   const wt2 = wt2arr[wt2arr.length - 1];
   const rsi = rsiArr.length > 0 ? rsiArr[rsiArr.length - 1] : 50;
   const stochRsi = stochArr.length > 0 ? stochArr[stochArr.length - 1] : 50;
 
-  const { bullish: bullishDiv, bearish: bearishDiv } = detectDivergence(closes, wt1arr);
+  const { bullish: bullishDiv, bearish: bearishDiv } = detectDivergence(rawCloses, wt1arr);
 
   // Cruzamento: sinal de compra quando WT1 cruza WT2 de baixo para cima na zona de sobrevenda
   const prevWt1 = wt1arr.length >= 2 ? wt1arr[wt1arr.length - 2] : wt1;
