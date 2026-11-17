@@ -73,7 +73,7 @@ export function ZScoreHighlightList({ items }: { items: ZScoreHighlight[] }) {
                 <th className="pb-1 text-right font-normal">7d</th>
                 <th className="pb-1 text-right font-normal">30d</th>
                 <th className="pb-1 text-right font-normal">Z</th>
-                <th className="pb-1 text-right font-normal">MACD</th>
+                <th className="pb-1 text-right font-normal">Sinais</th>
               </tr>
             </thead>
             <tbody>
@@ -90,9 +90,13 @@ export function ZScoreHighlightList({ items }: { items: ZScoreHighlight[] }) {
                     {z.change30d !== undefined ? formatPct(z.change30d) : "—"}
                   </td>
                   <td className="py-1 pl-2 text-right"><ZScoreBadge zScore={z.zScore} /></td>
-                  <td className="py-1 pl-1 text-right">
-                    {z.macdSignal === "alta" && <span className="text-[9px] font-bold text-up">▲ MACD</span>}
-                    {z.macdSignal === "baixa" && <span className="text-[9px] font-bold text-down">▼ MACD</span>}
+                  <td className="py-1 pl-1 text-right whitespace-nowrap">
+                    {z.macdSignal === "alta" && <span className="text-[9px] font-bold text-up mr-1">▲M</span>}
+                    {z.macdSignal === "baixa" && <span className="text-[9px] font-bold text-down mr-1">▼M</span>}
+                    {z.cipherSignal === "compra" && <span className="text-[9px] font-bold text-up">▲C</span>}
+                    {z.cipherSignal === "venda" && <span className="text-[9px] font-bold text-down">▼C</span>}
+                    {z.cipherOversold && <span className="text-[9px] text-cyan-400 ml-0.5">OS</span>}
+                    {z.cipherOverbought && <span className="text-[9px] text-orange-400 ml-0.5">OB</span>}
                   </td>
                 </tr>
               ))}
@@ -107,11 +111,15 @@ export function ZScoreHighlightList({ items }: { items: ZScoreHighlight[] }) {
                 <div className="text-sm font-medium text-text">{z.symbol}</div>
                 <div className="text-xs text-text-muted">{z.label}</div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <span className={`text-xs ${heatCell(z.changePct)}`}>{formatPct(z.changePct)}</span>
                 <ZScoreBadge zScore={z.zScore} />
-                {z.macdSignal === "alta" && <span className="text-[9px] font-bold text-up">▲</span>}
-                {z.macdSignal === "baixa" && <span className="text-[9px] font-bold text-down">▼</span>}
+                {z.macdSignal === "alta" && <span className="text-[9px] font-bold text-up" title="MACD alta">▲M</span>}
+                {z.macdSignal === "baixa" && <span className="text-[9px] font-bold text-down" title="MACD baixa">▼M</span>}
+                {z.cipherSignal === "compra" && <span className="text-[9px] font-bold text-up" title="Cipher B compra">▲C</span>}
+                {z.cipherSignal === "venda" && <span className="text-[9px] font-bold text-down" title="Cipher B venda">▼C</span>}
+                {z.cipherOversold && <span className="text-[9px] text-cyan-400" title="WaveTrend sobrevendido">OS</span>}
+                {z.cipherOverbought && <span className="text-[9px] text-orange-400" title="WaveTrend sobrecomprado">OB</span>}
               </div>
             </div>
           ))}

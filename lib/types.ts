@@ -28,6 +28,9 @@ export interface ZScoreHighlight {
   zScore: number;
   assetClass: AssetClass;
   macdSignal?: "alta" | "baixa";
+  cipherSignal?: "compra" | "venda";
+  cipherOversold?: boolean;
+  cipherOverbought?: boolean;
 }
 
 export interface NewsItem {

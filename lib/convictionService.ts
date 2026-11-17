@@ -61,6 +61,19 @@ export async function getConvictionRanking(): Promise<ConvictionEntry[]> {
       reasons.push(`MACD ${z.macdSignal}`);
     }
 
+    if (z.cipherSignal) {
+      score += 1.5;
+      reasons.push(`Cipher B ${z.cipherSignal}`);
+    }
+    if (z.cipherOversold) {
+      score += 0.5;
+      reasons.push("WT sobrevendido");
+    }
+    if (z.cipherOverbought) {
+      score += 0.5;
+      reasons.push("WT sobrecomprado");
+    }
+
     if (reasons.length > 0) {
       entries.push({ symbol: z.symbol, label: z.label, assetClass: z.assetClass, score, reasons });
     }

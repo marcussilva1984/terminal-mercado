@@ -4,6 +4,7 @@ import { getCloses } from "@/lib/db/priceSeriesRepo";
 import { getWatchlist, seedWatchlistIfEmpty } from "@/lib/db/watchlistRepo";
 import { computeZScore } from "@/lib/zscore";
 import { computeMacd, macdSignal } from "@/lib/macd";
+import { computeCipherB, cipherBSignal } from "@/lib/cipherB";
 import { B3_WATCHLIST, CRIPTO_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST, FOREX_WATCHLIST } from "@/lib/watchlist";
 import type { AssetClass, ZScoreHighlight } from "@/lib/types";
 
@@ -41,8 +42,8 @@ async function computeZScoreHighlights(assetClass?: AssetClass): Promise<ZScoreH
   const fetched = await Promise.all(
     entries.map(async (entry) => {
       const window = ZSCORE_WINDOW_BY_CLASS[entry.assetClass] ?? DEFAULT_ZSCORE_WINDOW;
-      // MACD precisa de ~35 candles (26+9); busca o máximo necessário
-      const closes = await getCloses(entry.symbol, entry.assetClass, Math.max(window + 1, 36));
+      // CipherB precisa de ~60 candles; busca o máximo necessário
+      const closes = await getCloses(entry.symbol, entry.assetClass, Math.max(window + 1, 65));
       return { entry, window, closes };
     })
   );
@@ -60,6 +61,7 @@ async function computeZScoreHighlights(assetClass?: AssetClass): Promise<ZScoreH
     const p30 = prices.length >= 31 ? prices[prices.length - 31] : null;
 
     const macd = computeMacd(prices);
+    const cipher = computeCipherB(prices);
 
     results.push({
       symbol: entry.symbol,
@@ -70,6 +72,9 @@ async function computeZScoreHighlights(assetClass?: AssetClass): Promise<ZScoreH
       zScore: z.zScore,
       assetClass: entry.assetClass,
       macdSignal: macdSignal(macd) ?? undefined,
+      cipherSignal: cipherBSignal(cipher) ?? undefined,
+      cipherOversold: cipher?.oversold,
+      cipherOverbought: cipher?.overbought,
     });
   }
 
