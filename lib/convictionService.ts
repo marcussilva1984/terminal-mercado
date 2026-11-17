@@ -56,6 +56,11 @@ export async function getConvictionRanking(): Promise<ConvictionEntry[]> {
       reasons.push("notícia recente");
     }
 
+    if (z.macdSignal) {
+      score += 1;
+      reasons.push(`MACD ${z.macdSignal}`);
+    }
+
     if (reasons.length > 0) {
       entries.push({ symbol: z.symbol, label: z.label, assetClass: z.assetClass, score, reasons });
     }

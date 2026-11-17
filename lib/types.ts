@@ -23,8 +23,11 @@ export interface ZScoreHighlight {
   symbol: string;
   label: string;
   changePct: number;
+  change7d?: number;
+  change30d?: number;
   zScore: number;
   assetClass: AssetClass;
+  macdSignal?: "alta" | "baixa";
 }
 
 export interface NewsItem {

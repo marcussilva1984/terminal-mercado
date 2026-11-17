@@ -70,8 +70,9 @@ export default async function HomePage() {
 
       {headline && <Headline item={headline} />}
 
+      {/* Ideia 4: 6 blocos de topo com número grande e cor por magnitude */}
       {highlightCards.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
           {highlightCards.map((card) => (
             <StatCard key={card.label} label={card.label} value={card.value} changePct={card.changePct} />
           ))}
@@ -79,7 +80,7 @@ export default async function HomePage() {
       )}
 
       {dailyHighlights.length > 0 && (
-        <Panel title="Destaques do Dia" updatedAt={now}>
+        <Panel title="Destaques do Dia" updatedAt={now} accent="lime">
           <DailyHighlightsList items={dailyHighlights} />
           <p className="mt-3 text-xs text-text-muted">
             Baseado só na sua Watchlist, não no mercado inteiro — os "maiores movimentos" aqui são
@@ -92,7 +93,7 @@ export default async function HomePage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Panel title="Semáforo de Fluxo B3" updatedAt={now}>
+        <Panel title="Fluxo B3" updatedAt={now} accent="cyan">
           {flowResult ? (
             <FlowSemaphore segments={buildFlowSegments(flowResult)} compact />
           ) : (
@@ -100,7 +101,7 @@ export default async function HomePage() {
           )}
         </Panel>
 
-        <Panel title="Destaques de Z-Score" updatedAt={now}>
+        <Panel title="Mapa de Z-Score / Variações" updatedAt={now} accent="purple">
           {zScoreHighlights ? (
             <ZScoreHighlightList items={zScoreHighlights} />
           ) : (
@@ -111,7 +112,7 @@ export default async function HomePage() {
         </Panel>
       </div>
 
-      <Panel title="Radar da Semana — fique de olho" updatedAt={now}>
+      <Panel title="Radar da Semana — fique de olho" updatedAt={now} accent="amber">
         {radarEvents ? (
           <EconomicCalendar events={radarEvents} />
         ) : (

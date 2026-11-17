@@ -3,6 +3,7 @@ import { hasDatabase } from "@/lib/db/client";
 import { getCloses } from "@/lib/db/priceSeriesRepo";
 import { getWatchlist, seedWatchlistIfEmpty } from "@/lib/db/watchlistRepo";
 import { computeZScore } from "@/lib/zscore";
+import { computeMacd, macdSignal } from "@/lib/macd";
 import { B3_WATCHLIST, CRIPTO_WATCHLIST, FII_WATCHLIST, STOCKS_WATCHLIST, FOREX_WATCHLIST } from "@/lib/watchlist";
 import type { AssetClass, ZScoreHighlight } from "@/lib/types";
 
@@ -40,7 +41,8 @@ async function computeZScoreHighlights(assetClass?: AssetClass): Promise<ZScoreH
   const fetched = await Promise.all(
     entries.map(async (entry) => {
       const window = ZSCORE_WINDOW_BY_CLASS[entry.assetClass] ?? DEFAULT_ZSCORE_WINDOW;
-      const closes = await getCloses(entry.symbol, entry.assetClass, window + 1);
+      // MACD precisa de ~35 candles (26+9); busca o máximo necessário
+      const closes = await getCloses(entry.symbol, entry.assetClass, Math.max(window + 1, 36));
       return { entry, window, closes };
     })
   );
@@ -52,12 +54,22 @@ async function computeZScoreHighlights(assetClass?: AssetClass): Promise<ZScoreH
     const z = computeZScore(closes.map((c) => c.closePrice), window);
     if (!z) continue;
 
+    const prices = closes.map((c) => c.closePrice);
+    const last = prices[prices.length - 1];
+    const p7 = prices.length >= 8 ? prices[prices.length - 8] : null;
+    const p30 = prices.length >= 31 ? prices[prices.length - 31] : null;
+
+    const macd = computeMacd(prices);
+
     results.push({
       symbol: entry.symbol,
       label: entry.label,
       changePct: z.changePct,
+      change7d: p7 ? ((last - p7) / p7) * 100 : undefined,
+      change30d: p30 ? ((last - p30) / p30) * 100 : undefined,
       zScore: z.zScore,
       assetClass: entry.assetClass,
+      macdSignal: macdSignal(macd) ?? undefined,
     });
   }
 

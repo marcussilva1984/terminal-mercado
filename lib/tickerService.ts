@@ -135,23 +135,45 @@ export interface HighlightCard {
   changePct: number;
 }
 
+// Ideia 4: 6 blocos de topo — índices + forex + cripto + commodities
 const HIGHLIGHT_SYMBOLS = {
+  ibov: "^BVSP",
+  usdbrl: "BRL=X",
   dxy: "DX-Y.NYB",
   spFut: "ES=F",
   wti: "CL=F",
+  vix: "^VIX",
 };
 
+function fmtHighlight(price: number, label: string): string {
+  if (label.includes("BRL") || label.includes("R$")) return `R$ ${price.toFixed(2)}`;
+  if (price > 1000) return price.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+  return price.toFixed(2);
+}
+
 export async function getRealHighlightCards(): Promise<HighlightCard[]> {
-  const results = await getYahooQuotes(Object.values(HIGHLIGHT_SYMBOLS));
+  const [yahoo, coinData] = await Promise.all([
+    getYahooQuotes(Object.values(HIGHLIGHT_SYMBOLS)),
+    getTopCoinMarkets(10).catch(() => []),
+  ]);
   const cards: HighlightCard[] = [];
 
-  const dxy = results[HIGHLIGHT_SYMBOLS.dxy];
-  if (dxy) cards.push({ label: "Índice Dólar (DXY)", value: dxy.price.toFixed(2), changePct: dxy.changePct });
+  const ibov = yahoo[HIGHLIGHT_SYMBOLS.ibov];
+  if (ibov) cards.push({ label: "Ibovespa", value: fmtHighlight(ibov.price, "Ibovespa"), changePct: ibov.changePct });
 
-  const spFut = results[HIGHLIGHT_SYMBOLS.spFut];
-  if (spFut) cards.push({ label: "S&P Fut.", value: spFut.price.toFixed(1), changePct: spFut.changePct });
+  const usdbrl = yahoo[HIGHLIGHT_SYMBOLS.usdbrl];
+  if (usdbrl) cards.push({ label: "USD/BRL", value: `R$ ${usdbrl.price.toFixed(3)}`, changePct: usdbrl.changePct });
 
-  const wti = results[HIGHLIGHT_SYMBOLS.wti];
+  const dxy = yahoo[HIGHLIGHT_SYMBOLS.dxy];
+  if (dxy) cards.push({ label: "DXY", value: dxy.price.toFixed(2), changePct: dxy.changePct });
+
+  const spFut = yahoo[HIGHLIGHT_SYMBOLS.spFut];
+  if (spFut) cards.push({ label: "S&P Fut.", value: spFut.price.toFixed(0), changePct: spFut.changePct });
+
+  const btc = coinData.find((c) => c.symbol.toLowerCase() === "btc");
+  if (btc) cards.push({ label: "BTC", value: `US$ ${btc.current_price.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`, changePct: btc.price_change_percentage_24h ?? 0 });
+
+  const wti = yahoo[HIGHLIGHT_SYMBOLS.wti];
   if (wti) cards.push({ label: "WTI", value: `US$ ${wti.price.toFixed(2)}`, changePct: wti.changePct });
 
   return cards;
