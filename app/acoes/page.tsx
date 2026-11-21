@@ -1,17 +1,12 @@
 import { unstable_cache } from "next/cache";
 import { Panel } from "@/components/Panel";
-import { RankingPanel } from "@/components/RankingPanel";
 import { NewsFeed } from "@/components/NewsFeed";
 import { FlowSemaphore } from "@/components/FlowSemaphore";
 import { FlowBarChart } from "@/components/FlowBarChart";
-import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import { getFlowHistory } from "@/lib/sources/b3Flow";
 import { buildFlowSegments, getFlowChartData, SEGMENT_CONFIG } from "@/lib/semaphore";
 import { getNews } from "@/lib/sources/rss";
-import { getZScoreHighlights } from "@/lib/zscoreService";
 import { getB3VolatilityRanking } from "@/lib/volatilityService";
-import { getBrapiRanking, type BrapiListItem } from "@/lib/sources/brapi";
-import { buildB3Insights, fillMinimumInsights } from "@/lib/insights";
 import { getBaseUrl } from "@/lib/baseUrl";
 import { B3_WATCHLIST } from "@/lib/watchlist";
 import { hasDatabase } from "@/lib/db/client";
@@ -24,7 +19,6 @@ import type { AnalystTarget } from "@/lib/sources/yahooAnalyst";
 import { VolatilityTable } from "@/components/VolatilityTable";
 import { getFatosRelevantes } from "@/lib/sources/cvmFatosRelevantes";
 import { FatosRelevantesTable } from "@/components/FatosRelevantesTable";
-import type { RankingItem } from "@/lib/types";
 
 // Trocado de force-dynamic pra ISR (aprovado pelo usuário, depois estendido
 // pra 3-5min em todo o site): a página junta ~10 fontes diferentes, então
@@ -35,16 +29,6 @@ import type { RankingItem } from "@/lib/types";
 // real que motivou "sempre fresco" no passado (dias de atraso por fonte
 // quebrada, não minutos por cache).
 export const revalidate = 240;
-
-function toRankingItem(item: BrapiListItem): RankingItem {
-  return {
-    symbol: item.symbol,
-    label: item.name,
-    value: item.close,
-    changePct: item.changePct,
-    volume: item.volume,
-  };
-}
 
 interface PriceTargetHit {
   symbol: string;
@@ -118,14 +102,10 @@ const getUpcomingEarnings = unstable_cache(computeUpcomingEarnings, ["b3-upcomin
 export default async function AcoesPage() {
   const now = new Date().toISOString();
 
-  const [flowResult, newsResult, zScoreResult, gainersResult, losersResult, volumeResult, volatilityResult, fatosResult, priceTargetResult, earningsResult, ideasResult] =
+  const [flowResult, newsResult, volatilityResult, fatosResult, priceTargetResult, earningsResult, ideasResult] =
     await Promise.allSettled([
       getFlowHistory(),
       getNews("b3", 10),
-      getZScoreHighlights("b3"),
-      getBrapiRanking("change", "desc", 20),
-      getBrapiRanking("change", "asc", 20),
-      getBrapiRanking("volume", "desc", 20),
       getB3VolatilityRanking(),
       getFatosRelevantes(25),
       getB3PriceTargetHits(),
@@ -134,24 +114,29 @@ export default async function AcoesPage() {
     ]);
 
   const news = newsResult.status === "fulfilled" ? newsResult.value : [];
-  const zScoreHighlights = zScoreResult.status === "fulfilled" ? zScoreResult.value : null;
-  const gainers = gainersResult.status === "fulfilled" ? gainersResult.value.map(toRankingItem) : null;
-  const losers = losersResult.status === "fulfilled" ? losersResult.value.map(toRankingItem) : null;
-  const byVolume = volumeResult.status === "fulfilled" ? volumeResult.value.map(toRankingItem) : null;
   const volatility = volatilityResult.status === "fulfilled" ? volatilityResult.value : null;
   const fatosRelevantes = fatosResult.status === "fulfilled" ? fatosResult.value : null;
   const priceTargetHits = priceTargetResult.status === "fulfilled" ? priceTargetResult.value : null;
   const upcomingEarnings = earningsResult.status === "fulfilled" ? earningsResult.value : null;
   const moneyFlowIdeas = ideasResult.status === "fulfilled" ? ideasResult.value : null;
 
-  const insights =
-    gainers && losers && byVolume && flowResult.status === "fulfilled"
-      ? buildB3Insights(gainers, losers, byVolume, buildFlowSegments(flowResult.value), zScoreHighlights ?? [])
-      : [];
-  if (insights.length > 0) {
-    insights.push("Para próxima data de resultado (balanço) de uma ação específica, consulte a aba Fundamentalista.");
+  const insights: string[] = [];
+  if (flowResult.status === "fulfilled") {
+    const segments = buildFlowSegments(flowResult.value);
+    const estrangeiro = segments.find((s) => s.segment === "Estrangeiro");
+    const institucional = segments.find((s) => s.segment === "Institucional");
+    if (estrangeiro) {
+      insights.push(
+        `Fluxo estrangeiro ${estrangeiro.dailyBRL >= 0 ? "positivo" : "negativo"} hoje (R$ ${formatNumber(Math.abs(estrangeiro.dailyBRL) / 1e6)}M) — ${estrangeiro.dailyBRL >= 0 ? "compra líquida" : "venda líquida"} do mercado externo.`
+      );
+    }
+    if (institucional) {
+      insights.push(
+        `Institucional ${institucional.dailyBRL >= 0 ? "comprador" : "vendedor"} líquido (R$ ${formatNumber(Math.abs(institucional.dailyBRL) / 1e6)}M).`
+      );
+    }
   }
-  const finalInsights = gainers && losers ? fillMinimumInsights(insights, [...gainers, ...losers]) : insights;
+  insights.push("Para próxima data de resultado (balanço) de uma ação específica, consulte a aba Fundamentalista.");
 
   return (
     <div className="flex flex-col gap-6">
@@ -163,12 +148,11 @@ export default async function AcoesPage() {
         </p>
       </div>
 
-      {finalInsights.length > 0 && (
+      {insights.length > 0 && (
         <Panel title="Insights do Dia" updatedAt={now}>
-          <InsightsList items={finalInsights} />
+          <InsightsList items={insights} />
           <p className="mt-3 text-xs text-text-muted">
-            Gerado a partir dos rankings, fluxo agregado e z-score — não atribui fluxo de
-            investidor a um ticker específico (isso só existe no B3 DataWise+, pago).
+            Gerado a partir do fluxo de investidores — não atribui fluxo a um ticker específico (isso só existe no B3 DataWise+, pago).
           </p>
         </Panel>
       )}
@@ -208,16 +192,6 @@ export default async function AcoesPage() {
       <Panel title="Oportunidades — Watchlist B3" updatedAt={now}>
         <div className="flex flex-col gap-4">
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Z-Score</h3>
-            {zScoreHighlights ? (
-              <ZScoreHighlightList items={zScoreHighlights} />
-            ) : (
-              <p className="text-sm text-text-muted">
-                Configure <code>DATABASE_URL</code> e rode o backfill para habilitar o z-score.
-              </p>
-            )}
-          </div>
-          <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
               Preço-Alvo dos Analistas Atingido
             </h3>
@@ -247,27 +221,6 @@ export default async function AcoesPage() {
       </Panel>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {gainers ? (
-          <RankingPanel title="Maiores Altas" items={gainers} updatedAt={now} valueLabel="Preço (R$)" format="price-brl" assetClass="b3" />
-        ) : (
-          <Panel title="Maiores Altas" updatedAt={now}>
-            <p className="text-sm text-down">Fonte indisponível no momento.</p>
-          </Panel>
-        )}
-        {losers ? (
-          <RankingPanel title="Maiores Baixas" items={losers} updatedAt={now} valueLabel="Preço (R$)" format="price-brl" assetClass="b3" />
-        ) : (
-          <Panel title="Maiores Baixas" updatedAt={now}>
-            <p className="text-sm text-down">Fonte indisponível no momento.</p>
-          </Panel>
-        )}
-        {byVolume ? (
-          <RankingPanel title="Maiores Volumes" items={byVolume} updatedAt={now} valueLabel="Preço (R$)" format="price-brl" assetClass="b3" />
-        ) : (
-          <Panel title="Maiores Volumes" updatedAt={now}>
-            <p className="text-sm text-down">Fonte indisponível no momento.</p>
-          </Panel>
-        )}
         <Panel title="Volatilidade — proxy de risco (não é short interest)" updatedAt={now}>
           {volatility ? (
             <VolatilityTable items={volatility} />

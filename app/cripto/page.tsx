@@ -1,5 +1,4 @@
 import { StatCard } from "@/components/StatCard";
-import { RankingPanel } from "@/components/RankingPanel";
 import { Panel } from "@/components/Panel";
 import { getTopCoinMarkets, getCoinCategories, getTrendingCoins, getGlobalCryptoData, type CoinMarket } from "@/lib/sources/coingecko";
 import { TrendingCoinsPanel } from "@/components/TrendingCoinsPanel";
@@ -8,12 +7,12 @@ import { getEtfFlows } from "@/lib/sources/etfFlow";
 import { EtfFlowPanel } from "@/components/EtfFlowPanel";
 import { getDerivativesCache } from "@/lib/db/derivativesCacheRepo";
 import { hasDatabase } from "@/lib/db/client";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, formatCompact } from "@/lib/format";
 import { FundingRateTable, OpenInterestPanel } from "@/components/DerivativesPanel";
 import { OnChainPanel } from "@/components/OnChainPanel";
-import { buildGenericInsights, fillMinimumInsights } from "@/lib/insights";
 import { getProtocolTvl } from "@/lib/sources/defillama";
-import { TvlPanel } from "@/components/TvlPanel";
+import { TvlPanelWithCount } from "@/components/TvlPanelWithCount";
+import { VolumeAnomalPanel } from "@/components/VolumeAnomalPanel";
 import { CRIPTO_WATCHLIST } from "@/lib/watchlist";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { getCriptoMoneyFlowIdeas } from "@/lib/moneyFlowIdeas";
@@ -23,24 +22,8 @@ import { BtcDominanceBar } from "@/components/BtcDominanceBar";
 import { CriptoCycleMeter } from "@/components/CriptoCycleMeter";
 import { BtcCorrelationTable } from "@/components/BtcCorrelationTable";
 import { getBtcCorrelations } from "@/lib/btcCorrelation";
-import type { RankingItem } from "@/lib/types";
 
 export const revalidate = 240;
-
-function toRankingItem(coin: CoinMarket, metric: "price" | "volume" | "marketcap"): RankingItem {
-  const valueByMetric = {
-    price: coin.current_price,
-    volume: coin.total_volume,
-    marketcap: coin.market_cap,
-  };
-  return {
-    symbol: coin.symbol.toUpperCase(),
-    label: coin.name,
-    value: valueByMetric[metric],
-    changePct: coin.price_change_percentage_24h ?? 0,
-    price: metric !== "price" ? coin.current_price : undefined,
-  };
-}
 
 export default async function CriptoPage() {
   let coins: CoinMarket[] = [];
@@ -126,25 +109,9 @@ export default async function CriptoPage() {
   const btc = coins.find((c) => c.symbol.toLowerCase() === "btc");
   const eth = coins.find((c) => c.symbol.toLowerCase() === "eth");
 
-  const gainers = [...coins]
-    .filter((c) => c.price_change_percentage_24h !== null)
-    .sort((a, b) => (b.price_change_percentage_24h ?? 0) - (a.price_change_percentage_24h ?? 0))
-    .map((c) => toRankingItem(c, "price"));
+  const byVolume = [...coins].sort((a, b) => b.total_volume - a.total_volume);
 
-  const losers = [...coins]
-    .filter((c) => c.price_change_percentage_24h !== null)
-    .sort((a, b) => (a.price_change_percentage_24h ?? 0) - (b.price_change_percentage_24h ?? 0))
-    .map((c) => toRankingItem(c, "price"));
-
-  const byVolume = [...coins]
-    .sort((a, b) => b.total_volume - a.total_volume)
-    .map((c) => toRankingItem(c, "volume"));
-
-  const byMarketCap = [...coins]
-    .sort((a, b) => b.market_cap - a.market_cap)
-    .map((c) => toRankingItem(c, "marketcap"));
-
-  const insights: string[] = buildGenericInsights(gainers, losers, byVolume, []);
+  const insights: string[] = [];
 
   if (topSectors && topSectors.length > 0) {
     const bestSector = topSectors[0];
@@ -173,8 +140,6 @@ export default async function CriptoPage() {
     else if (fearGreed.value >= 80) insights.push(`Fear & Greed em ${fearGreed.value} (ganância extrema) — zona histórica de cautela.`);
   }
 
-  const finalInsights = fillMinimumInsights(insights, [...gainers, ...losers]);
-
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -182,9 +147,9 @@ export default async function CriptoPage() {
         <p className="mt-1 text-sm text-text-muted">Dados reais via CoinGecko (delay curto, sem chave de API).</p>
       </div>
 
-      {finalInsights.length > 0 && (
+      {insights.length > 0 && (
         <Panel title="Insights do Dia" updatedAt={now}>
-          <InsightsList items={finalInsights} />
+          <InsightsList items={insights} />
         </Panel>
       )}
 
@@ -235,12 +200,9 @@ export default async function CriptoPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <RankingPanel title="Maiores Altas 24h" items={gainers} updatedAt={now} valueLabel="Preço (US$)" format="price-usd" assetClass="cripto" />
-        <RankingPanel title="Maiores Baixas 24h" items={losers} updatedAt={now} valueLabel="Preço (US$)" format="price-usd" assetClass="cripto" />
-        <RankingPanel title="Maiores Volumes 24h" items={byVolume} updatedAt={now} valueLabel="Volume 24h" format="compact-usd" assetClass="cripto" />
-        <RankingPanel title="Top Market Cap" items={byMarketCap} updatedAt={now} valueLabel="Market Cap" format="compact-usd" assetClass="cripto" />
-      </div>
+      <Panel title="Volume Anormal — Top Cripto por Volume 24h" updatedAt={now}>
+        <VolumeAnomalPanel coins={byVolume} />
+      </Panel>
 
       <Panel title="Setores — melhores e piores do dia" updatedAt={now}>
         {topSectors ? (
@@ -317,7 +279,7 @@ export default async function CriptoPage() {
       </Panel>
 
       <Panel title="TVL por Protocolo — Watchlist" updatedAt={now}>
-        {tvl ? <TvlPanel items={tvl} /> : <p className="text-sm text-down">Fonte indisponível no momento.</p>}
+        {tvl ? <TvlPanelWithCount items={tvl} /> : <p className="text-sm text-down">Fonte indisponível no momento.</p>}
       </Panel>
     </div>
   );

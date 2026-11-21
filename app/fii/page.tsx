@@ -1,15 +1,11 @@
 import { Panel } from "@/components/Panel";
 import { StatCard } from "@/components/StatCard";
-import { RankingPanel } from "@/components/RankingPanel";
 import { NewsFeed } from "@/components/NewsFeed";
 import { getYahooQuote } from "@/lib/sources/yahoo";
-import { getBrapiRanking, getFiiSectorPerformance, type BrapiListItem } from "@/lib/sources/brapi";
+import { getFiiSectorPerformance } from "@/lib/sources/brapi";
 import { getFiiDividendYieldRanking } from "@/lib/sources/investidor10";
 import { getNews } from "@/lib/sources/rss";
 import { formatNumber } from "@/lib/format";
-import { buildGenericInsights, fillMinimumInsights } from "@/lib/insights";
-import { getZScoreHighlights } from "@/lib/zscoreService";
-import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
 import { classifyIndicator, TONE_CLASS } from "@/lib/indicatorColor";
 import { hasDatabase } from "@/lib/db/client";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
@@ -18,13 +14,8 @@ import { FII_WATCHLIST } from "@/lib/watchlist";
 import { getFiiMoneyFlowIdeas } from "@/lib/moneyFlowIdeas";
 import { MoneyFlowIdeasList } from "@/components/MoneyFlowIdeasList";
 import { InsightsList } from "@/components/InsightsList";
-import type { RankingItem } from "@/lib/types";
 
 export const revalidate = 240;
-
-function toRankingItem(item: BrapiListItem): RankingItem {
-  return { symbol: item.symbol, label: item.name, value: item.close, changePct: item.changePct, volume: item.volume };
-}
 
 interface UpcomingDividend {
   symbol: string;
@@ -59,28 +50,17 @@ async function getUpcomingDividends(): Promise<UpcomingDividend[]> {
 export default async function FiiPage() {
   const now = new Date().toISOString();
 
-  const [ifixResult, gainersResult, losersResult, dyResult, sectorResult, news, zScoreResult, upcomingDividends, moneyFlowIdeas] = await Promise.all([
+  const [ifixResult, dyResult, sectorResult, news, upcomingDividends, moneyFlowIdeas] = await Promise.all([
     getYahooQuote("IFIX.SA").catch(() => null),
-    getBrapiRanking("change", "desc", 20, "fund").catch(() => null),
-    getBrapiRanking("change", "asc", 20, "fund").catch(() => null),
     getFiiDividendYieldRanking(20).catch(() => null),
     getFiiSectorPerformance().catch(() => null),
     getNews("fii", 10),
-    getZScoreHighlights("fii").catch(() => null),
     getUpcomingDividends().catch(() => null),
     getFiiMoneyFlowIdeas().catch(() => null),
   ]);
 
-  const gainers = gainersResult?.map(toRankingItem) ?? null;
-  const losers = losersResult?.map(toRankingItem) ?? null;
-
   const insights: string[] = [];
-  if (gainers && losers) {
-    insights.push(...buildGenericInsights(gainers, losers, gainers));
-  }
 
-  // DY acima de ~25%/ano é quase sempre anomalia de dado (fundo em liquidação,
-  // amortização pontual etc.), não rendimento real recorrente — não destaca.
   const plausibleDYs = dyResult?.filter((f) => f.dividendYieldPct > 0 && f.dividendYieldPct <= 25).slice(0, 3) ?? [];
   plausibleDYs.forEach((f, i) => {
     insights.push(
@@ -111,11 +91,7 @@ export default async function FiiPage() {
     );
   }
 
-  insights.push(
-    "Para próxima data de dividendo (ex-dividendo) de um fundo específico, consulte a aba Fundamentalista do fundo."
-  );
-
-  const finalInsights = gainers && losers ? fillMinimumInsights(insights, [...gainers, ...losers]) : insights;
+  insights.push("Para próxima data de dividendo (ex-dividendo) de um fundo específico, consulte a aba Fundamentalista.");
 
   return (
     <div className="flex flex-col gap-6">
@@ -132,9 +108,9 @@ export default async function FiiPage() {
         </div>
       )}
 
-      {finalInsights.length > 0 && (
+      {insights.length > 0 && (
         <Panel title="Insights do Dia" updatedAt={now}>
-          <InsightsList items={finalInsights} defaultCount={12} />
+          <InsightsList items={insights} defaultCount={12} />
         </Panel>
       )}
 
@@ -146,30 +122,6 @@ export default async function FiiPage() {
         )}
       </Panel>
 
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {gainers ? (
-          <RankingPanel title="Maiores Altas de Cota" items={gainers} updatedAt={now} valueLabel="Cota (R$)" format="price-brl" assetClass="fii" />
-        ) : (
-          <Panel title="Maiores Altas de Cota" updatedAt={now}>
-            <p className="text-sm text-down">Fonte indisponível no momento.</p>
-          </Panel>
-        )}
-        {losers ? (
-          <RankingPanel
-            title="Maiores Baixas de Cota (proxy de 'mais vendidos')"
-            items={losers}
-            updatedAt={now}
-            valueLabel="Cota (R$)"
-            format="price-brl"
-            assetClass="fii"
-          />
-        ) : (
-          <Panel title="Maiores Baixas de Cota" updatedAt={now}>
-            <p className="text-sm text-down">Fonte indisponível no momento.</p>
-          </Panel>
-        )}
-      </div>
 
       <Panel title="Maiores Dividend Yields (12 meses)" updatedAt={now}>
         {dyResult ? (
@@ -221,16 +173,6 @@ export default async function FiiPage() {
           </a>
           .
         </p>
-      </Panel>
-
-      <Panel title="Z-Score — Watchlist FII" updatedAt={now}>
-        {zScoreResult ? (
-          <ZScoreHighlightList items={zScoreResult} />
-        ) : (
-          <p className="text-sm text-text-muted">
-            Configure <code>DATABASE_URL</code> e rode o backfill para habilitar o z-score.
-          </p>
-        )}
       </Panel>
 
       <Panel title="Desempenho por Segmento" updatedAt={now}>
