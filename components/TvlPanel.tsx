@@ -1,6 +1,11 @@
 import { formatCompact } from "@/lib/format";
 import type { ProtocolTvl } from "@/lib/sources/defillama";
 
+function changeColor(pct: number | null) {
+  if (pct === null) return "text-text-muted";
+  return pct >= 0 ? "text-up" : "text-down";
+}
+
 export function TvlPanel({ items }: { items: ProtocolTvl[] }) {
   if (items.length === 0) {
     return (
@@ -13,32 +18,34 @@ export function TvlPanel({ items }: { items: ProtocolTvl[] }) {
 
   return (
     <div>
-      <ul className="flex flex-col divide-y divide-border/50">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {items.map((p) => (
-          <li key={p.symbol} className="flex items-center justify-between gap-3 py-2 text-sm first:pt-0 last:pb-0">
-            <div>
-              <span className="font-medium text-text">{p.symbol}</span>{" "}
-              <span className="text-xs text-text-muted">
-                — {p.protocolName} ({p.category})
-              </span>
-            </div>
-            <div className="text-right">
-              <div className="text-text">{formatCompact(p.tvlUsd, "US$")}</div>
-              {p.change7dPct !== null && (
-                <div className={`text-xs ${p.change7dPct >= 0 ? "text-up" : "text-down"}`}>
-                  {p.change7dPct >= 0 ? "+" : ""}
-                  {p.change7dPct.toFixed(1)}% (7d)
-                </div>
+          <div
+            key={p.symbol}
+            className="flex flex-col gap-0.5 rounded border border-border bg-panel-alt px-3 py-2.5"
+          >
+            <div className="flex items-baseline justify-between gap-1">
+              <span className="text-sm font-bold text-text">{p.symbol}</span>
+              {p.change1dPct !== null && (
+                <span className={`text-[10px] font-medium ${changeColor(p.change1dPct)}`}>
+                  {p.change1dPct >= 0 ? "+" : ""}{p.change1dPct.toFixed(1)}%
+                </span>
               )}
             </div>
-          </li>
+            <div className="text-xs font-semibold tabular-nums text-text-muted">
+              {formatCompact(p.tvlUsd, "US$")}
+            </div>
+            {p.change7dPct !== null && (
+              <div className={`text-[10px] ${changeColor(p.change7dPct)}`}>
+                7d: {p.change7dPct >= 0 ? "+" : ""}{p.change7dPct.toFixed(1)}%
+              </div>
+            )}
+            <div className="mt-0.5 text-[10px] text-text-muted truncate" title={p.category}>{p.category}</div>
+          </div>
         ))}
-      </ul>
+      </div>
       <p className="mt-3 text-xs text-text-muted">
-        TVL (Total Value Locked) via DefiLlama, só pra tokens da watchlist que são protocolos DeFi de
-        verdade (empréstimo, DEX, staking líquido, RWA etc.) — blockchains base (BTC, ETH, SOL) ficam
-        de fora de propósito, já que "TVL" não se aplica a elas do mesmo jeito. Quando o token tem
-        várias versões de protocolo (ex.: Aave V1-V4), o valor é a soma de todas.
+        TVL via DefiLlama — só protocolos DeFi da watchlist (DEX, empréstimo, staking líquido etc.). Variação 1d e 7d.
       </p>
     </div>
   );

@@ -1,33 +1,28 @@
 import { StatCard } from "@/components/StatCard";
 import { RankingPanel } from "@/components/RankingPanel";
 import { Panel } from "@/components/Panel";
-import { NewsFeed } from "@/components/NewsFeed";
-import { ZScoreHighlightList } from "@/components/ZScoreHighlightList";
-import { RankingTable } from "@/components/RankingTable";
-import { getTopCoinMarkets, getCoinCategories, getTrendingCoins, type CoinMarket } from "@/lib/sources/coingecko";
+import { getTopCoinMarkets, getCoinCategories, getTrendingCoins, getGlobalCryptoData, type CoinMarket } from "@/lib/sources/coingecko";
 import { TrendingCoinsPanel } from "@/components/TrendingCoinsPanel";
 import { getOnChainSnapshot, getFearGreedIndex } from "@/lib/sources/onchain";
 import { getEtfFlows } from "@/lib/sources/etfFlow";
 import { EtfFlowPanel } from "@/components/EtfFlowPanel";
 import { getDerivativesCache } from "@/lib/db/derivativesCacheRepo";
 import { hasDatabase } from "@/lib/db/client";
-import { getNews } from "@/lib/sources/rss";
-import { getZScoreHighlights } from "@/lib/zscoreService";
 import { formatPrice } from "@/lib/format";
 import { FundingRateTable, OpenInterestPanel } from "@/components/DerivativesPanel";
 import { OnChainPanel } from "@/components/OnChainPanel";
 import { buildGenericInsights, fillMinimumInsights } from "@/lib/insights";
 import { getProtocolTvl } from "@/lib/sources/defillama";
 import { TvlPanel } from "@/components/TvlPanel";
-import { getNegativeCryptoSignals } from "@/lib/cryptoNewsSentiment";
-import { CryptoSentimentPanel } from "@/components/CryptoSentimentPanel";
 import { CRIPTO_WATCHLIST } from "@/lib/watchlist";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { getCriptoMoneyFlowIdeas } from "@/lib/moneyFlowIdeas";
 import { MoneyFlowIdeasList } from "@/components/MoneyFlowIdeasList";
 import { InsightsList } from "@/components/InsightsList";
-import { getMultiPeriodRanking } from "@/lib/multiPeriodRanking";
-import { MultiPeriodRankingTable } from "@/components/MultiPeriodRankingTable";
+import { BtcDominanceBar } from "@/components/BtcDominanceBar";
+import { CriptoCycleMeter } from "@/components/CriptoCycleMeter";
+import { BtcCorrelationTable } from "@/components/BtcCorrelationTable";
+import { getBtcCorrelations } from "@/lib/btcCorrelation";
 import type { RankingItem } from "@/lib/types";
 
 export const revalidate = 240;
@@ -63,22 +58,31 @@ export default async function CriptoPage() {
       })()
     : Promise.resolve(CRIPTO_WATCHLIST);
 
-  const [coinsResult, newsResult, zScoreResult, categoriesResult, derivativesResult, onChainResult, fearGreedResult, etfFlowResult, trendingResult, tvlResult, sentimentResult, ideasResult, multiPeriodResult] =
-    await Promise.allSettled([
-      getTopCoinMarkets(100),
-      getNews("cripto", 10),
-      getZScoreHighlights("cripto"),
-      getCoinCategories(),
-      hasDatabase() ? getDerivativesCache() : Promise.resolve(null),
-      getOnChainSnapshot(),
-      getFearGreedIndex(),
-      getEtfFlows(),
-      getTrendingCoins(),
-      criptoWatchlist.then((w) => getProtocolTvl(w.map((x) => x.symbol))),
-      criptoWatchlist.then((w) => getNegativeCryptoSignals(w)),
-      getCriptoMoneyFlowIdeas(),
-      getMultiPeriodRanking("cripto"),
-    ]);
+  const [
+    coinsResult,
+    derivativesResult,
+    onChainResult,
+    fearGreedResult,
+    etfFlowResult,
+    trendingResult,
+    tvlResult,
+    ideasResult,
+    globalResult,
+    categoriesResult,
+    correlationResult,
+  ] = await Promise.allSettled([
+    getTopCoinMarkets(100),
+    hasDatabase() ? getDerivativesCache() : Promise.resolve(null),
+    getOnChainSnapshot(),
+    getFearGreedIndex(),
+    getEtfFlows(),
+    getTrendingCoins(),
+    criptoWatchlist.then((w) => getProtocolTvl(w.map((x) => x.symbol))),
+    getCriptoMoneyFlowIdeas(),
+    getGlobalCryptoData(),
+    getCoinCategories(),
+    criptoWatchlist.then((w) => getBtcCorrelations(w)),
+  ]);
 
   if (coinsResult.status === "fulfilled") {
     coins = coinsResult.value;
@@ -87,20 +91,18 @@ export default async function CriptoPage() {
     fetchError = coinsResult.reason instanceof Error ? coinsResult.reason.message : "Falha desconhecida";
   }
 
-  const news = newsResult.status === "fulfilled" ? newsResult.value : [];
-  const zScoreHighlights = zScoreResult.status === "fulfilled" ? zScoreResult.value : null;
-  const categories = categoriesResult.status === "fulfilled" ? categoriesResult.value : null;
-  if (derivativesResult.status === "rejected") console.error("Derivativos cripto indisponíveis:", derivativesResult.reason);
   const derivatives = derivativesResult.status === "fulfilled" ? (derivativesResult.value?.data ?? null) : null;
   const derivativesUpdatedAt = derivativesResult.status === "fulfilled" ? (derivativesResult.value?.updatedAt ?? null) : null;
-  const onChain = onChainResult.status === "fulfilled" ? onChainResult.value : null;
+  const onChain = onChainResult.status === "fulfilled" ? onChainResult.value : [];
   const fearGreed = fearGreedResult.status === "fulfilled" ? fearGreedResult.value : null;
   const etfFlows = etfFlowResult.status === "fulfilled" ? etfFlowResult.value : null;
   const trending = trendingResult.status === "fulfilled" ? trendingResult.value : null;
   const tvl = tvlResult.status === "fulfilled" ? tvlResult.value : null;
-  const cryptoSentiment = sentimentResult.status === "fulfilled" ? sentimentResult.value : null;
   const moneyFlowIdeas = ideasResult.status === "fulfilled" ? ideasResult.value : null;
-  const multiPeriod = multiPeriodResult.status === "fulfilled" ? multiPeriodResult.value : null;
+  const global = globalResult.status === "fulfilled" ? globalResult.value : null;
+  const categories = categoriesResult.status === "fulfilled" ? categoriesResult.value : null;
+  const correlations = correlationResult.status === "fulfilled" ? correlationResult.value : [];
+
   const topSectors = categories
     ? [...categories].filter((c) => c.marketCapChange24h !== null).sort((a, b) => (b.marketCapChange24h ?? 0) - (a.marketCapChange24h ?? 0))
     : null;
@@ -116,18 +118,6 @@ export default async function CriptoPage() {
             Fonte indisponível no momento{fetchError ? `: ${fetchError}` : "."} As demais seções do
             dashboard continuam funcionando normalmente.
           </p>
-        </Panel>
-        <Panel title="Z-Score Cripto" updatedAt={now}>
-          {zScoreHighlights ? (
-            <ZScoreHighlightList items={zScoreHighlights} />
-          ) : (
-            <p className="text-sm text-text-muted">
-              Configure <code>DATABASE_URL</code> e rode o backfill para habilitar o z-score.
-            </p>
-          )}
-        </Panel>
-        <Panel title="Notícias Cripto" updatedAt={now}>
-          <NewsFeed items={news} now={now} />
         </Panel>
       </div>
     );
@@ -154,32 +144,7 @@ export default async function CriptoPage() {
     .sort((a, b) => b.market_cap - a.market_cap)
     .map((c) => toRankingItem(c, "marketcap"));
 
-  // Volume anormal: proxy simples de volume/market cap — quanto maior, mais
-  // "quente" o interesse do dia relativo ao tamanho da moeda (filtra micro
-  // caps abaixo de US$ 50mi de market cap pra evitar ruído).
-  const byVolumeRatio = [...coins]
-    .filter((c) => c.market_cap >= 50_000_000)
-    .map((c) => ({
-      symbol: c.symbol.toUpperCase(),
-      label: c.name,
-      value: c.total_volume / c.market_cap,
-      changePct: c.price_change_percentage_24h ?? 0,
-    }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 10);
-
-  const insights: string[] = buildGenericInsights(
-    gainers,
-    losers,
-    byVolume,
-    zScoreHighlights ?? []
-  );
-
-  if (byVolumeRatio[0]) {
-    insights.push(
-      `${byVolumeRatio[0].symbol} com volume/market cap de ${(byVolumeRatio[0].value * 100).toFixed(0)}% — atividade de negociação desproporcional ao tamanho da moeda hoje.`
-    );
-  }
+  const insights: string[] = buildGenericInsights(gainers, losers, byVolume, []);
 
   if (topSectors && topSectors.length > 0) {
     const bestSector = topSectors[0];
@@ -193,7 +158,7 @@ export default async function CriptoPage() {
   if (extremeFunding) {
     const direction = extremeFunding.fundingRatePct > 0 ? "comprado" : "vendido";
     insights.push(
-      `Funding rate de ${extremeFunding.symbol} em ${extremeFunding.fundingRatePct.toFixed(3)}% — mercado de perpétuos ${direction} demais, risco de liquidação em cascata.`
+      `Funding rate de ${extremeFunding.symbol} em ${extremeFunding.fundingRatePct.toFixed(3)}% — mercado de perpétuos ${direction} demais.`
     );
   }
 
@@ -204,8 +169,8 @@ export default async function CriptoPage() {
   }
 
   if (fearGreed) {
-    if (fearGreed.value <= 20) insights.push(`Fear & Greed Index em ${fearGreed.value} (medo extremo) — historicamente zona de acumulação, não de pânico vender.`);
-    else if (fearGreed.value >= 80) insights.push(`Fear & Greed Index em ${fearGreed.value} (ganância extrema) — historicamente zona de cautela.`);
+    if (fearGreed.value <= 20) insights.push(`Fear & Greed em ${fearGreed.value} (medo extremo) — zona histórica de acumulação.`);
+    else if (fearGreed.value >= 80) insights.push(`Fear & Greed em ${fearGreed.value} (ganância extrema) — zona histórica de cautela.`);
   }
 
   const finalInsights = fillMinimumInsights(insights, [...gainers, ...losers]);
@@ -223,6 +188,23 @@ export default async function CriptoPage() {
         </Panel>
       )}
 
+      {/* ── NOVO: Dominância BTC/ETH/Alts ─────────────────────────────── */}
+      {global && (
+        <Panel title="Dominância de Mercado" updatedAt={now}>
+          <BtcDominanceBar global={global} />
+        </Panel>
+      )}
+
+      {/* ── NOVO: Semáforo de Ciclo ────────────────────────────────────── */}
+      <Panel title="Semáforo de Ciclo" updatedAt={now}>
+        <CriptoCycleMeter
+          global={global}
+          onChain={onChain ?? []}
+          fearGreed={fearGreed}
+          derivatives={derivatives ?? []}
+        />
+      </Panel>
+
       <Panel title="Onde o Dinheiro Está Indo" updatedAt={now}>
         {moneyFlowIdeas ? (
           <MoneyFlowIdeasList items={moneyFlowIdeas} />
@@ -231,22 +213,17 @@ export default async function CriptoPage() {
         )}
       </Panel>
 
-      <Panel title="Variação Multi-Período — Watchlist" updatedAt={now}>
-        {multiPeriod ? (
-          <MultiPeriodRankingTable items={multiPeriod} assetClass="cripto" />
+      <Panel title="Trending — Onde a Atenção Está" updatedAt={now}>
+        {trending ? (
+          <>
+            <TrendingCoinsPanel items={trending} />
+            <p className="mt-2 text-xs text-text-muted">
+              Top buscas e menções nas últimas 24h via CoinGecko — reflete interesse de varejo, não institucional.
+            </p>
+          </>
         ) : (
           <p className="text-sm text-down">Fonte indisponível no momento.</p>
         )}
-        <p className="mt-3 text-xs text-text-muted">
-          1/7/30 dias, só dos ativos da sua Watchlist (histórico coletado diariamente) — diferente
-          das tabelas de Maiores Altas/Baixas acima, que são o mercado inteiro mas só de 24h.
-          Clique no cabeçalho da coluna pra ordenar. Ativo recém-adicionado pode não ter 30 dias de
-          histórico ainda.
-        </p>
-      </Panel>
-
-      <Panel title="Trending — Onde a Atenção Está" updatedAt={now}>
-        {trending ? <TrendingCoinsPanel items={trending} /> : <p className="text-sm text-down">Fonte indisponível no momento.</p>}
       </Panel>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -259,38 +236,10 @@ export default async function CriptoPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <RankingPanel
-          title="Maiores Altas 24h"
-          items={gainers}
-          updatedAt={now}
-          valueLabel="Preço (US$)"
-          format="price-usd"
-          assetClass="cripto"
-        />
-        <RankingPanel
-          title="Maiores Baixas 24h"
-          items={losers}
-          updatedAt={now}
-          valueLabel="Preço (US$)"
-          format="price-usd"
-          assetClass="cripto"
-        />
-        <RankingPanel
-          title="Maiores Volumes 24h"
-          items={byVolume}
-          updatedAt={now}
-          valueLabel="Volume 24h"
-          format="compact-usd"
-          assetClass="cripto"
-        />
-        <RankingPanel
-          title="Top Market Cap"
-          items={byMarketCap}
-          updatedAt={now}
-          valueLabel="Market Cap"
-          format="compact-usd"
-          assetClass="cripto"
-        />
+        <RankingPanel title="Maiores Altas 24h" items={gainers} updatedAt={now} valueLabel="Preço (US$)" format="price-usd" assetClass="cripto" />
+        <RankingPanel title="Maiores Baixas 24h" items={losers} updatedAt={now} valueLabel="Preço (US$)" format="price-usd" assetClass="cripto" />
+        <RankingPanel title="Maiores Volumes 24h" items={byVolume} updatedAt={now} valueLabel="Volume 24h" format="compact-usd" assetClass="cripto" />
+        <RankingPanel title="Top Market Cap" items={byMarketCap} updatedAt={now} valueLabel="Market Cap" format="compact-usd" assetClass="cripto" />
       </div>
 
       <Panel title="Setores — melhores e piores do dia" updatedAt={now}>
@@ -324,7 +273,12 @@ export default async function CriptoPage() {
         )}
       </Panel>
 
-      <Panel title="Open Interest — Perpétuos Binance (via CoinGecko)" updatedAt={derivativesUpdatedAt ?? now}>
+      {/* ── NOVO: Correlação BTC vs Alts ──────────────────────────────── */}
+      <Panel title="Correlação com BTC — Watchlist (30d)" updatedAt={now}>
+        <BtcCorrelationTable items={correlations} />
+      </Panel>
+
+      <Panel title="Open Interest — Perpétuos Binance" updatedAt={derivativesUpdatedAt ?? now}>
         {derivatives && derivatives.length > 0 ? (
           <OpenInterestPanel items={derivatives} />
         ) : (
@@ -332,17 +286,17 @@ export default async function CriptoPage() {
         )}
       </Panel>
 
-      <Panel title="Funding Rate — Perpétuos Binance (via CoinGecko)" updatedAt={derivativesUpdatedAt ?? now}>
+      <Panel title="Funding Rate — Perpétuos Binance" updatedAt={derivativesUpdatedAt ?? now}>
         {derivatives && derivatives.length > 0 ? (
-          <FundingRateTable items={derivatives} />
+          <>
+            <FundingRateTable items={derivatives} />
+            <p className="mt-3 text-xs text-text-muted">
+              Funding positivo = longs pagando shorts (mercado comprado demais); negativo = crowded short.
+              Coletado a cada 15 min via GitHub Actions (Binance recusa chamadas diretas da Vercel).
+            </p>
+          </>
         ) : (
           <p className="text-sm text-down">Fonte indisponível no momento.</p>
-        )}
-        {derivatives && derivatives.length > 0 && (
-          <p className="mt-3 text-xs text-text-muted">
-            Fonte: CoinGecko (perpétuos da Binance Futures), coletado a cada 15 min e guardado no banco. Long/short ratio saiu: a Binance
-            recusa chamadas da Vercel e o CoinGecko não tem esse dado.
-          </p>
         )}
       </Panel>
 
@@ -362,44 +316,8 @@ export default async function CriptoPage() {
         )}
       </Panel>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Panel title="Z-Score Cripto" updatedAt={now}>
-          {zScoreHighlights ? (
-            <ZScoreHighlightList items={zScoreHighlights} />
-          ) : (
-            <p className="text-sm text-text-muted">
-              Configure <code>DATABASE_URL</code> e rode o backfill para habilitar o z-score.
-            </p>
-          )}
-        </Panel>
-        <Panel title="Volume Anormal (top 100 por market cap)" updatedAt={now}>
-          <RankingTable
-            items={byVolumeRatio}
-            valueLabel="Volume/Market Cap"
-            format="percent-of-1"
-          />
-          <p className="mt-3 text-xs text-text-muted">
-            Proxy simples: volume 24h dividido pelo market cap. Quanto maior, mais desproporcional o
-            interesse de negociação hoje frente ao tamanho normal da moeda — filtra moedas abaixo de
-            US$ 50mi de market cap pra evitar ruído de micro caps.
-          </p>
-        </Panel>
-      </div>
-
       <Panel title="TVL por Protocolo — Watchlist" updatedAt={now}>
         {tvl ? <TvlPanel items={tvl} /> : <p className="text-sm text-down">Fonte indisponível no momento.</p>}
-      </Panel>
-
-      <Panel title="Sentimento de Notícias — Watchlist (7 dias)" updatedAt={now}>
-        {cryptoSentiment ? (
-          <CryptoSentimentPanel items={cryptoSentiment} />
-        ) : (
-          <p className="text-sm text-down">Fonte indisponível no momento.</p>
-        )}
-      </Panel>
-
-      <Panel title="Notícias Cripto" updatedAt={now}>
-        <NewsFeed items={news} now={now} />
       </Panel>
     </div>
   );

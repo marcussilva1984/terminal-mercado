@@ -173,3 +173,34 @@ export async function getCoinCategories(): Promise<CoinCategory[]> {
       volume24h: c.volume_24h,
     }));
 }
+
+export interface GlobalCryptoData {
+  btcDominance: number;   // % do market cap total que é BTC
+  ethDominance: number;
+  totalMarketCapUsd: number;
+  totalVolumeUsd: number;
+  marketCapChangePercent24h: number;
+}
+
+export async function getGlobalCryptoData(): Promise<GlobalCryptoData | null> {
+  try {
+    const res = await fetch(`${COINGECKO_BASE}/global`, {
+      next: { revalidate: 300 },
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const d = json?.data;
+    if (!d) return null;
+    return {
+      btcDominance: d.market_cap_percentage?.btc ?? 0,
+      ethDominance: d.market_cap_percentage?.eth ?? 0,
+      totalMarketCapUsd: d.total_market_cap?.usd ?? 0,
+      totalVolumeUsd: d.total_volume?.usd ?? 0,
+      marketCapChangePercent24h: d.market_cap_change_percentage_24h_usd ?? 0,
+    };
+  } catch {
+    return null;
+  }
+}
