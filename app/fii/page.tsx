@@ -18,8 +18,6 @@ import { FII_WATCHLIST } from "@/lib/watchlist";
 import { getFiiMoneyFlowIdeas } from "@/lib/moneyFlowIdeas";
 import { MoneyFlowIdeasList } from "@/components/MoneyFlowIdeasList";
 import { InsightsList } from "@/components/InsightsList";
-import { getMultiPeriodRanking } from "@/lib/multiPeriodRanking";
-import { MultiPeriodRankingTable } from "@/components/MultiPeriodRankingTable";
 import type { RankingItem } from "@/lib/types";
 
 export const revalidate = 240;
@@ -61,7 +59,7 @@ async function getUpcomingDividends(): Promise<UpcomingDividend[]> {
 export default async function FiiPage() {
   const now = new Date().toISOString();
 
-  const [ifixResult, gainersResult, losersResult, dyResult, sectorResult, news, zScoreResult, upcomingDividends, moneyFlowIdeas, multiPeriod] = await Promise.all([
+  const [ifixResult, gainersResult, losersResult, dyResult, sectorResult, news, zScoreResult, upcomingDividends, moneyFlowIdeas] = await Promise.all([
     getYahooQuote("IFIX.SA").catch(() => null),
     getBrapiRanking("change", "desc", 20, "fund").catch(() => null),
     getBrapiRanking("change", "asc", 20, "fund").catch(() => null),
@@ -71,7 +69,6 @@ export default async function FiiPage() {
     getZScoreHighlights("fii").catch(() => null),
     getUpcomingDividends().catch(() => null),
     getFiiMoneyFlowIdeas().catch(() => null),
-    getMultiPeriodRanking("fii").catch(() => null),
   ]);
 
   const gainers = gainersResult?.map(toRankingItem) ?? null;
@@ -149,19 +146,6 @@ export default async function FiiPage() {
         )}
       </Panel>
 
-      <Panel title="Variação Multi-Período — Watchlist" updatedAt={now}>
-        {multiPeriod ? (
-          <MultiPeriodRankingTable items={multiPeriod} assetClass="fii" />
-        ) : (
-          <p className="text-sm text-down">Fonte indisponível no momento.</p>
-        )}
-        <p className="mt-3 text-xs text-text-muted">
-          1/7/30 dias, só dos fundos da sua Watchlist (histórico coletado diariamente) — diferente
-          das tabelas de Maiores Altas/Baixas de cota acima, que são o mercado inteiro mas só do
-          dia. Clique no cabeçalho da coluna pra ordenar. Fundo recém-adicionado pode não ter 30
-          dias de histórico ainda.
-        </p>
-      </Panel>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {gainers ? (

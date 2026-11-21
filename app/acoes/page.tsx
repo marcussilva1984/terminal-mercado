@@ -18,8 +18,6 @@ import { hasDatabase } from "@/lib/db/client";
 import { getB3MoneyFlowIdeas } from "@/lib/moneyFlowIdeas";
 import { MoneyFlowIdeasList } from "@/components/MoneyFlowIdeasList";
 import { InsightsList } from "@/components/InsightsList";
-import { getMultiPeriodRanking } from "@/lib/multiPeriodRanking";
-import { MultiPeriodRankingTable } from "@/components/MultiPeriodRankingTable";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { formatNumber } from "@/lib/format";
 import type { AnalystTarget } from "@/lib/sources/yahooAnalyst";
@@ -120,7 +118,7 @@ const getUpcomingEarnings = unstable_cache(computeUpcomingEarnings, ["b3-upcomin
 export default async function AcoesPage() {
   const now = new Date().toISOString();
 
-  const [flowResult, newsResult, zScoreResult, gainersResult, losersResult, volumeResult, volatilityResult, fatosResult, priceTargetResult, earningsResult, ideasResult, multiPeriodResult] =
+  const [flowResult, newsResult, zScoreResult, gainersResult, losersResult, volumeResult, volatilityResult, fatosResult, priceTargetResult, earningsResult, ideasResult] =
     await Promise.allSettled([
       getFlowHistory(),
       getNews("b3", 10),
@@ -133,7 +131,6 @@ export default async function AcoesPage() {
       getB3PriceTargetHits(),
       getUpcomingEarnings(),
       getB3MoneyFlowIdeas(),
-      getMultiPeriodRanking("b3"),
     ]);
 
   const news = newsResult.status === "fulfilled" ? newsResult.value : [];
@@ -146,7 +143,6 @@ export default async function AcoesPage() {
   const priceTargetHits = priceTargetResult.status === "fulfilled" ? priceTargetResult.value : null;
   const upcomingEarnings = earningsResult.status === "fulfilled" ? earningsResult.value : null;
   const moneyFlowIdeas = ideasResult.status === "fulfilled" ? ideasResult.value : null;
-  const multiPeriod = multiPeriodResult.status === "fulfilled" ? multiPeriodResult.value : null;
 
   const insights =
     gainers && losers && byVolume && flowResult.status === "fulfilled"
@@ -185,19 +181,6 @@ export default async function AcoesPage() {
         )}
       </Panel>
 
-      <Panel title="Variação Multi-Período — Watchlist" updatedAt={now}>
-        {multiPeriod ? (
-          <MultiPeriodRankingTable items={multiPeriod} assetClass="b3" />
-        ) : (
-          <p className="text-sm text-down">Fonte indisponível no momento.</p>
-        )}
-        <p className="mt-3 text-xs text-text-muted">
-          1/7/30 dias, só dos ativos da sua Watchlist (histórico coletado diariamente) — diferente
-          das tabelas de Maiores Altas/Baixas acima, que são o mercado inteiro mas só do dia.
-          Clique no cabeçalho da coluna pra ordenar. Ativo recém-adicionado pode não ter 30 dias de
-          histórico ainda.
-        </p>
-      </Panel>
 
       <Panel title="Fluxo de Investidores — Semáforo" updatedAt={now}>
         {flowResult.status === "fulfilled" ? (
