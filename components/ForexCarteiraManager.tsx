@@ -12,7 +12,7 @@ interface ForexEntry {
   recordedAt: string;
 }
 
-const DEFAULT_BROKERS = ["EBC", "AXI", "ICMarkets", "FBS", "XM", "Pepperstone", "Outro"];
+const DEFAULT_BROKERS = ["EBC", "ICMarkets", "FBS", "XM", "Pepperstone", "Outro"];
 const BROKER_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4", "#ec4899", "#84cc16"];
 
 function fmt(value: number): string {
