@@ -235,6 +235,58 @@ export default async function CriptoPage() {
         )}
       </Panel>
 
+      {/* ── Referências de preço: ATH e distância ─────────────────────── */}
+      <Panel title="Referência de Preço — Distância do ATH (Watchlist)" updatedAt={now}>
+        {coins.length > 0 ? (() => {
+          const watchCoins = coins.filter((c) =>
+            CRIPTO_WATCHLIST.some(
+              (w) => w.symbol.toLowerCase() === c.symbol.toLowerCase()
+            )
+          );
+          if (watchCoins.length === 0) return <p className="text-sm text-text-muted">Sem dados.</p>;
+          return (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-xs text-text-muted">
+                    <th className="pb-2 text-left font-medium">Ativo</th>
+                    <th className="pb-2 text-right font-medium">Atual</th>
+                    <th className="pb-2 text-right font-medium hidden sm:table-cell">ATH</th>
+                    <th className="pb-2 text-right font-medium">Dist. ATH</th>
+                    <th className="pb-2 text-right font-medium hidden sm:table-cell">Var. 24h</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {watchCoins.map((c) => {
+                    const distAth = c.ath && c.current_price
+                      ? ((c.current_price - c.ath) / c.ath) * 100
+                      : null;
+                    return (
+                      <tr key={c.symbol} className="border-b border-border/40 last:border-0">
+                        <td className="py-2 font-medium text-text">{c.symbol.toUpperCase()}</td>
+                        <td className="py-2 text-right tabular-nums text-text">{formatPrice(c.current_price, "USD")}</td>
+                        <td className="py-2 text-right tabular-nums text-text-muted hidden sm:table-cell">
+                          {c.ath ? formatPrice(c.ath, "USD") : "—"}
+                        </td>
+                        <td className={`py-2 text-right tabular-nums font-semibold ${distAth !== null && distAth >= -10 ? "text-up" : "text-down"}`}>
+                          {distAth !== null ? `${distAth >= 0 ? "+" : ""}${distAth.toFixed(1)}%` : "—"}
+                        </td>
+                        <td className={`py-2 text-right hidden sm:table-cell ${(c.price_change_percentage_24h ?? 0) >= 0 ? "text-up" : "text-down"}`}>
+                          {c.price_change_percentage_24h != null ? `${c.price_change_percentage_24h >= 0 ? "+" : ""}${c.price_change_percentage_24h.toFixed(2)}%` : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <p className="mt-3 text-xs text-text-muted">
+                Cripto não tem cobertura de analistas sell-side em fonte gratuita. ATH (All-Time High) é a referência de &quot;teto histórico&quot; via CoinGecko. Distância negativa = quanto falta pra bater o ATH.
+              </p>
+            </div>
+          );
+        })() : <p className="text-sm text-down">Fonte indisponível.</p>}
+      </Panel>
+
       {/* ── NOVO: Correlação BTC vs Alts ──────────────────────────────── */}
       <Panel title="Correlação com BTC — Watchlist (30d)" updatedAt={now}>
         <BtcCorrelationTable items={correlations} />

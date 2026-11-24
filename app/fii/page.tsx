@@ -14,8 +14,25 @@ import { FII_WATCHLIST } from "@/lib/watchlist";
 import { getFiiMoneyFlowIdeas } from "@/lib/moneyFlowIdeas";
 import { MoneyFlowIdeasList } from "@/components/MoneyFlowIdeasList";
 import { InsightsList } from "@/components/InsightsList";
+import { AnalystRadar } from "@/components/AnalystRadar";
+import type { AnalystTarget } from "@/lib/sources/yahooAnalyst";
 
 export const revalidate = 240;
+
+async function getFiiAnalystTargets(): Promise<AnalystTarget[]> {
+  try {
+    const watchlist = FII_WATCHLIST;
+    const symbols = watchlist.map((w) => `${w.symbol}.SA`).join(",");
+    const res = await fetch(`${getBaseUrl()}/api/analyst-targets?symbols=${encodeURIComponent(symbols)}`, {
+      next: { revalidate: 60 * 60 },
+    });
+    const json = await res.json();
+    if (!json.available) return [];
+    return json.data as AnalystTarget[];
+  } catch {
+    return [];
+  }
+}
 
 interface UpcomingDividend {
   symbol: string;
@@ -50,13 +67,14 @@ async function getUpcomingDividends(): Promise<UpcomingDividend[]> {
 export default async function FiiPage() {
   const now = new Date().toISOString();
 
-  const [ifixResult, dyResult, sectorResult, news, upcomingDividends, moneyFlowIdeas] = await Promise.all([
+  const [ifixResult, dyResult, sectorResult, news, upcomingDividends, moneyFlowIdeas, analystTargets] = await Promise.all([
     getYahooQuote("IFIX.SA").catch(() => null),
     getFiiDividendYieldRanking(20).catch(() => null),
     getFiiSectorPerformance().catch(() => null),
     getNews("fii", 10),
     getUpcomingDividends().catch(() => null),
     getFiiMoneyFlowIdeas().catch(() => null),
+    getFiiAnalystTargets().catch(() => [] as AnalystTarget[]),
   ]);
 
   const insights: string[] = [];
@@ -122,6 +140,10 @@ export default async function FiiPage() {
         )}
       </Panel>
 
+
+      <Panel title="Radar de Analistas — Watchlist FII" updatedAt={now}>
+        <AnalystRadar targets={analystTargets} />
+      </Panel>
 
       <Panel title="Maiores Dividend Yields (12 meses)" updatedAt={now}>
         {dyResult ? (

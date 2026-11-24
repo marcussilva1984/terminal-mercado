@@ -16,6 +16,7 @@ import { InsightsList } from "@/components/InsightsList";
 import { getWatchlist } from "@/lib/db/watchlistRepo";
 import { formatNumber } from "@/lib/format";
 import type { AnalystTarget } from "@/lib/sources/yahooAnalyst";
+import { AnalystRadar } from "@/components/AnalystRadar";
 import { VolatilityTable } from "@/components/VolatilityTable";
 import { getFatosRelevantes } from "@/lib/sources/cvmFatosRelevantes";
 import { FatosRelevantesTable } from "@/components/FatosRelevantesTable";
@@ -30,13 +31,7 @@ import { FatosRelevantesTable } from "@/components/FatosRelevantesTable";
 // quebrada, não minutos por cache).
 export const revalidate = 240;
 
-interface PriceTargetHit {
-  symbol: string;
-  currentPrice: number;
-  targetMeanPrice: number;
-}
-
-async function computeB3PriceTargetHits(): Promise<PriceTargetHit[] | null> {
+async function computeB3AnalystTargets(): Promise<AnalystTarget[] | null> {
   try {
     const symbols = B3_WATCHLIST.map((w) => `${w.symbol}.SA`).join(",");
     const res = await fetch(`${getBaseUrl()}/api/analyst-targets?symbols=${encodeURIComponent(symbols)}`, {
@@ -44,14 +39,7 @@ async function computeB3PriceTargetHits(): Promise<PriceTargetHit[] | null> {
     });
     const json = await res.json();
     if (!json.available) return null;
-    const targets: AnalystTarget[] = json.data;
-    return targets
-      .filter((t) => t.currentPrice !== null && t.targetMeanPrice !== null && t.currentPrice >= t.targetMeanPrice)
-      .map((t) => ({
-        symbol: t.symbol.replace(".SA", ""),
-        currentPrice: t.currentPrice as number,
-        targetMeanPrice: t.targetMeanPrice as number,
-      }));
+    return json.data as AnalystTarget[];
   } catch {
     return null;
   }
@@ -92,7 +80,7 @@ async function computeUpcomingEarnings(): Promise<UpcomingEarnings[]> {
 // em toda visita à página, sendo o motivo real da aba Ações continuar bem
 // mais lenta que as outras mesmo depois de outras otimizações. Mesmo padrão
 // de cache já usado nos outros agregadores pesados do site.
-const getB3PriceTargetHits = unstable_cache(computeB3PriceTargetHits, ["b3-price-target-hits"], {
+const getB3AnalystTargets = unstable_cache(computeB3AnalystTargets, ["b3-analyst-targets"], {
   revalidate: 15 * 60,
 });
 const getUpcomingEarnings = unstable_cache(computeUpcomingEarnings, ["b3-upcoming-earnings"], {
@@ -102,13 +90,13 @@ const getUpcomingEarnings = unstable_cache(computeUpcomingEarnings, ["b3-upcomin
 export default async function AcoesPage() {
   const now = new Date().toISOString();
 
-  const [flowResult, newsResult, volatilityResult, fatosResult, priceTargetResult, earningsResult, ideasResult] =
+  const [flowResult, newsResult, volatilityResult, fatosResult, analystResult, earningsResult, ideasResult] =
     await Promise.allSettled([
       getFlowHistory(),
       getNews("b3", 10),
       getB3VolatilityRanking(),
       getFatosRelevantes(25),
-      getB3PriceTargetHits(),
+      getB3AnalystTargets(),
       getUpcomingEarnings(),
       getB3MoneyFlowIdeas(),
     ]);
@@ -116,7 +104,7 @@ export default async function AcoesPage() {
   const news = newsResult.status === "fulfilled" ? newsResult.value : [];
   const volatility = volatilityResult.status === "fulfilled" ? volatilityResult.value : null;
   const fatosRelevantes = fatosResult.status === "fulfilled" ? fatosResult.value : null;
-  const priceTargetHits = priceTargetResult.status === "fulfilled" ? priceTargetResult.value : null;
+  const analystTargets = analystResult.status === "fulfilled" ? (analystResult.value ?? []) : [];
   const upcomingEarnings = earningsResult.status === "fulfilled" ? earningsResult.value : null;
   const moneyFlowIdeas = ideasResult.status === "fulfilled" ? ideasResult.value : null;
 
@@ -195,27 +183,7 @@ export default async function AcoesPage() {
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
               Preço-Alvo dos Analistas Atingido
             </h3>
-            {priceTargetHits ? (
-              priceTargetHits.length > 0 ? (
-                <ul className="flex flex-col divide-y divide-border/50">
-                  {priceTargetHits.map((t) => (
-                    <li key={t.symbol} className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
-                      <a href={`/ticker/${t.symbol}?class=b3`} className="text-sm font-medium text-gold-bright hover:underline">
-                        {t.symbol}
-                      </a>
-                      <span className="text-sm text-text">
-                        R$ {formatNumber(t.currentPrice)}{" "}
-                        <span className="text-text-muted">(alvo R$ {formatNumber(t.targetMeanPrice)})</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-text-muted">Nenhum papel da watchlist bateu o alvo médio dos analistas agora.</p>
-              )
-            ) : (
-              <p className="text-sm text-down">Fonte indisponível no momento.</p>
-            )}
+            <AnalystRadar targets={analystTargets} />
           </div>
         </div>
       </Panel>

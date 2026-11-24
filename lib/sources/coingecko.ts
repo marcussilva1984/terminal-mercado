@@ -6,6 +6,8 @@ export interface CoinMarket {
   market_cap: number;
   total_volume: number;
   price_change_percentage_24h: number | null;
+  ath: number | null;
+  ath_change_percentage: number | null;
 }
 
 const COINGECKO_BASE = "https://api.coingecko.com/api/v3";
