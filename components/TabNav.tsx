@@ -29,6 +29,7 @@ const TABS = [
     // continua "ativa" quando o usuário está em qualquer uma das três.
     matchPrefix: ["/ticker", "/oportunidades", "/comparador"],
   },
+  { href: "/comparador", label: "Comparador" },
   { href: "/watchlist", label: "Watchlist" },
 ];
 
