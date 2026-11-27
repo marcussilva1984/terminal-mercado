@@ -124,39 +124,151 @@ export default async function TickerDetailPage({
       <TickerTabs
         overview={
           <>
-            <Panel title="Indicadores">
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                {[
-                  ["P/L", data.trailingPE !== null ? formatNumber(data.trailingPE) : "—"],
-                  ["P/L Futuro", data.forwardPE !== null ? formatNumber(data.forwardPE) : "—"],
-                  ["P/VP", data.priceToBook !== null ? formatNumber(data.priceToBook) : "—"],
-                  ["Div. Yield", data.dividendYield !== null ? `${formatNumber(data.dividendYield)}%` : "—"],
-                  ["Beta", data.beta !== null ? formatNumber(data.beta) : "—"],
-                  ["Dív./Patrim.", data.debtToEquity !== null ? `${formatNumber(data.debtToEquity)}%` : "—"],
-                  ["ROE", data.returnOnEquity !== null ? `${formatNumber(data.returnOnEquity)}%` : "—"],
-                  ["Margem Líquida", data.profitMargin !== null ? `${formatNumber(data.profitMargin)}%` : "—"],
-                  ["Market Cap", data.marketCap !== null ? formatCompact(data.marketCap, currency === "BRL" ? "R$" : "US$") : "—"],
-                  ["Mín. 52 sem.", data.fiftyTwoWeekLow ? formatNumber(data.fiftyTwoWeekLow) : "—"],
-                  ["Máx. 52 sem.", data.fiftyTwoWeekHigh !== null ? formatNumber(data.fiftyTwoWeekHigh) : "—"],
-                  ["Próximo Resultado", data.nextEarningsDate ? new Date(data.nextEarningsDate).toLocaleDateString("pt-BR") : "—"],
-                  ["Próx. Ex-Dividendo", data.exDividendDate ? new Date(data.exDividendDate).toLocaleDateString("pt-BR") : "—"],
-                  ["Free Float", data.freeFloatPct !== null ? `${formatNumber(data.freeFloatPct)}%` : "—"],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <div className="text-xs text-text-muted">{label}</div>
-                    <div className={`text-sm font-medium ${TONE_CLASS[classifyIndicator(label, value)]}`}>{value}</div>
-                  </div>
-                ))}
-              </div>
-              {data.freeFloatPct !== null && (
-                <p className="mt-3 text-xs text-text-muted">
-                  Free float via Yahoo Finance (ações em circulação / total de ações). Não existe fonte
-                  gratuita de volume de aluguel de ações (a B3/TradersClub bloqueiam acesso automatizado) —
-                  com o free float em mãos e o volume alugado que você acompanha manualmente, dá pra
-                  calcular a proporção: <span className="text-text">volume alugado ÷ free float</span>.
-                </p>
-              )}
+            <Panel title="Indicadores Fundamentalistas">
+              {/* Valuation */}
+              <section className="mb-5">
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Valuation</h3>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {[
+                    ["P/L", data.trailingPE !== null ? formatNumber(data.trailingPE) : "—"],
+                    ["P/L Futuro", data.forwardPE !== null ? formatNumber(data.forwardPE) : "—"],
+                    ["P/VP", data.priceToBook !== null ? formatNumber(data.priceToBook) : "—"],
+                    ["EV/EBITDA", data.evToEbitda !== null ? formatNumber(data.evToEbitda) : "—"],
+                    ["EV/Receita", data.evToRevenue !== null ? formatNumber(data.evToRevenue) : "—"],
+                    ["LPA (EPS)", data.trailingEps !== null ? formatNumber(data.trailingEps) : "—"],
+                    ["VPA", data.bookValuePerShare !== null ? formatNumber(data.bookValuePerShare) : "—"],
+                    ["Div. Yield", data.dividendYield !== null ? `${formatNumber(data.dividendYield)}%` : "—"],
+                    ["Beta", data.beta !== null ? formatNumber(data.beta) : "—"],
+                    ["Market Cap", data.marketCap !== null ? formatCompact(data.marketCap, currency === "BRL" ? "R$" : "US$") : "—"],
+                    ["EV", data.enterpriseValue !== null ? formatCompact(data.enterpriseValue, currency === "BRL" ? "R$" : "US$") : "—"],
+                    ["Mín. 52 sem.", data.fiftyTwoWeekLow ? formatNumber(data.fiftyTwoWeekLow) : "—"],
+                    ["Máx. 52 sem.", data.fiftyTwoWeekHigh !== null ? formatNumber(data.fiftyTwoWeekHigh) : "—"],
+                    ["Free Float", data.freeFloatPct !== null ? `${formatNumber(data.freeFloatPct)}%` : "—"],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <div className="text-xs text-text-muted">{label}</div>
+                      <div className={`text-sm font-medium ${TONE_CLASS[classifyIndicator(label, value)]}`}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* Eficiência — Margens */}
+              <section className="mb-5">
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Eficiência</h3>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {[
+                    ["Marg. Bruta", data.grossMargins !== null ? `${formatNumber(data.grossMargins)}%` : "—"],
+                    ["Marg. EBITDA", data.ebitdaMargins !== null ? `${formatNumber(data.ebitdaMargins)}%` : "—"],
+                    ["Marg. EBIT", data.operatingMargins !== null ? `${formatNumber(data.operatingMargins)}%` : "—"],
+                    ["Marg. Líquida", data.profitMargin !== null ? `${formatNumber(data.profitMargin)}%` : "—"],
+                    ["Cresc. Receita", data.revenueGrowth !== null ? `${formatNumber(data.revenueGrowth)}%` : "—"],
+                    ["Cresc. Lucro", data.earningsGrowth !== null ? `${formatNumber(data.earningsGrowth)}%` : "—"],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <div className="text-xs text-text-muted">{label}</div>
+                      <div className={`text-sm font-medium ${TONE_CLASS[classifyIndicator(label, value)]}`}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* Rentabilidade */}
+              <section className="mb-5">
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Rentabilidade</h3>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {[
+                    ["ROE", data.returnOnEquity !== null ? `${formatNumber(data.returnOnEquity)}%` : "—"],
+                    ["ROA", data.returnOnAssets !== null ? `${formatNumber(data.returnOnAssets)}%` : "—"],
+                    ["EBITDA", data.ebitda !== null ? formatCompact(data.ebitda, currency === "BRL" ? "R$" : "US$") : "—"],
+                    ["FCO", data.operatingCashflow !== null ? formatCompact(data.operatingCashflow, currency === "BRL" ? "R$" : "US$") : "—"],
+                    ["FCF", data.freeCashflow !== null ? formatCompact(data.freeCashflow, currency === "BRL" ? "R$" : "US$") : "—"],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <div className="text-xs text-text-muted">{label}</div>
+                      <div className={`text-sm font-medium ${TONE_CLASS[classifyIndicator(label, value)]}`}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* Endividamento & Liquidez */}
+              <section className="mb-5">
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Endividamento & Liquidez</h3>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {[
+                    ["Dív./Patrim.", data.debtToEquity !== null ? `${formatNumber(data.debtToEquity)}%` : "—"],
+                    ["Dívida Total", data.totalDebt !== null ? formatCompact(data.totalDebt, currency === "BRL" ? "R$" : "US$") : "—"],
+                    ["Caixa Total", data.totalCash !== null ? formatCompact(data.totalCash, currency === "BRL" ? "R$" : "US$") : "—"],
+                    ["Liq. Corrente", data.currentRatio !== null ? formatNumber(data.currentRatio) : "—"],
+                    ["Liq. Seca", data.quickRatio !== null ? formatNumber(data.quickRatio) : "—"],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <div className="text-xs text-text-muted">{label}</div>
+                      <div className={`text-sm font-medium ${TONE_CLASS[classifyIndicator(label, value)]}`}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* Calendário */}
+              <section>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Calendário</h3>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {[
+                    ["Próx. Resultado", data.nextEarningsDate ? new Date(data.nextEarningsDate).toLocaleDateString("pt-BR") : "—"],
+                    ["Próx. Ex-Div.", data.exDividendDate ? new Date(data.exDividendDate).toLocaleDateString("pt-BR") : "—"],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <div className="text-xs text-text-muted">{label}</div>
+                      <div className="text-sm font-medium text-text">{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
             </Panel>
+
+            {/* Histórico Anual */}
+            {(data.annualRevenue.length > 0 || data.annualNetIncome.length > 0) && (
+              <Panel title="Histórico Anual">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-xs text-text-muted">
+                        <th className="pb-2 text-left font-medium">Indicador</th>
+                        {(data.annualRevenue.length > 0 ? data.annualRevenue : data.annualNetIncome).map((p) => (
+                          <th key={p.year} className="pb-2 text-right font-medium">{p.year}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { label: "Receita", points: data.annualRevenue },
+                        { label: "Lucro Líq.", points: data.annualNetIncome },
+                        { label: "EBITDA", points: data.annualEbitda },
+                        { label: "FCF", points: data.annualFreeCashflow },
+                        { label: "Patrimônio", points: data.annualEquity },
+                        { label: "Dívida L.P.", points: data.annualTotalDebt },
+                      ].filter((r) => r.points.length > 0).map(({ label, points }) => (
+                        <tr key={label} className="border-b border-border/40 last:border-0">
+                          <td className="py-2 text-xs font-medium text-text-muted">{label}</td>
+                          {points.map((p) => {
+                            const isNeg = p.value < 0;
+                            return (
+                              <td key={p.year} className={`py-2 text-right tabular-nums text-xs ${isNeg ? "text-down" : "text-text"}`}>
+                                {formatCompact(Math.abs(p.value), currency === "BRL" ? "R$" : "US$")}
+                                {isNeg ? " ▼" : ""}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-2 text-xs text-text-muted">Histórico anual via Yahoo Finance (balanços publicados). Dívida L.P. = dívida de longo prazo.</p>
+              </Panel>
+            )}
 
             {data.targetMeanPrice !== null ? (
               <Panel title="Preço-Alvo dos Analistas">
