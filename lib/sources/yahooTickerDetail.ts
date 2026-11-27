@@ -93,10 +93,6 @@ export interface TickerDetail {
   // Histórico anual (últimos 4–5 anos)
   annualRevenue: AnnualPoint[];
   annualNetIncome: AnnualPoint[];
-  annualEbitda: AnnualPoint[];
-  annualFreeCashflow: AnnualPoint[];
-  annualEquity: AnnualPoint[];
-  annualTotalDebt: AnnualPoint[];
 }
 
 export interface CandlePoint {
@@ -160,7 +156,7 @@ export async function fetchCandles(symbol: string, interval: ChartInterval = "1d
 export async function getTickerDetail(symbol: string): Promise<TickerDetail | null> {
   try {
     const { crumb, cookie } = await getCrumb();
-    const modules = "summaryDetail,defaultKeyStatistics,financialData,upgradeDowngradeHistory,price,calendarEvents,incomeStatementHistory,cashflowStatementHistory,balanceSheetHistory";
+    const modules = "summaryDetail,defaultKeyStatistics,financialData,upgradeDowngradeHistory,price,calendarEvents,incomeStatementHistory";
     const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${modules}&crumb=${encodeURIComponent(crumb)}`;
 
     const summaryRes = await fetch(url, { headers: { "user-agent": BROWSER_USER_AGENT, cookie }, next: { revalidate: 30 * 60 } });
@@ -195,7 +191,7 @@ export async function getTickerDetail(symbol: string): Promise<TickerDetail | nu
         priorPriceTarget: typeof h.priorPriceTarget === "number" ? h.priorPriceTarget : null,
       }));
 
-    // Histórico anual: incomeStatement, cashflow, balanceSheet
+    // Histórico anual
     function toAnnualPoints(statements: Record<string, { raw?: number }>[], field: string): AnnualPoint[] {
       return statements
         .map((s) => {
@@ -210,15 +206,6 @@ export async function getTickerDetail(symbol: string): Promise<TickerDetail | nu
 
     const incomeStmts: Record<string, { raw?: number }>[] =
       result.incomeStatementHistory?.incomeStatementHistory ?? [];
-    const cashflowStmts: Record<string, { raw?: number }>[] =
-      result.cashflowStatementHistory?.cashflowStatements ?? [];
-    const balanceStmts: Record<string, { raw?: number }>[] =
-      result.balanceSheetHistory?.balanceSheetStatements ?? [];
-
-    const annualEbitda = toAnnualPoints(incomeStmts, "ebitda").length > 0
-      ? toAnnualPoints(incomeStmts, "ebitda")
-      : toAnnualPoints(cashflowStmts, "totalCashFromOperatingActivities").map((p) => ({ year: p.year, value: p.value })); // fallback FCO
-
     return {
       symbol,
       shortName: price?.shortName ?? null,
@@ -278,10 +265,6 @@ export async function getTickerDetail(symbol: string): Promise<TickerDetail | nu
       // Histórico anual
       annualRevenue: toAnnualPoints(incomeStmts, "totalRevenue"),
       annualNetIncome: toAnnualPoints(incomeStmts, "netIncome"),
-      annualEbitda,
-      annualFreeCashflow: toAnnualPoints(cashflowStmts, "freeCashflow"),
-      annualEquity: toAnnualPoints(balanceStmts, "totalStockholderEquity"),
-      annualTotalDebt: toAnnualPoints(balanceStmts, "longTermDebt"),
     };
   } catch {
     return null;

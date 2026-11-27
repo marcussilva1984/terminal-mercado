@@ -38,9 +38,11 @@ export default async function TickerDetailPage({
   params: Promise<{ symbol: string }>;
   searchParams: Promise<{ class?: string }>;
 }) {
-  const { symbol } = await params;
+  const symbol = (await params).symbol.toUpperCase();
   const { class: assetClassRaw } = await searchParams;
-  const assetClass = (["b3", "cripto", "stocks", "fii"].includes(assetClassRaw ?? "") ? assetClassRaw : "stocks") as AssetClassParam;
+  const requested = (["b3", "cripto", "stocks", "fii"].includes(assetClassRaw ?? "") ? assetClassRaw : "stocks") as AssetClassParam;
+  // Código no formato da B3 (PETR4, HGLG11) não existe como ação dos EUA.
+  const assetClass: AssetClassParam = requested === "stocks" && /^[A-Z][A-Z0-9]{3}\d{1,2}$/.test(symbol) ? "b3" : requested;
   const yahooSymbol = toYahooSymbol(symbol, assetClass);
 
   let data: TickerDetail | null = null;
@@ -73,6 +75,7 @@ export default async function TickerDetailPage({
         <Link href={backHref} className="text-sm text-gold-bright hover:underline">
           ← Voltar
         </Link>
+        <TickerSwitcher defaultClass={assetClass} />
         <Panel title={symbol}>
           <p className="text-sm text-down">Fonte indisponível no momento{error ? `: ${error}` : "."}</p>
         </Panel>
@@ -229,7 +232,7 @@ export default async function TickerDetailPage({
             </Panel>
 
             {/* Histórico Anual */}
-            {(data.annualRevenue.length > 0 || data.annualNetIncome.length > 0) && (
+            {((data.annualRevenue?.length ?? 0) > 0 || (data.annualNetIncome?.length ?? 0) > 0) && (
               <Panel title="Histórico Anual">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -245,10 +248,6 @@ export default async function TickerDetailPage({
                       {[
                         { label: "Receita", points: data.annualRevenue },
                         { label: "Lucro Líq.", points: data.annualNetIncome },
-                        { label: "EBITDA", points: data.annualEbitda },
-                        { label: "FCF", points: data.annualFreeCashflow },
-                        { label: "Patrimônio", points: data.annualEquity },
-                        { label: "Dívida L.P.", points: data.annualTotalDebt },
                       ].filter((r) => r.points.length > 0).map(({ label, points }) => (
                         <tr key={label} className="border-b border-border/40 last:border-0">
                           <td className="py-2 text-xs font-medium text-text-muted">{label}</td>
@@ -266,7 +265,7 @@ export default async function TickerDetailPage({
                     </tbody>
                   </table>
                 </div>
-                <p className="mt-2 text-xs text-text-muted">Histórico anual via Yahoo Finance (balanços publicados). Dívida L.P. = dívida de longo prazo.</p>
+                <p className="mt-2 text-xs text-text-muted">Histórico anual via Yahoo Finance (balanços publicados).</p>
               </Panel>
             )}
 
